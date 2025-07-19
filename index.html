@@ -8,6 +8,7 @@
   <!-- Firebase CDN -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <style>
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -36,6 +37,11 @@ const firebaseConfig = {
 // Initialiser Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
+
+// Configuration de l'authentification
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+const phoneProvider = new firebase.auth.PhoneAuthProvider();
 
 const icons = {
   heart: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 21C12 21 7.5 16.5 4 12.5C1.5 9.5 3.5 5 8 5C10 5 12 7 12 7C12 7 14 5 16 5C20.5 5 22.5 9.5 20 12.5C16.5 16.5 12 21 12 21Z" stroke-width="2"/></svg>',
@@ -128,8 +134,8 @@ async function loadFromFirebase(collection, id) {
 function saveUser(user) {
   localStorage.setItem('syl-user', JSON.stringify(user));
   // Synchronisation Firebase automatique
-  if (user.id !== 'guest') {
-    saveToFirebase('users', user, user.id);
+  if (user.uid) {
+    saveToFirebase('users', user, user.uid);
   }
 }
 
@@ -154,15 +160,26 @@ function showLogin() {
         <h1 class="text-2xl font-bold text-gray-900">SYL Medical</h1>
         <p class="text-gray-600 mt-2">Système d'Urgence Médicale</p>
       </div>
-      <form id="loginForm" class="space-y-6">
-        <div class="grid grid-cols-2 gap-4">
-          <button type="button" id="rolePatient" class="p-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700">
-            ${icons.user} <span class="text-sm font-medium">Patient</span>
-          </button>
-          <button type="button" id="roleMedecin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
-            ${icons.stethoscope} <span class="text-sm font-medium">Médecin</span>
-          </button>
-        </div>
+
+      <!-- Sélection du rôle -->
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <button type="button" id="rolePatient" class="p-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700">
+          ${icons.user} <span class="text-sm font-medium">Patient</span>
+        </button>
+        <button type="button" id="roleMedecin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
+          ${icons.stethoscope} <span class="text-sm font-medium">Médecin</span>
+        </button>
+      </div>
+
+      <!-- Onglets de connexion -->
+      <div class="flex space-x-2 mb-4">
+        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-blue-600 text-white" id="tabEmail">Email</button>
+        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-200 text-gray-600" id="tabPhone">Téléphone</button>
+        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-200 text-gray-600" id="tabGoogle">Google</button>
+      </div>
+
+      <!-- Formulaire Email -->
+      <div id="emailForm" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
           <div class="relative">
@@ -173,79 +190,246 @@ function showLogin() {
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-          <div class="relative">
-            <input type="password" id="password" required placeholder="••••••••"
-              class="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
-          </div>
+          <input type="password" id="password" required placeholder="••••••••"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
         </div>
-        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-          ${icons.lock} Se connecter
-        </button>
-      </form>
-      <div class="mt-6 text-center">
-        <button id="guestAccess" class="text-green-600 hover:text-green-700 text-sm font-medium underline">Accès invité (démo complète)</button>
+        <div class="flex space-x-2">
+          <button id="loginEmail" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3">
+            ${icons.lock} Se connecter
+          </button>
+          <button id="registerEmail" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3">
+            ${icons.user} S'inscrire
+          </button>
+        </div>
       </div>
+
+      <!-- Formulaire Téléphone -->
+      <div id="phoneForm" class="space-y-4 hidden">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Numéro de téléphone</label>
+          <input type="tel" id="phoneNumber" placeholder="+33 6 12 34 56 78"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
+        </div>
+        <div id="recaptcha-container"></div>
+        <button id="sendSMS" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-6 py-3">
+          ${icons.smartphone} Envoyer SMS
+        </button>
+        <div id="codeVerification" class="space-y-4 hidden">
+          <input type="text" id="verificationCode" placeholder="Code de vérification"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
+          <button id="verifyCode" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3">
+            ${icons.check} Vérifier le code
+          </button>
+        </div>
+      </div>
+
+      <!-- Formulaire Google -->
+      <div id="googleForm" class="hidden">
+        <button id="loginGoogle" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Se connecter avec Google
+        </button>
+      </div>
+
       <div class="mt-8 pt-6 border-t border-gray-200">
         <div class="text-xs text-gray-500 space-y-1">
           <p>🚑 Accès d'urgence instantané</p>
-          <p>🔒 Chiffrement AES-256</p>
+          <p>🔒 Authentification Firebase sécurisée</p>
           <p>🏥 Conforme RGPD & HDS</p>
-          <p>⚡ Synchronisation Firebase</p>
+          <p>⚡ Synchronisation temps réel</p>
         </div>
       </div>
     </div>
   </div>
 </div>
   `;
+
   let role = 'patient';
+  let activeTab = 'email';
+  let confirmationResult = null;
+
+  // Gestion des rôles
   document.getElementById('rolePatient').onclick = () => {
     role = 'patient';
     document.getElementById('rolePatient').classList.add('border-blue-600', 'bg-blue-50', 'text-blue-700');
+    document.getElementById('rolePatient').classList.remove('border-gray-300');
     document.getElementById('roleMedecin').classList.remove('border-green-600', 'bg-green-50', 'text-green-700');
+    document.getElementById('roleMedecin').classList.add('border-gray-300');
   };
   document.getElementById('roleMedecin').onclick = () => {
     role = 'medecin';
     document.getElementById('roleMedecin').classList.add('border-green-600', 'bg-green-50', 'text-green-700');
+    document.getElementById('roleMedecin').classList.remove('border-gray-300');
     document.getElementById('rolePatient').classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-700');
+    document.getElementById('rolePatient').classList.add('border-gray-300');
   };
-  document.getElementById('loginForm').onsubmit = function(e) {
-    e.preventDefault();
+
+  // Gestion des onglets
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('[id^="tab"]').forEach(btn => {
+      btn.classList.remove('bg-blue-600', 'text-white');
+      btn.classList.add('bg-gray-200', 'text-gray-600');
+    });
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('bg-gray-200', 'text-gray-600');
+    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('bg-blue-600', 'text-white');
+    
+    document.querySelectorAll('[id$="Form"]').forEach(form => form.classList.add('hidden'));
+    document.getElementById(tab + 'Form').classList.remove('hidden');
+  }
+
+  document.getElementById('tabEmail').onclick = () => switchTab('email');
+  document.getElementById('tabPhone').onclick = () => switchTab('phone');
+  document.getElementById('tabGoogle').onclick = () => switchTab('google');
+
+  // Authentification par email
+  document.getElementById('loginEmail').onclick = async () => {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    let userData = {
-      id: Math.random().toString(36).substr(2,9),
-      email,
-      role,
-      profile: {
-        firstName: role === 'patient' ? 'Jean' : 'Dr. Marie',
-        lastName: role === 'patient' ? 'Dupont' : 'Leblanc',
-        phone: '+33 6 12 34 56 78',
-        ...(role === 'medecin' && { speciality: 'Cardiologie', hospital: 'CHU de Paris' })
-      }
-    };
-    saveUser(userData);
-    showLoader(() => renderApp());
+    
+    try {
+      showLoader();
+      const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      await handleAuthSuccess(userCredential.user, role);
+    } catch (error) {
+      hideLoader();
+      alert('Erreur de connexion: ' + getErrorMessage(error.code));
+    }
   };
-  document.getElementById('guestAccess').onclick = function() {
-    saveUser({id: 'guest', role: 'guest', profile: {firstName: 'Invité', lastName: ''}});
-    renderGuestMode();
+
+  document.getElementById('registerEmail').onclick = async () => {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    if (password.length < 6) {
+      alert('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+    
+    try {
+      showLoader();
+      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      await handleAuthSuccess(userCredential.user, role);
+    } catch (error) {
+      hideLoader();
+      alert('Erreur d\'inscription: ' + getErrorMessage(error.code));
+    }
+  };
+
+  // Authentification par Google
+  document.getElementById('loginGoogle').onclick = async () => {
+    try {
+      showLoader();
+      const result = await auth.signInWithPopup(googleProvider);
+      await handleAuthSuccess(result.user, role);
+    } catch (error) {
+      hideLoader();
+      alert('Erreur de connexion Google: ' + getErrorMessage(error.code));
+    }
+  };
+
+  // Authentification par SMS
+  window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    'size': 'normal',
+    'callback': (response) => {
+      document.getElementById('sendSMS').disabled = false;
+    }
+  });
+
+  document.getElementById('sendSMS').onclick = async () => {
+    const phoneNumber = document.getElementById('phoneNumber').value;
+    
+    try {
+      confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, window.recaptchaVerifier);
+      document.getElementById('codeVerification').classList.remove('hidden');
+      alert('SMS envoyé ! Vérifiez votre téléphone.');
+    } catch (error) {
+      alert('Erreur d\'envoi SMS: ' + getErrorMessage(error.code));
+    }
+  };
+
+  document.getElementById('verifyCode').onclick = async () => {
+    const code = document.getElementById('verificationCode').value;
+    
+    try {
+      showLoader();
+      const result = await confirmationResult.confirm(code);
+      await handleAuthSuccess(result.user, role);
+    } catch (error) {
+      hideLoader();
+      alert('Code incorrect');
+    }
   };
 }
 
-function showLoader(callback) {
+async function handleAuthSuccess(firebaseUser, role) {
+  try {
+    const userData = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      phone: firebaseUser.phoneNumber,
+      displayName: firebaseUser.displayName,
+      role: role,
+      profile: {
+        firstName: role === 'patient' ? (firebaseUser.displayName?.split(' ')[0] || 'Patient') : 'Dr. ' + (firebaseUser.displayName?.split(' ')[0] || 'Médecin'),
+        lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
+        phone: firebaseUser.phoneNumber || '',
+        ...(role === 'medecin' && { 
+          speciality: 'Médecine générale', 
+          hospital: 'Établissement de santé' 
+        })
+      },
+      createdAt: new Date().toISOString()
+    };
+    
+    saveUser(userData);
+    hideLoader();
+    renderApp();
+  } catch (error) {
+    hideLoader();
+    console.error('Erreur lors de la sauvegarde:', error);
+    alert('Connexion réussie mais erreur de sauvegarde');
+  }
+}
+
+function getErrorMessage(errorCode) {
+  switch (errorCode) {
+    case 'auth/user-not-found':
+      return 'Aucun compte trouvé avec cet email';
+    case 'auth/wrong-password':
+      return 'Mot de passe incorrect';
+    case 'auth/email-already-in-use':
+      return 'Cet email est déjà utilisé';
+    case 'auth/weak-password':
+      return 'Mot de passe trop faible';
+    case 'auth/invalid-email':
+      return 'Email invalide';
+    case 'auth/too-many-requests':
+      return 'Trop de tentatives, réessayez plus tard';
+    default:
+      return errorCode;
+  }
+}
+
+function hideLoader() {
+  const loader = document.querySelector('.animate-spin')?.parentElement?.parentElement;
+  if (loader) loader.remove();
+}
+
+function showLoader(callback = null) {
   document.getElementById('app').innerHTML = `
     <div class="min-h-screen bg-gray-50 flex items-center justify-center">
       <div class="text-center">
         <div class="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p class="text-gray-600">Chargement sécurisé...</p>
+        <p class="text-gray-600">Authentification en cours...</p>
       </div>
     </div>
   `;
-  setTimeout(callback, 800);
+  if (callback) setTimeout(callback, 800);
 }
 
 // ----------- PATIENT DASHBOARD -----------
-function renderPatientDashboard(user, isGuest) {
+function renderPatientDashboard(user) {
   let medicalData = JSON.parse(localStorage.getItem('syl-medicalData') || 'null');
   if (!medicalData) {
     medicalData = {
@@ -300,7 +484,6 @@ function renderPatientDashboard(user, isGuest) {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
           <div class="flex items-center">
             ${icons.heart}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Patient</h1>
-            <span class="ml-3 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">🔥 Firebase Connecté</span>
           </div>
           <div class="flex items-center space-x-4">
             <div class="text-sm text-gray-600">Bonjour, ${user.profile.firstName}</div>
@@ -330,7 +513,7 @@ function renderPatientDashboard(user, isGuest) {
       </div>
     </div>
 `;
-    document.getElementById('logoutBtn').onclick = () => { clearUser(); renderApp(); };
+    document.getElementById('logoutBtn').onclick = () => { logout(); };
     document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { activeTab = btn.getAttribute('data-tab'); render(); });
     if (activeTab === 'emergency') tabEmergencyEvents();
     if (activeTab === 'profile') tabProfileEvents();
@@ -549,7 +732,7 @@ function renderPatientDashboard(user, isGuest) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div class="bg-red-50 p-4 rounded-lg">${icons.emergency}<p class="text-sm font-medium text-red-700">Accès Urgence 24h/24</p></div>
               <div class="bg-blue-50 p-4 rounded-lg">${icons.shield}<p class="text-sm font-medium text-blue-700">NFC Sécurisé</p></div>
-              <div class="bg-green-50 p-4 rounded-lg">${icons.clock}<p class="text-sm font-medium text-green-700">Sync Firebase</p></div>
+              <div class="bg-green-50 p-4 rounded-lg">${icons.clock}<p class="text-sm font-medium text-green-700">Sync Temps Réel</p></div>
             </div>
 
             <div class="mb-6 p-4 bg-yellow-50 rounded-lg">
@@ -577,15 +760,15 @@ function renderPatientDashboard(user, isGuest) {
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
       
       // Synchronisation Firebase automatique
-      if (!isGuest) {
-        const success = await saveToFirebase('patients', medicalData, user.id + '_medical');
+      if (user.uid) {
+        const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
         if (success) {
           alert('✅ Données d\'urgence sauvegardées et synchronisées avec Firebase !');
         } else {
           alert('⚠️ Données sauvegardées localement. Synchronisation Firebase échouée.');
         }
       } else {
-        alert('✅ Données d\'urgence sauvegardées (mode démo) !');
+        alert('✅ Données d\'urgence sauvegardées !');
       }
       render();
     };
@@ -616,15 +799,15 @@ function renderPatientDashboard(user, isGuest) {
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
       
       // Synchronisation Firebase automatique
-      if (!isGuest) {
-        const success = await saveToFirebase('patients', medicalData, user.id + '_medical');
+      if (user.uid) {
+        const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
         if (success) {
           alert('✅ Profil sauvegardé et synchronisé avec Firebase !');
         } else {
           alert('⚠️ Profil sauvegardé localement. Synchronisation Firebase échouée.');
         }
       } else {
-        alert('✅ Profil sauvegardé (mode démo) !');
+        alert('✅ Profil sauvegardé !');
       }
       render();
     };
@@ -646,8 +829,8 @@ function renderPatientDashboard(user, isGuest) {
             localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
             
             // Synchronisation Firebase automatique
-            if (!isGuest) {
-              await saveToFirebase('patients', medicalData, user.id + '_medical');
+            if (user.uid) {
+              await saveToFirebase('patients', medicalData, user.uid + '_medical');
             }
             render();
           }
@@ -663,8 +846,8 @@ function renderPatientDashboard(user, isGuest) {
         localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
         
         // Synchronisation Firebase automatique
-        if (!isGuest) {
-          await saveToFirebase('patients', medicalData, user.id + '_medical');
+        if (user.uid) {
+          await saveToFirebase('patients', medicalData, user.uid + '_medical');
         }
         render();
       });
@@ -680,15 +863,15 @@ function renderPatientDashboard(user, isGuest) {
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
       
       // Synchronisation Firebase automatique
-      if (!isGuest) {
-        const success = await saveToFirebase('patients', medicalData, user.id + '_medical');
+      if (user.uid) {
+        const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
         if (success) {
           alert('✅ Bracelet d\'urgence activé et synchronisé avec Firebase !');
         } else {
           alert('⚠️ Bracelet activé localement. Synchronisation Firebase échouée.');
         }
       } else {
-        alert('✅ Bracelet d\'urgence activé (mode démo) !');
+        alert('✅ Bracelet d\'urgence activé !');
       }
       render();
     };
@@ -696,7 +879,7 @@ function renderPatientDashboard(user, isGuest) {
 }
 
 // ----------- MEDECIN DASHBOARD -----------
-function renderMedecinDashboard(user, isGuest) {
+function renderMedecinDashboard(user) {
   let patients = JSON.parse(localStorage.getItem('syl-patients') || 'null');
   if (!patients) {
     patients = [
@@ -738,7 +921,6 @@ function renderMedecinDashboard(user, isGuest) {
                 <h1 class="text-xl font-bold text-gray-900">SYL Medical Pro</h1>
                 <p class="text-xs text-gray-500">${user.profile.speciality||''} • ${user.profile.hospital||''}</p>
               </div>
-              <span class="ml-3 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">🔥 Firebase Connecté</span>
             </div>
             <div class="flex items-center space-x-4">
               <div class="text-sm text-gray-600">Dr. ${user.profile.firstName} ${user.profile.lastName}</div>
@@ -764,7 +946,7 @@ function renderMedecinDashboard(user, isGuest) {
       </div>
     `;
     
-    document.getElementById('logoutBtn').onclick = () => { clearUser(); renderApp(); };
+    document.getElementById('logoutBtn').onclick = () => { logout(); };
     document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { activeTab = btn.getAttribute('data-tab'); render(); });
     
     if (activeTab === 'patients') patientsTabEvents(filteredPatients);
@@ -1058,12 +1240,8 @@ function renderMedecinDashboard(user, isGuest) {
       localStorage.setItem('syl-patients', JSON.stringify(patients));
       
       // Synchronisation Firebase automatique
-      if (!isGuest) {
-        await saveToFirebase('patients', patient, patient.id);
-        alert('✅ Patient modifié et synchronisé avec Firebase !');
-      } else {
-        alert('✅ Patient modifié (mode démo) !');
-      }
+      await saveToFirebase('patients', patient, patient.id);
+      alert('✅ Patient modifié et synchronisé avec Firebase !');
       render();
     };
   }
@@ -1112,64 +1290,52 @@ function renderMedecinDashboard(user, isGuest) {
       localStorage.setItem('syl-patients', JSON.stringify(patients));
       
       // Synchronisation Firebase automatique
-      if (!isGuest) {
-        await saveToFirebase('patients', patient, patient.id);
-        alert('✅ Nouveau patient ajouté et synchronisé avec Firebase !');
-      } else {
-        alert('✅ Nouveau patient ajouté (mode démo) !');
-      }
+      await saveToFirebase('patients', patient, patient.id);
+      alert('✅ Nouveau patient ajouté et synchronisé avec Firebase !');
       document.querySelector('.modal').remove();
       render();
     };
   }
 }
 
-// ----------- GUEST MODE -----------
-function renderGuestMode() {
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-md">
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-          <h1 class="text-2xl font-bold text-gray-900 text-center mb-4">Mode Démo SYL Medical</h1>
-          <div class="space-y-6">
-            <button id="guestPatient" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-              ${icons.user} Démo Patient (Dossier d'urgence)
-            </button>
-            <button id="guestMedecin" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-              ${icons.stethoscope} Démo Médecin (Accès urgence)
-            </button>
-            <button id="logoutBtn" class="w-full border-2 border-gray-600 text-gray-600 hover:bg-gray-100 font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2 mt-6">
-              ${icons.logout} Retour à l'accueil
-            </button>
-          </div>
-          <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
-            <p class="text-yellow-800 text-sm"><strong>Mode démo:</strong> Toutes les fonctionnalités sont accessibles. Les données sont stockées localement.</p>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  document.getElementById('guestPatient').onclick = () => {
-    saveUser({id: 'guest', role: 'patient', profile: {firstName: 'Démo', lastName: 'Patient'}});
-    renderApp();
-  };
-  document.getElementById('guestMedecin').onclick = () => {
-    saveUser({id: 'guest', role: 'medecin', profile: {firstName: 'Démo', lastName: 'Médecin', speciality: 'Urgences', hospital: 'CHU Démo'}});
-    renderApp();
-  };
-  document.getElementById('logoutBtn').onclick = () => { clearUser(); renderApp(); };
-}
-
 // ----------- MAIN -----------
 function renderApp() {
-  const user = getUser();
-  if (!user) showLogin();
-  else if (user.role === 'guest') renderGuestMode();
-  else if (user.role === 'patient') renderPatientDashboard(user, user.id === 'guest');
-  else if (user.role === 'medecin') renderMedecinDashboard(user, user.id === 'guest');
+  // Vérifier l'état d'authentification Firebase
+  auth.onAuthStateChanged((firebaseUser) => {
+    if (firebaseUser) {
+      // Utilisateur connecté
+      const user = getUser();
+      if (user && user.uid === firebaseUser.uid) {
+        if (user.role === 'patient') {
+          renderPatientDashboard(user);
+        } else if (user.role === 'medecin') {
+          renderMedecinDashboard(user);
+        }
+      } else {
+        // Utilisateur Firebase mais pas de données locales
+        showLogin();
+      }
+    } else {
+      // Pas d'utilisateur connecté
+      showLogin();
+    }
+  });
 }
 
-// Init
-renderApp();
+// Fonction de déconnexion mise à jour
+function logout() {
+  auth.signOut().then(() => {
+    clearUser();
+    renderApp();
+  }).catch((error) => {
+    console.error('Erreur de déconnexion:', error);
+  });
+}
+
+// Init - Attendre que Firebase soit prêt
+firebase.auth().onAuthStateChanged(() => {
+  renderApp();
+});
 </script>
 </body>
 </html>
