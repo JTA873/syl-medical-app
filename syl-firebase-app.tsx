@@ -1,0 +1,966 @@
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { 
+  User, 
+  Shield, 
+  Heart, 
+  Users, 
+  Database, 
+  Lock, 
+  Smartphone, 
+  Mail, 
+  Eye, 
+  EyeOff,
+  Plus,
+  Edit,
+  Trash,
+  Search,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Stethoscope,
+  UserPlus,
+  LogOut,
+  Settings,
+  Activity
+} from 'lucide-react';
+
+// Simulation Firebase Auth Context
+const AuthContext = createContext(null);
+
+// Types
+interface UserData {
+  id: string;
+  email: string;
+  role: 'patient' | 'medecin';
+  profile: {
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    speciality?: string; // pour médecins
+    hospital?: string;   // pour médecins
+  };
+}
+
+interface MedicalData {
+  id: string;
+  patientId: string;
+  personalInfo: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    bloodType: string;
+    height: string;
+    weight: string;
+    emergencyContact: {
+      name: string;
+      relation: string;
+      phone: string;
+    };
+  };
+  medicalHistory: {
+    allergies: string[];
+    medications: string[];
+    conditions: string[];
+    surgeries: string[];
+  };
+  braceletId: string;
+  lastUpdated: string;
+  isActive: boolean;
+}
+
+// Composants UI
+const Button = ({ children, variant = 'primary', size = 'md', onClick, disabled, className = '', type = 'button' }) => {
+  const baseClasses = 'font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2';
+  const variants = {
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg',
+    secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
+    danger: 'bg-red-600 hover:bg-red-700 text-white',
+    success: 'bg-green-600 hover:bg-green-700 text-white',
+    outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50'
+  };
+  const sizes = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2',
+    lg: 'px-6 py-3 text-lg'
+  };
+  
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+const Input = ({ label, type = 'text', value, onChange, placeholder, required, icon }) => (
+  <div className="space-y-2">
+    {label && <label className="block text-sm font-medium text-gray-700">{label}</label>}
+    <div className="relative">
+      {icon && (
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          {icon}
+        </div>
+      )}
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${icon ? 'pl-10' : ''}`}
+      />
+    </div>
+  </div>
+);
+
+const Card = ({ children, className = '' }) => (
+  <div className={`bg-white rounded-xl shadow-lg border border-gray-200 ${className}`}>
+    {children}
+  </div>
+);
+
+// Hook d'authentification simulé
+const useAuth = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulation de vérification auth
+    setTimeout(() => {
+      const savedUser = localStorage.getItem('syl-user');
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+      setLoading(false);
+    }, 1000);
+  }, []);
+
+  const login = async (email, password, role) => {
+    // Simulation login
+    const userData = {
+      id: Math.random().toString(36).substr(2, 9),
+      email,
+      role,
+      profile: {
+        firstName: role === 'patient' ? 'Jean' : 'Dr. Marie',
+        lastName: role === 'patient' ? 'Dupont' : 'Leblanc',
+        phone: '+33 6 12 34 56 78',
+        ...(role === 'medecin' && {
+          speciality: 'Cardiologie',
+          hospital: 'CHU de Paris'
+        })
+      }
+    };
+    localStorage.setItem('syl-user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
+  };
+
+  const logout = () => {
+    localStorage.removeItem('syl-user');
+    setUser(null);
+  };
+
+  return { user, loading, login, logout };
+};
+
+// Composant de connexion
+const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('patient');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await login(email, password, role);
+    } catch (error) {
+      console.error('Erreur de connexion:', error);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <Card className="p-8">
+          <div className="text-center mb-8">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
+              <Heart className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">SYL Medical</h1>
+            <p className="text-gray-600 mt-2">Système sécurisé de données médicales</p>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setRole('patient')}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  role === 'patient' 
+                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <User className="w-6 h-6 mx-auto mb-1" />
+                <span className="text-sm font-medium">Patient</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('medecin')}
+                className={`p-3 rounded-lg border-2 transition-all ${
+                  role === 'medecin' 
+                    ? 'border-green-600 bg-green-50 text-green-700' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <Stethoscope className="w-6 h-6 mx-auto mb-1" />
+                <span className="text-sm font-medium">Médecin</span>
+              </button>
+            </div>
+
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="votre@email.com"
+              required
+              icon={<Mail className="w-5 h-5 text-gray-400" />}
+            />
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5 text-gray-400" />
+                  ) : (
+                    <Eye className="w-5 h-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleSubmit}
+              variant="primary" 
+              size="lg" 
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Shield className="w-5 h-5" />
+                  {isRegistering ? 'Créer un compte' : 'Se connecter'}
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              {isRegistering ? 'Déjà un compte ? Se connecter' : 'Pas de compte ? S\'inscrire'}
+            </button>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="text-xs text-gray-500 space-y-1">
+              <p>🔒 Chiffrement end-to-end</p>
+              <p>🏥 Conforme RGPD & HDS</p>
+              <p>⚡ Synchronisation temps réel</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+// Interface Patient
+const PatientDashboard = ({ user, onLogout }) => {
+  const [medicalData, setMedicalData] = useState({
+    personalInfo: {
+      firstName: user?.profile?.firstName || '',
+      lastName: user?.profile?.lastName || '',
+      dateOfBirth: '',
+      bloodType: '',
+      height: '',
+      weight: '',
+      emergencyContact: {
+        name: '',
+        relation: '',
+        phone: ''
+      }
+    },
+    medicalHistory: {
+      allergies: [],
+      medications: [],
+      conditions: [],
+      surgeries: []
+    },
+    braceletId: '',
+    isActive: false
+  });
+
+  const [newAllergy, setNewAllergy] = useState('');
+  const [newMedication, setNewMedication] = useState('');
+  const [newCondition, setNewCondition] = useState('');
+  const [activeTab, setActiveTab] = useState('profile');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    // Simulation sauvegarde Firebase
+    setTimeout(() => {
+      setIsSaving(false);
+      // Toast de confirmation
+    }, 1500);
+  };
+
+  const addToList = (listType, value) => {
+    if (value.trim()) {
+      setMedicalData(prev => ({
+        ...prev,
+        medicalHistory: {
+          ...prev.medicalHistory,
+          [listType]: [...prev.medicalHistory[listType], value.trim()]
+        }
+      }));
+    }
+  };
+
+  const removeFromList = (listType, index) => {
+    setMedicalData(prev => ({
+      ...prev,
+      medicalHistory: {
+        ...prev.medicalHistory,
+        [listType]: prev.medicalHistory[listType].filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const ListManager = ({ title, items, newValue, setNewValue, listType, placeholder }) => (
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                addToList(listType, newValue);
+                setNewValue('');
+              }
+            }}
+          />
+          <Button
+            onClick={() => {
+              addToList(listType, newValue);
+              setNewValue('');
+            }}
+            size="sm"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {items.map((item, index) => (
+            <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+              <span className="text-gray-700">{item}</span>
+              <button
+                onClick={() => removeFromList(listType, index)}
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <Heart className="w-8 h-8 text-blue-600 mr-3" />
+              <h1 className="text-xl font-bold text-gray-900">SYL Patient</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                Bonjour, {user?.profile?.firstName}
+              </div>
+              <Button variant="outline" onClick={onLogout} size="sm">
+                <LogOut className="w-4 h-4" />
+                Déconnexion
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <nav className="space-y-2">
+              {[
+                { id: 'profile', label: 'Profil médical', icon: User },
+                { id: 'history', label: 'Historique', icon: Activity },
+                { id: 'bracelet', label: 'Mon bracelet', icon: Smartphone },
+                { id: 'emergency', label: 'Urgence', icon: AlertTriangle }
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                    activeTab === item.id
+                      ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5 mr-3" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Content */}
+          <div className="lg:col-span-3">
+            {activeTab === 'profile' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-900">Profil Médical</h2>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Sauvegarder
+                  </Button>
+                </div>
+
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Informations personnelles</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Prénom"
+                      value={medicalData.personalInfo.firstName}
+                      onChange={(e) => setMedicalData(prev => ({
+                        ...prev,
+                        personalInfo: { ...prev.personalInfo, firstName: e.target.value }
+                      }))}
+                    />
+                    <Input
+                      label="Nom"
+                      value={medicalData.personalInfo.lastName}
+                      onChange={(e) => setMedicalData(prev => ({
+                        ...prev,
+                        personalInfo: { ...prev.personalInfo, lastName: e.target.value }
+                      }))}
+                    />
+                    <Input
+                      label="Date de naissance"
+                      type="date"
+                      value={medicalData.personalInfo.dateOfBirth}
+                      onChange={(e) => setMedicalData(prev => ({
+                        ...prev,
+                        personalInfo: { ...prev.personalInfo, dateOfBirth: e.target.value }
+                      }))}
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Groupe sanguin</label>
+                      <select
+                        value={medicalData.personalInfo.bloodType}
+                        onChange={(e) => setMedicalData(prev => ({
+                          ...prev,
+                          personalInfo: { ...prev.personalInfo, bloodType: e.target.value }
+                        }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Sélectionner</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                      </select>
+                    </div>
+                  </div>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <ListManager
+                    title="Allergies"
+                    items={medicalData.medicalHistory.allergies}
+                    newValue={newAllergy}
+                    setNewValue={setNewAllergy}
+                    listType="allergies"
+                    placeholder="Ajouter une allergie"
+                  />
+                  <ListManager
+                    title="Médicaments"
+                    items={medicalData.medicalHistory.medications}
+                    newValue={newMedication}
+                    setNewValue={setNewMedication}
+                    listType="medications"
+                    placeholder="Ajouter un médicament"
+                  />
+                </div>
+
+                <ListManager
+                  title="Conditions médicales"
+                  items={medicalData.medicalHistory.conditions}
+                  newValue={newCondition}
+                  setNewValue={setNewCondition}
+                  listType="conditions"
+                  placeholder="Ajouter une condition"
+                />
+              </div>
+            )}
+
+            {activeTab === 'bracelet' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">Mon Bracelet SYL</h2>
+                
+                <Card className="p-6">
+                  <div className="text-center">
+                    <div className="mx-auto w-24 h-24 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
+                      <Smartphone className="w-12 h-12 text-white" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Bracelet connecté</h3>
+                    <p className="text-gray-600 mb-6">
+                      {medicalData.isActive ? 'Votre bracelet est actif et synchronisé' : 'Activez votre bracelet pour la synchronisation'}
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <div className="bg-green-50 p-4 rounded-lg">
+                        <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-green-700">Chiffrement AES-256</p>
+                      </div>
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <Shield className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-blue-700">NFC Sécurisé</p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg">
+                        <Clock className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-purple-700">Sync Temps Réel</p>
+                      </div>
+                    </div>
+
+                    <Button variant={medicalData.isActive ? 'secondary' : 'primary'} size="lg">
+                      {medicalData.isActive ? 'Bracelet Activé' : 'Activer le Bracelet'}
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'emergency' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900">Contact d'urgence</h2>
+                
+                <Card className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Nom du contact"
+                      value={medicalData.personalInfo.emergencyContact.name}
+                      onChange={(e) => setMedicalData(prev => ({
+                        ...prev,
+                        personalInfo: {
+                          ...prev.personalInfo,
+                          emergencyContact: {
+                            ...prev.personalInfo.emergencyContact,
+                            name: e.target.value
+                          }
+                        }
+                      }))}
+                    />
+                    <Input
+                      label="Relation"
+                      value={medicalData.personalInfo.emergencyContact.relation}
+                      onChange={(e) => setMedicalData(prev => ({
+                        ...prev,
+                        personalInfo: {
+                          ...prev.personalInfo,
+                          emergencyContact: {
+                            ...prev.personalInfo.emergencyContact,
+                            relation: e.target.value
+                          }
+                        }
+                      }))}
+                    />
+                    <Input
+                      label="Téléphone"
+                      value={medicalData.personalInfo.emergencyContact.phone}
+                      onChange={(e) => setMedicalData(prev => ({
+                        ...prev,
+                        personalInfo: {
+                          ...prev.personalInfo,
+                          emergencyContact: {
+                            ...prev.personalInfo.emergencyContact,
+                            phone: e.target.value
+                          }
+                        }
+                      }))}
+                    />
+                  </div>
+                </Card>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Interface Médecin
+const MedicalDashboard = ({ user, onLogout }) => {
+  const [patients, setPatients] = useState([
+    {
+      id: '1',
+      personalInfo: {
+        firstName: 'Jean',
+        lastName: 'Martin',
+        dateOfBirth: '1978-05-15',
+        bloodType: 'O+',
+        height: '175',
+        weight: '80'
+      },
+      medicalHistory: {
+        allergies: ['Pénicilline', 'Pollen'],
+        medications: ['Metformine 500mg'],
+        conditions: ['Diabète type 2']
+      },
+      lastAccess: '2024-01-15',
+      isActive: true
+    },
+    {
+      id: '2',
+      personalInfo: {
+        firstName: 'Marie',
+        lastName: 'Dubois',
+        dateOfBirth: '1985-08-22',
+        bloodType: 'A+',
+        height: '165',
+        weight: '65'
+      },
+      medicalHistory: {
+        allergies: ['Aspirine'],
+        medications: ['Levothyrox'],
+        conditions: ['Hypothyroïdie']
+      },
+      lastAccess: '2024-01-14',
+      isActive: true
+    }
+  ]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [activeTab, setActiveTab] = useState('patients');
+
+  const filteredPatients = patients.filter(patient =>
+    `${patient.personalInfo.firstName} ${patient.personalInfo.lastName}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+  );
+
+  const PatientCard = ({ patient }) => (
+    <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedPatient(patient)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+            <User className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">
+              {patient.personalInfo.firstName} {patient.personalInfo.lastName}
+            </h3>
+            <p className="text-sm text-gray-500">
+              Groupe: {patient.personalInfo.bloodType} • 
+              Dernière consultation: {patient.lastAccess}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          {patient.isActive && (
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+          )}
+          <span className="text-xs text-gray-400">Actif</span>
+        </div>
+      </div>
+      
+      <div className="mt-3 flex flex-wrap gap-2">
+        {patient.medicalHistory.conditions.slice(0, 2).map((condition, index) => (
+          <span key={index} className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
+            {condition}
+          </span>
+        ))}
+        {patient.medicalHistory.conditions.length > 2 && (
+          <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+            +{patient.medicalHistory.conditions.length - 2} autres
+          </span>
+        )}
+      </div>
+    </Card>
+  );
+
+  const PatientDetail = ({ patient, onClose }) => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {patient.personalInfo.firstName} {patient.personalInfo.lastName}
+              </h2>
+              <p className="text-gray-600">Dossier médical complet</p>
+            </div>
+            <Button variant="secondary" onClick={onClose}>
+              ✕
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Informations personnelles</h3>
+              <div className="space-y-2 text-sm">
+                <p><span className="font-medium">Date de naissance:</span> {patient.personalInfo.dateOfBirth}</p>
+                <p><span className="font-medium">Groupe sanguin:</span> {patient.personalInfo.bloodType}</p>
+                <p><span className="font-medium">Taille:</span> {patient.personalInfo.height} cm</p>
+                <p><span className="font-medium">Poids:</span> {patient.personalInfo.weight} kg</p>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Allergies</h3>
+              <div className="space-y-1">
+                {patient.medicalHistory.allergies.map((allergy, index) => (
+                  <span key={index} className="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full mr-2 mb-1">
+                    {allergy}
+                  </span>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Médicaments actuels</h3>
+              <div className="space-y-1">
+                {patient.medicalHistory.medications.map((medication, index) => (
+                  <span key={index} className="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full mr-2 mb-1">
+                    {medication}
+                  </span>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Conditions médicales</h3>
+              <div className="space-y-1">
+                {patient.medicalHistory.conditions.map((condition, index) => (
+                  <span key={index} className="inline-block px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full mr-2 mb-1">
+                    {condition}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <Button variant="outline">
+              <Edit className="w-4 h-4" />
+              Modifier
+            </Button>
+            <Button variant="primary">
+              <Activity className="w-4 h-4" />
+              Nouvelle consultation
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <Stethoscope className="w-8 h-8 text-green-600 mr-3" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">SYL Medical Pro</h1>
+                <p className="text-xs text-gray-500">{user?.profile?.speciality} • {user?.profile?.hospital}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                Dr. {user?.profile?.firstName} {user?.profile?.lastName}
+              </div>
+              <Button variant="outline" onClick={onLogout} size="sm">
+                <LogOut className="w-4 h-4" />
+                Déconnexion
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Patients</h2>
+          
+          {/* Barre de recherche */}
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Rechercher un patient..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              />
+            </div>
+            <Button variant="primary">
+              <UserPlus className="w-4 h-4" />
+              Nouveau patient
+            </Button>
+          </div>
+
+          {/* Stats rapides */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card className="p-4">
+              <div className="flex items-center">
+                <Users className="w-8 h-8 text-blue-600 mr-3" />
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{patients.length}</p>
+                  <p className="text-sm text-gray-600">Patients totaux</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center">
+                <Activity className="w-8 h-8 text-green-600 mr-3" />
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{patients.filter(p => p.isActive).length}</p>
+                  <p className="text-sm text-gray-600">Actifs</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center">
+                <AlertTriangle className="w-8 h-8 text-orange-600 mr-3" />
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">0</p>
+                  <p className="text-sm text-gray-600">Alertes</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center">
+                <Clock className="w-8 h-8 text-purple-600 mr-3" />
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">5</p>
+                  <p className="text-sm text-gray-600">RDV aujourd'hui</p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Liste des patients */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredPatients.map(patient => (
+              <PatientCard key={patient.id} patient={patient} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal détail patient */}
+      {selectedPatient && (
+        <PatientDetail 
+          patient={selectedPatient} 
+          onClose={() => setSelectedPatient(null)} 
+        />
+      )}
+    </div>
+  );
+};
+
+// Application principale
+const App = () => {
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement sécurisé...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  if (user.role === 'patient') {
+    return <PatientDashboard user={user} onLogout={logout} />;
+  }
+
+  if (user.role === 'medecin') {
+    return <MedicalDashboard user={user} onLogout={logout} />;
+  }
+
+  return null;
+};
+
+export default App;
