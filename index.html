@@ -5,6 +5,9 @@
   <title>SYL Medical - Système d'Urgence</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase CDN -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <style>
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -18,6 +21,22 @@
 <body class="bg-gray-50">
 <div id="app"></div>
 <script>
+// Configuration Firebase intégrée
+const firebaseConfig = {
+  apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
+  authDomain: "syl-medical-app-1c58a.firebaseapp.com",
+  databaseURL: "https://syl-medical-app-1c58a-default-rtdb.firebaseio.com",
+  projectId: "syl-medical-app-1c58a",
+  storageBucket: "syl-medical-app-1c58a.firebasestorage.app",
+  messagingSenderId: "765684422018",
+  appId: "1:765684422018:web:19320fe1e546631fc86b9b",
+  measurementId: "G-PD7TP5J233"
+};
+
+// Initialiser Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
 const icons = {
   heart: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 21C12 21 7.5 16.5 4 12.5C1.5 9.5 3.5 5 8 5C10 5 12 7 12 7C12 7 14 5 16 5C20.5 5 22.5 9.5 20 12.5C16.5 16.5 12 21 12 21Z" stroke-width="2"/></svg>',
   user: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke-width="2"/><path d="M6 20c0-2.22 3.58-4 6-4s6 1.78 6 4" stroke-width="2"/></svg>',
@@ -77,8 +96,41 @@ const MEDICAL_DATA = {
   ]
 };
 
+// Fonctions Firebase
+async function saveToFirebase(collection, data, id = null) {
+  try {
+    if (id) {
+      await db.collection(collection).doc(id).set(data);
+    } else {
+      await db.collection(collection).add(data);
+    }
+    console.log('Données sauvegardées dans Firebase');
+    return true;
+  } catch (error) {
+    console.error('Erreur Firebase:', error);
+    return false;
+  }
+}
+
+async function loadFromFirebase(collection, id) {
+  try {
+    const doc = await db.collection(collection).doc(id).get();
+    if (doc.exists) {
+      return doc.data();
+    }
+    return null;
+  } catch (error) {
+    console.error('Erreur Firebase:', error);
+    return null;
+  }
+}
+
 function saveUser(user) {
   localStorage.setItem('syl-user', JSON.stringify(user));
+  // Synchronisation Firebase automatique
+  if (user.id !== 'guest') {
+    saveToFirebase('users', user, user.id);
+  }
 }
 
 function getUser() {
@@ -88,14 +140,6 @@ function getUser() {
 
 function clearUser() {
   localStorage.removeItem('syl-user');
-}
-
-function getSettings() {
-  return JSON.parse(localStorage.getItem('syl-settings') || '{}');
-}
-
-function saveSettings(settings) {
-  localStorage.setItem('syl-settings', JSON.stringify(settings));
 }
 
 function showLogin() {
@@ -256,6 +300,7 @@ function renderPatientDashboard(user, isGuest) {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
           <div class="flex items-center">
             ${icons.heart}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Patient</h1>
+            <span class="ml-3 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">🔥 Firebase Connecté</span>
           </div>
           <div class="flex items-center space-x-4">
             <div class="text-sm text-gray-600">Bonjour, ${user.profile.firstName}</div>
@@ -272,7 +317,6 @@ function renderPatientDashboard(user, isGuest) {
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='medical' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="medical">${icons.medical} <span class="ml-3">Médical</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='history' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="history">${icons.activity} <span class="ml-3">Historique</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='bracelet' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="bracelet">${icons.smartphone} <span class="ml-3">Bracelet</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='settings' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="settings">${icons.settings} <span class="ml-3">Paramètres</span></button>
             </nav>
           </div>
           <div class="lg:col-span-3">
@@ -281,7 +325,6 @@ function renderPatientDashboard(user, isGuest) {
             ${activeTab === 'medical' ? renderMedicalTab() : ''}
             ${activeTab === 'history' ? renderHistoryTab() : ''}
             ${activeTab === 'bracelet' ? renderBraceletTab() : ''}
-            ${activeTab === 'settings' ? renderSettingsTab() : ''}
           </div>
         </div>
       </div>
@@ -293,7 +336,6 @@ function renderPatientDashboard(user, isGuest) {
     if (activeTab === 'profile') tabProfileEvents();
     if (activeTab === 'medical') tabMedicalEvents();
     if (activeTab === 'bracelet') tabBraceletEvents();
-    if (activeTab === 'settings') tabSettingsEvents();
   }
 
   function renderEmergencyTab() {
@@ -507,7 +549,7 @@ function renderPatientDashboard(user, isGuest) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div class="bg-red-50 p-4 rounded-lg">${icons.emergency}<p class="text-sm font-medium text-red-700">Accès Urgence 24h/24</p></div>
               <div class="bg-blue-50 p-4 rounded-lg">${icons.shield}<p class="text-sm font-medium text-blue-700">NFC Sécurisé</p></div>
-              <div class="bg-green-50 p-4 rounded-lg">${icons.clock}<p class="text-sm font-medium text-green-700">Sync Temps Réel</p></div>
+              <div class="bg-green-50 p-4 rounded-lg">${icons.clock}<p class="text-sm font-medium text-green-700">Sync Firebase</p></div>
             </div>
 
             <div class="mb-6 p-4 bg-yellow-50 rounded-lg">
@@ -525,93 +567,32 @@ function renderPatientDashboard(user, isGuest) {
     `;
   }
 
-  function renderSettingsTab() {
-    const settings = getSettings();
-    return `
-      <div class="space-y-6">
-        <h2 class="text-2xl font-bold text-gray-900">Paramètres Firebase</h2>
-        
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Configuration Firebase</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Clé API Firebase</label>
-              <input type="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="AIzaSyC..." value="${settings.firebaseApiKey || ''}" id="firebaseApiKey">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Auth Domain</label>
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="your-project.firebaseapp.com" value="${settings.authDomain || ''}" id="authDomain">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Project ID</label>
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="your-project-id" value="${settings.projectId || ''}" id="projectId">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Storage Bucket</label>
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="your-project.appspot.com" value="${settings.storageBucket || ''}" id="storageBucket">
-            </div>
-          </div>
-          <button id="saveSettings" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2">
-            ${icons.check} Sauvegarder la configuration
-          </button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Collections Firebase suggérées</h3>
-          <div class="space-y-3 text-sm">
-            <div class="bg-blue-50 p-3 rounded">
-              <strong>patients/</strong> - Données personnelles et médicales des patients
-            </div>
-            <div class="bg-green-50 p-3 rounded">
-              <strong>pathologies_chroniques/</strong> - Liste des pathologies chroniques référentielles
-            </div>
-            <div class="bg-yellow-50 p-3 rounded">
-              <strong>groupes_sanguins/</strong> - Référentiel des groupes sanguins
-            </div>
-            <div class="bg-purple-50 p-3 rounded">
-              <strong>allergies_communes/</strong> - Base d'allergies fréquentes
-            </div>
-            <div class="bg-red-50 p-3 rounded">
-              <strong>medicaments_urgence/</strong> - Médicaments d'urgence et contre-indications
-            </div>
-            <div class="bg-indigo-50 p-3 rounded">
-              <strong>dispositifs_medicaux/</strong> - Implants et dispositifs médicaux
-            </div>
-            <div class="bg-gray-50 p-3 rounded">
-              <strong>hopitaux/</strong> - Référentiel des établissements de santé
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Actions de maintenance</h3>
-          <div class="space-y-2">
-            <button class="w-full bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-left">
-              ${icons.trash} Effacer toutes les données locales
-            </button>
-            <button class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-left">
-              ${icons.activity} Synchroniser avec Firebase
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
   function tabEmergencyEvents() {
-    document.getElementById('saveEmergency').onclick = () => {
+    document.getElementById('saveEmergency').onclick = async () => {
       medicalData.emergencyInfo.primaryPhysician.name = document.getElementById('physicianName').value;
       medicalData.emergencyInfo.primaryPhysician.specialty = document.getElementById('physicianSpecialty').value;
       medicalData.emergencyInfo.primaryPhysician.phone = document.getElementById('physicianPhone').value;
       medicalData.emergencyInfo.criticalNotes = document.getElementById('criticalNotes').value;
       medicalData.emergencyInfo.lastUpdate = new Date().toISOString();
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+      
+      // Synchronisation Firebase automatique
+      if (!isGuest) {
+        const success = await saveToFirebase('patients', medicalData, user.id + '_medical');
+        if (success) {
+          alert('✅ Données d\'urgence sauvegardées et synchronisées avec Firebase !');
+        } else {
+          alert('⚠️ Données sauvegardées localement. Synchronisation Firebase échouée.');
+        }
+      } else {
+        alert('✅ Données d\'urgence sauvegardées (mode démo) !');
+      }
       render();
     };
   }
 
   function tabProfileEvents() {
-    document.getElementById('saveProfile').onclick = () => {
+    document.getElementById('saveProfile').onclick = async () => {
       medicalData.personalInfo.firstName = document.getElementById('pfFirstName').value;
       medicalData.personalInfo.lastName = document.getElementById('pfLastName').value;
       medicalData.personalInfo.dateOfBirth = document.getElementById('pfBirth').value;
@@ -633,6 +614,18 @@ function renderPatientDashboard(user, isGuest) {
       medicalData.personalInfo.organDonor = document.getElementById('pfOrganDonor').checked;
       medicalData.personalInfo.advanceDirectives = document.getElementById('pfDirectives').checked;
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+      
+      // Synchronisation Firebase automatique
+      if (!isGuest) {
+        const success = await saveToFirebase('patients', medicalData, user.id + '_medical');
+        if (success) {
+          alert('✅ Profil sauvegardé et synchronisé avec Firebase !');
+        } else {
+          alert('⚠️ Profil sauvegardé localement. Synchronisation Firebase échouée.');
+        }
+      } else {
+        alert('✅ Profil sauvegardé (mode démo) !');
+      }
       render();
     };
   }
@@ -642,7 +635,7 @@ function renderPatientDashboard(user, isGuest) {
     listTypes.forEach(type => {
       const btnEl = document.getElementById(`btn_${type}`);
       if (btnEl) {
-        btnEl.onclick = () => {
+        btnEl.onclick = async () => {
           const v = document.getElementById(`add_${type}`).value.trim();
           if (v) {
             if (medicalData.medicalHistory[type]) {
@@ -651,11 +644,16 @@ function renderPatientDashboard(user, isGuest) {
               medicalData.emergencyInfo[type].push(v);
             }
             localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+            
+            // Synchronisation Firebase automatique
+            if (!isGuest) {
+              await saveToFirebase('patients', medicalData, user.id + '_medical');
+            }
             render();
           }
         };
       }
-      document.querySelectorAll(`[data-del="${type}"]`).forEach(btn => btn.onclick = () => {
+      document.querySelectorAll(`[data-del="${type}"]`).forEach(btn => btn.onclick = async () => {
         const idx = parseInt(btn.getAttribute('data-idx'));
         if (medicalData.medicalHistory[type]) {
           medicalData.medicalHistory[type].splice(idx, 1);
@@ -663,32 +661,36 @@ function renderPatientDashboard(user, isGuest) {
           medicalData.emergencyInfo[type].splice(idx, 1);
         }
         localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+        
+        // Synchronisation Firebase automatique
+        if (!isGuest) {
+          await saveToFirebase('patients', medicalData, user.id + '_medical');
+        }
         render();
       });
     });
   }
 
   function tabBraceletEvents() {
-    document.getElementById('activateBracelet').onclick = () => {
+    document.getElementById('activateBracelet').onclick = async () => {
       medicalData.isActive = true;
       if (!medicalData.braceletId) {
         medicalData.braceletId = 'SYL-' + Math.random().toString(36).substr(2,6).toUpperCase();
       }
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+      
+      // Synchronisation Firebase automatique
+      if (!isGuest) {
+        const success = await saveToFirebase('patients', medicalData, user.id + '_medical');
+        if (success) {
+          alert('✅ Bracelet d\'urgence activé et synchronisé avec Firebase !');
+        } else {
+          alert('⚠️ Bracelet activé localement. Synchronisation Firebase échouée.');
+        }
+      } else {
+        alert('✅ Bracelet d\'urgence activé (mode démo) !');
+      }
       render();
-    };
-  }
-
-  function tabSettingsEvents() {
-    document.getElementById('saveSettings').onclick = () => {
-      const settings = {
-        firebaseApiKey: document.getElementById('firebaseApiKey').value,
-        authDomain: document.getElementById('authDomain').value,
-        projectId: document.getElementById('projectId').value,
-        storageBucket: document.getElementById('storageBucket').value
-      };
-      saveSettings(settings);
-      alert('Configuration Firebase sauvegardée');
     };
   }
 }
@@ -736,6 +738,7 @@ function renderMedecinDashboard(user, isGuest) {
                 <h1 class="text-xl font-bold text-gray-900">SYL Medical Pro</h1>
                 <p class="text-xs text-gray-500">${user.profile.speciality||''} • ${user.profile.hospital||''}</p>
               </div>
+              <span class="ml-3 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">🔥 Firebase Connecté</span>
             </div>
             <div class="flex items-center space-x-4">
               <div class="text-sm text-gray-600">Dr. ${user.profile.firstName} ${user.profile.lastName}</div>
@@ -750,12 +753,10 @@ function renderMedecinDashboard(user, isGuest) {
             <div class="flex space-x-4 mb-6">
               <button class="px-4 py-2 rounded-lg ${activeTab==='patients' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="patients">Patients</button>
               <button class="px-4 py-2 rounded-lg ${activeTab==='emergency' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="emergency">🚑 Accès Urgence</button>
-              <button class="px-4 py-2 rounded-lg ${activeTab==='settings' ? 'bg-gray-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="settings">Paramètres</button>
             </div>
 
             ${activeTab === 'patients' ? renderPatientsTab(filteredPatients) : ''}
             ${activeTab === 'emergency' ? renderEmergencyAccessTab() : ''}
-            ${activeTab === 'settings' ? renderMedecinSettingsTab() : ''}
           </div>
         </div>
 
@@ -883,36 +884,6 @@ function renderMedecinDashboard(user, isGuest) {
                 </div>
               </div>
             `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderMedecinSettingsTab() {
-    const settings = getSettings();
-    return `
-      <div class="space-y-6">
-        <h2 class="text-2xl font-bold text-gray-900">Paramètres Médecin</h2>
-        
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Configuration Firebase</h3>
-          <div class="space-y-4">
-            <input type="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Clé API Firebase" value="${settings.firebaseApiKey || ''}" id="firebaseApiKey">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Project ID" value="${settings.projectId || ''}" id="projectId">
-          </div>
-          <button id="saveSettings" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2">Sauvegarder</button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-          <div class="space-y-2">
-            <button class="w-full bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 text-left" id="exportData">
-              ${icons.activity} Exporter les données patients
-            </button>
-            <button class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-left" id="syncFirebase">
-              ${icons.activity} Synchroniser avec Firebase
-            </button>
           </div>
         </div>
       </div>
@@ -1050,7 +1021,7 @@ function renderMedecinDashboard(user, isGuest) {
   }
 
   function showEditPatientModal(patient) {
-    // Similaire à la version patient mais avec plus de champs médicaux
+    // Modal d'édition du patient
     document.getElementById('app').querySelector('.modal').innerHTML = `
       <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-lg">
         <div class="p-6 border-b border-gray-200 flex justify-between items-center">
@@ -1075,7 +1046,7 @@ function renderMedecinDashboard(user, isGuest) {
       </div>
     `;
     document.getElementById('closeEditModal').onclick = () => render();
-    document.getElementById('saveEditPatient').onclick = () => {
+    document.getElementById('saveEditPatient').onclick = async () => {
       patient.personalInfo.firstName = document.getElementById('editFirstName').value;
       patient.personalInfo.lastName = document.getElementById('editLastName').value;
       patient.personalInfo.dateOfBirth = document.getElementById('editBirth').value;
@@ -1084,7 +1055,15 @@ function renderMedecinDashboard(user, isGuest) {
       patient.personalInfo.weight = document.getElementById('editWeight').value;
       if (!patient.emergencyInfo) patient.emergencyInfo = {};
       patient.emergencyInfo.criticalNotes = document.getElementById('editCriticalNotes').value;
-      localStorage.setItem('syl-patients', JSON.stringify(patients)); 
+      localStorage.setItem('syl-patients', JSON.stringify(patients));
+      
+      // Synchronisation Firebase automatique
+      if (!isGuest) {
+        await saveToFirebase('patients', patient, patient.id);
+        alert('✅ Patient modifié et synchronisé avec Firebase !');
+      } else {
+        alert('✅ Patient modifié (mode démo) !');
+      }
       render();
     };
   }
@@ -1113,7 +1092,7 @@ function renderMedecinDashboard(user, isGuest) {
       </div>
     `);
     document.getElementById('cancelNewPatient').onclick = () => { document.querySelector('.modal').remove(); };
-    document.getElementById('saveNewPatient').onclick = () => {
+    document.getElementById('saveNewPatient').onclick = async () => {
       const patient = {
         id: Math.random().toString(36).substr(2,9),
         personalInfo: {
@@ -1131,6 +1110,14 @@ function renderMedecinDashboard(user, isGuest) {
       };
       patients.push(patient);
       localStorage.setItem('syl-patients', JSON.stringify(patients));
+      
+      // Synchronisation Firebase automatique
+      if (!isGuest) {
+        await saveToFirebase('patients', patient, patient.id);
+        alert('✅ Nouveau patient ajouté et synchronisé avec Firebase !');
+      } else {
+        alert('✅ Nouveau patient ajouté (mode démo) !');
+      }
       document.querySelector('.modal').remove();
       render();
     };
@@ -1186,5 +1173,3 @@ renderApp();
 </script>
 </body>
 </html>
-
-
