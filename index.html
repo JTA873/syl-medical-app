@@ -41,7 +41,6 @@ const auth = firebase.auth();
 
 // Configuration de l'authentification
 const googleProvider = new firebase.auth.GoogleAuthProvider();
-const phoneProvider = new firebase.auth.PhoneAuthProvider();
 
 const icons = {
   heart: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 21C12 21 7.5 16.5 4 12.5C1.5 9.5 3.5 5 8 5C10 5 12 7 12 7C12 7 14 5 16 5C20.5 5 22.5 9.5 20 12.5C16.5 16.5 12 21 12 21Z" stroke-width="2"/></svg>',
@@ -60,6 +59,7 @@ const icons = {
   alert: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><polygon points="12 2 2 22 22 22 12 2"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>',
   activity: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
   users: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-3-3.87"/><path d="M9 21v-2a4 4 0 013-3.87"/><path d="M7 7a4 4 0 018 0"/><path d="M5 21v-2a4 4 0 013-3.87"/><path d="M5 7a4 4 0 018 0"/></svg>',
+  bot: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2" ry="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>',
   userPlus: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-3-3.87"/><path d="M8 21v-2a4 4 0 013-3.87"/><path d="M12 7a4 4 0 018 0"/><path d="M2 8v6"/><path d="M5 11H2"/></svg>',
   edit: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M11 4h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M19 20v-2a2 2 0 00-2-2h-2a2 2 0 00-2 2v2"/></svg>',
   logout: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
@@ -107,7 +107,264 @@ async function saveToFirebase(collection, data, id = null) {
   try {
     if (id) {
       await db.collection(collection).doc(id).set(data);
-    } else {
+    }
+
+  // Assistant IA pour collecter les données
+  let chatHistory = JSON.parse(localStorage.getItem('syl-chatHistory') || '[]');
+  let currentQuestionIndex = parseInt(localStorage.getItem('syl-questionIndex') || '0');
+  
+  const aiQuestions = [
+    {
+      id: 'welcome',
+      question: "👋 Bonjour ! Je suis votre assistant médical IA. Je vais vous aider à compléter votre dossier médical en quelques questions simples. Quel est votre prénom ?",
+      field: 'personalInfo.firstName',
+      type: 'text'
+    },
+    {
+      id: 'lastname',
+      question: "Parfait ! Et votre nom de famille ?",
+      field: 'personalInfo.lastName',
+      type: 'text'
+    },
+    {
+      id: 'birthdate',
+      question: "Quelle est votre date de naissance ? (format: JJ/MM/AAAA)",
+      field: 'personalInfo.dateOfBirth',
+      type: 'date'
+    },
+    {
+      id: 'bloodtype',
+      question: "Connaissez-vous votre groupe sanguin ? (A+, A-, B+, B-, AB+, AB-, O+, O-, ou 'Je ne sais pas')",
+      field: 'personalInfo.bloodType',
+      type: 'select',
+      options: ['Je ne sais pas', ...MEDICAL_DATA.bloodTypes]
+    },
+    {
+      id: 'height',
+      question: "Quelle est votre taille en centimètres ?",
+      field: 'personalInfo.height',
+      type: 'number'
+    },
+    {
+      id: 'weight',
+      question: "Quel est votre poids en kilogrammes ?",
+      field: 'personalInfo.weight',
+      type: 'number'
+    },
+    {
+      id: 'allergies',
+      question: "Avez-vous des allergies connues ? (médicaments, aliments, substances...) Listez-les séparées par des virgules, ou tapez 'aucune'",
+      field: 'medicalHistory.allergies',
+      type: 'list'
+    },
+    {
+      id: 'medications',
+      question: "Prenez-vous actuellement des médicaments ? Si oui, listez-les avec leur dosage, sinon tapez 'aucun'",
+      field: 'medicalHistory.medications',
+      type: 'list'
+    },
+    {
+      id: 'chronic',
+      question: "Avez-vous des maladies chroniques ou pathologies particulières ? (diabète, hypertension, asthme...) Listez-les ou tapez 'aucune'",
+      field: 'medicalHistory.chronicDiseases',
+      type: 'list'
+    },
+    {
+      id: 'emergency_contact',
+      question: "Qui devons-nous contacter en cas d'urgence ? Donnez-moi le nom, la relation (conjoint, parent...) et le numéro de téléphone",
+      field: 'personalInfo.emergencyContact',
+      type: 'contact'
+    },
+    {
+      id: 'doctor',
+      question: "Avez-vous un médecin traitant ? Si oui, donnez-moi son nom, sa spécialité et son numéro",
+      field: 'emergencyInfo.primaryPhysician',
+      type: 'doctor'
+    },
+    {
+      id: 'critical_notes',
+      question: "Y a-t-il des informations critiques que les secours devraient absolument connaître ? (risques particuliers, instructions spéciales...)",
+      field: 'emergencyInfo.criticalNotes',
+      type: 'text'
+    },
+    {
+      id: 'complete',
+      question: "🎉 Parfait ! Votre dossier médical est maintenant complet. Toutes vos informations ont été sauvegardées de manière sécurisée. Vous pouvez consulter et modifier ces données dans les autres onglets.",
+      field: null,
+      type: 'complete'
+    }
+  ];
+
+  function renderAssistantTab() {
+    return `
+      <div class="space-y-6">
+        <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-l-4 border-purple-500 p-4 rounded-lg">
+          <div class="flex items-center">
+            <div class="text-purple-500 mr-3">🤖</div>
+            <h2 class="text-2xl font-bold text-purple-800">Assistant Médical IA</h2>
+          </div>
+          <p class="text-purple-700 mt-2">Laissez-moi vous guider pour compléter votre dossier médical</p>
+        </div>
+
+        <!-- Zone de chat -->
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div class="h-96 overflow-y-auto border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50" id="chatContainer">
+            ${renderChatHistory()}
+          </div>
+          
+          <!-- Zone de saisie -->
+          <div class="flex space-x-2" id="inputContainer">
+            ${renderCurrentInput()}
+          </div>
+          
+          <!-- Progression -->
+          <div class="mt-4">
+            <div class="flex justify-between text-sm text-gray-600 mb-1">
+              <span>Progression</span>
+              <span>${currentQuestionIndex}/${aiQuestions.length - 1}</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+              <div class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: ${(currentQuestionIndex / (aiQuestions.length - 1)) * 100}%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="grid grid-cols-2 gap-4">
+          <button id="resetChat" class="bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg px-6 py-3">
+            🔄 Recommencer
+          </button>
+          <button id="skipQuestion" class="bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg px-6 py-3" ${currentQuestionIndex >= aiQuestions.length - 1 ? 'disabled' : ''}>
+            ⏭️ Passer cette question
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderChatHistory() {
+    let html = '';
+    
+    // Afficher l'historique des messages
+    chatHistory.forEach(message => {
+      if (message.type === 'ai') {
+        html += `
+          <div class="flex mb-4">
+            <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm mr-3 flex-shrink-0">🤖</div>
+            <div class="bg-purple-100 rounded-lg p-3 max-w-xs">
+              <p class="text-purple-800">${message.content}</p>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="flex mb-4 justify-end">
+            <div class="bg-blue-500 text-white rounded-lg p-3 max-w-xs">
+              <p>${message.content}</p>
+            </div>
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm ml-3 flex-shrink-0">👤</div>
+          </div>
+        `;
+      }
+    });
+    
+    // Afficher la question actuelle si pas encore dans l'historique
+    if (currentQuestionIndex < aiQuestions.length && (chatHistory.length === 0 || chatHistory[chatHistory.length - 1].type !== 'ai')) {
+      html += `
+        <div class="flex mb-4">
+          <div class="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm mr-3 flex-shrink-0">🤖</div>
+          <div class="bg-purple-100 rounded-lg p-3 max-w-xs">
+            <p class="text-purple-800">${aiQuestions[currentQuestionIndex].question}</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    return html;
+  }
+
+  function renderCurrentInput() {
+    if (currentQuestionIndex >= aiQuestions.length) {
+      return '<p class="text-gray-500 italic">Dossier médical terminé ! 🎉</p>';
+    }
+    
+    const currentQuestion = aiQuestions[currentQuestionIndex];
+    
+    switch (currentQuestion.type) {
+      case 'text':
+      case 'date':
+      case 'number':
+        return `
+          <input type="${currentQuestion.type === 'date' ? 'text' : currentQuestion.type}" 
+                 id="userInput" 
+                 class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500" 
+                 placeholder="${currentQuestion.type === 'date' ? 'JJ/MM/AAAA' : 'Votre réponse...'}"
+                 ${currentQuestion.type === 'number' ? 'min="0"' : ''}>
+          <button id="sendResponse" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2">
+            Envoyer
+          </button>
+        `;
+      
+      case 'select':
+        return `
+          <select id="userInput" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+            <option value="">Sélectionnez...</option>
+            ${currentQuestion.options.map(option => `<option value="${option}">${option}</option>`).join('')}
+          </select>
+          <button id="sendResponse" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2">
+            Envoyer
+          </button>
+        `;
+      
+      case 'list':
+        return `
+          <textarea id="userInput" 
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500" 
+                    placeholder="Listez vos réponses séparées par des virgules..." 
+                    rows="2"></textarea>
+          <button id="sendResponse" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2">
+            Envoyer
+          </button>
+        `;
+      
+      case 'contact':
+        return `
+          <div class="flex-1 space-y-2">
+            <input type="text" id="contactName" placeholder="Nom du contact" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <input type="text" id="contactRelation" placeholder="Relation (conjoint, parent...)" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <input type="tel" id="contactPhone" placeholder="Numéro de téléphone" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          <button id="sendResponse" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2">
+            Envoyer
+          </button>
+        `;
+      
+      case 'doctor':
+        return `
+          <div class="flex-1 space-y-2">
+            <input type="text" id="doctorName" placeholder="Nom du médecin" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <input type="text" id="doctorSpecialty" placeholder="Spécialité" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <input type="tel" id="doctorPhone" placeholder="Numéro de téléphone" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          <button id="sendResponse" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2">
+            Envoyer
+          </button>
+        `;
+      
+      case 'complete':
+        return `
+          <div class="flex-1 text-center py-4">
+            <p class="text-green-600 font-bold">✅ Dossier médical terminé !</p>
+            <button id="restartChat" class="mt-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2">
+              Recommencer l'assistant
+            </button>
+          </div>
+        `;
+      
+      default:
+        return '<p class="text-gray-500">Type de question non reconnu</p>';
+    }
+  } else {
       await db.collection(collection).add(data);
     }
     console.log('Données sauvegardées dans Firebase');
@@ -174,8 +431,8 @@ function showLogin() {
       <!-- Onglets de connexion -->
       <div class="flex space-x-2 mb-4">
         <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-blue-600 text-white" id="tabEmail">Email</button>
-        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-200 text-gray-600" id="tabPhone">Téléphone</button>
         <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-200 text-gray-600" id="tabGoogle">Google</button>
+        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-400 text-gray-500 cursor-not-allowed" disabled title="Nécessite la facturation Firebase">SMS (Bientôt)</button>
       </div>
 
       <!-- Formulaire Email -->
@@ -203,32 +460,15 @@ function showLogin() {
         </div>
       </div>
 
-      <!-- Formulaire Téléphone -->
-      <div id="phoneForm" class="space-y-4 hidden">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Numéro de téléphone</label>
-          <input type="tel" id="phoneNumber" placeholder="+33 6 12 34 56 78"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
-        </div>
-        <div id="recaptcha-container"></div>
-        <button id="sendSMS" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-6 py-3">
-          ${icons.smartphone} Envoyer SMS
-        </button>
-        <div id="codeVerification" class="space-y-4 hidden">
-          <input type="text" id="verificationCode" placeholder="Code de vérification"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg"/>
-          <button id="verifyCode" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3">
-            ${icons.check} Vérifier le code
-          </button>
-        </div>
-      </div>
-
       <!-- Formulaire Google -->
       <div id="googleForm" class="hidden">
         <button id="loginGoogle" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2">
           <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Se connecter avec Google
         </button>
+        <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+          <p class="text-blue-700 text-sm">📝 <strong>Note :</strong> Si vous obtenez une erreur "domaine non autorisé", ajoutez votre domaine dans Firebase Console → Authentication → Settings → Authorized domains</p>
+        </div>
       </div>
 
       <div class="mt-8 pt-6 border-t border-gray-200">
@@ -246,7 +486,6 @@ function showLogin() {
 
   let role = 'patient';
   let activeTab = 'email';
-  let confirmationResult = null;
 
   // Gestion des rôles
   document.getElementById('rolePatient').onclick = () => {
@@ -267,19 +506,28 @@ function showLogin() {
   // Gestion des onglets
   function switchTab(tab) {
     activeTab = tab;
-    document.querySelectorAll('[id^="tab"]').forEach(btn => {
-      btn.classList.remove('bg-blue-600', 'text-white');
-      btn.classList.add('bg-gray-200', 'text-gray-600');
-    });
-    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('bg-gray-200', 'text-gray-600');
-    document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('bg-blue-600', 'text-white');
+    // Reset tous les onglets
+    document.getElementById('tabEmail').classList.remove('bg-blue-600', 'text-white');
+    document.getElementById('tabEmail').classList.add('bg-gray-200', 'text-gray-600');
+    document.getElementById('tabGoogle').classList.remove('bg-blue-600', 'text-white');
+    document.getElementById('tabGoogle').classList.add('bg-gray-200', 'text-gray-600');
     
-    document.querySelectorAll('[id$="Form"]').forEach(form => form.classList.add('hidden'));
+    // Activer l'onglet sélectionné
+    if (tab === 'email') {
+      document.getElementById('tabEmail').classList.remove('bg-gray-200', 'text-gray-600');
+      document.getElementById('tabEmail').classList.add('bg-blue-600', 'text-white');
+    } else if (tab === 'google') {
+      document.getElementById('tabGoogle').classList.remove('bg-gray-200', 'text-gray-600');
+      document.getElementById('tabGoogle').classList.add('bg-blue-600', 'text-white');
+    }
+    
+    // Afficher le bon formulaire
+    document.getElementById('emailForm').classList.add('hidden');
+    document.getElementById('googleForm').classList.add('hidden');
     document.getElementById(tab + 'Form').classList.remove('hidden');
   }
 
   document.getElementById('tabEmail').onclick = () => switchTab('email');
-  document.getElementById('tabPhone').onclick = () => switchTab('phone');
   document.getElementById('tabGoogle').onclick = () => switchTab('google');
 
   // Authentification par email
@@ -324,40 +572,11 @@ function showLogin() {
       await handleAuthSuccess(result.user, role);
     } catch (error) {
       hideLoader();
-      alert('Erreur de connexion Google: ' + getErrorMessage(error.code));
-    }
-  };
-
-  // Authentification par SMS
-  window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-    'size': 'normal',
-    'callback': (response) => {
-      document.getElementById('sendSMS').disabled = false;
-    }
-  });
-
-  document.getElementById('sendSMS').onclick = async () => {
-    const phoneNumber = document.getElementById('phoneNumber').value;
-    
-    try {
-      confirmationResult = await auth.signInWithPhoneNumber(phoneNumber, window.recaptchaVerifier);
-      document.getElementById('codeVerification').classList.remove('hidden');
-      alert('SMS envoyé ! Vérifiez votre téléphone.');
-    } catch (error) {
-      alert('Erreur d\'envoi SMS: ' + getErrorMessage(error.code));
-    }
-  };
-
-  document.getElementById('verifyCode').onclick = async () => {
-    const code = document.getElementById('verificationCode').value;
-    
-    try {
-      showLoader();
-      const result = await confirmationResult.confirm(code);
-      await handleAuthSuccess(result.user, role);
-    } catch (error) {
-      hideLoader();
-      alert('Code incorrect');
+      if (error.code === 'auth/unauthorized-domain') {
+        alert('❌ Domaine non autorisé.\n\n📝 Solution :\n1. Allez dans Firebase Console\n2. Authentication → Settings → Authorized domains\n3. Ajoutez "localhost" et votre domaine');
+      } else {
+        alert('Erreur de connexion Google: ' + getErrorMessage(error.code));
+      }
     }
   };
 }
@@ -473,6 +692,211 @@ function renderPatientDashboard(user) {
       isActive: false
     };
   }
+
+  function tabAssistantEvents() {
+    // Gestion de l'envoi de réponse
+    const sendBtn = document.getElementById('sendResponse');
+    if (sendBtn) {
+      sendBtn.onclick = () => handleUserResponse();
+    }
+
+    // Gestion de la touche Entrée
+    const userInput = document.getElementById('userInput');
+    if (userInput) {
+      userInput.onkeypress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleUserResponse();
+        }
+      };
+    }
+
+    // Actions rapides
+    document.getElementById('resetChat').onclick = () => {
+      if (confirm('Êtes-vous sûr de vouloir recommencer ? Toutes les réponses seront perdues.')) {
+        chatHistory = [];
+        currentQuestionIndex = 0;
+        localStorage.removeItem('syl-chatHistory');
+        localStorage.removeItem('syl-questionIndex');
+        render();
+      }
+    };
+
+    const skipBtn = document.getElementById('skipQuestion');
+    if (skipBtn && !skipBtn.disabled) {
+      skipBtn.onclick = () => {
+        addMessageToChat('user', '(Question passée)');
+        nextQuestion();
+      };
+    }
+
+    const restartBtn = document.getElementById('restartChat');
+    if (restartBtn) {
+      restartBtn.onclick = () => {
+        chatHistory = [];
+        currentQuestionIndex = 0;
+        localStorage.removeItem('syl-chatHistory');
+        localStorage.removeItem('syl-questionIndex');
+        render();
+      };
+    }
+
+    // Auto-scroll vers le bas du chat
+    const chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }
+
+  function handleUserResponse() {
+    const currentQuestion = aiQuestions[currentQuestionIndex];
+    let userResponse = '';
+    let isValid = true;
+
+    // Collecter la réponse selon le type de question
+    switch (currentQuestion.type) {
+      case 'text':
+      case 'date':
+      case 'number':
+      case 'select':
+      case 'list':
+        const input = document.getElementById('userInput');
+        userResponse = input.value.trim();
+        if (!userResponse) {
+          alert('Veuillez saisir une réponse');
+          return;
+        }
+        break;
+
+      case 'contact':
+        const name = document.getElementById('contactName').value.trim();
+        const relation = document.getElementById('contactRelation').value.trim();
+        const phone = document.getElementById('contactPhone').value.trim();
+        
+        if (!name || !relation || !phone) {
+          alert('Veuillez remplir tous les champs');
+          return;
+        }
+        
+        userResponse = `${name} (${relation}) - ${phone}`;
+        break;
+
+      case 'doctor':
+        const docName = document.getElementById('doctorName').value.trim();
+        const docSpecialty = document.getElementById('doctorSpecialty').value.trim();
+        const docPhone = document.getElementById('doctorPhone').value.trim();
+        
+        userResponse = `Dr. ${docName}${docSpecialty ? ' - ' + docSpecialty : ''}${docPhone ? ' - ' + docPhone : ''}`;
+        break;
+
+      default:
+        return;
+    }
+
+    // Ajouter la réponse au chat
+    addMessageToChat('user', userResponse);
+
+    // Sauvegarder dans les données médicales
+    saveResponseToMedicalData(currentQuestion, userResponse);
+
+    // Passer à la question suivante
+    nextQuestion();
+  }
+
+  function addMessageToChat(type, content) {
+    chatHistory.push({ type, content, timestamp: new Date().toISOString() });
+    localStorage.setItem('syl-chatHistory', JSON.stringify(chatHistory));
+  }
+
+  function nextQuestion() {
+    currentQuestionIndex++;
+    localStorage.setItem('syl-questionIndex', currentQuestionIndex.toString());
+    
+    setTimeout(() => {
+      render();
+    }, 500);
+  }
+
+  function saveResponseToMedicalData(question, response) {
+    if (!question.field) return;
+
+    const fieldPath = question.field.split('.');
+    let target = medicalData;
+
+    // Naviguer jusqu'au parent de la propriété finale
+    for (let i = 0; i < fieldPath.length - 1; i++) {
+      if (!target[fieldPath[i]]) target[fieldPath[i]] = {};
+      target = target[fieldPath[i]];
+    }
+
+    const finalKey = fieldPath[fieldPath.length - 1];
+
+    // Traitement spécial selon le type de données
+    switch (question.type) {
+      case 'date':
+        // Convertir DD/MM/YYYY vers YYYY-MM-DD
+        const dateParts = response.split('/');
+        if (dateParts.length === 3) {
+          target[finalKey] = `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`;
+        } else {
+          target[finalKey] = response;
+        }
+        break;
+
+      case 'list':
+        if (response.toLowerCase() === 'aucune' || response.toLowerCase() === 'aucun') {
+          target[finalKey] = [];
+        } else {
+          target[finalKey] = response.split(',').map(item => item.trim()).filter(item => item);
+        }
+        break;
+
+      case 'contact':
+        const contactMatch = response.match(/^(.+?)\s*\((.+?)\)\s*-\s*(.+)$/);
+        if (contactMatch) {
+          target[finalKey] = {
+            name: contactMatch[1].trim(),
+            relation: contactMatch[2].trim(),
+            phone: contactMatch[3].trim()
+          };
+        }
+        break;
+
+      case 'doctor':
+        const docMatch = response.match(/^Dr\.\s*(.+?)(?:\s*-\s*(.+?))?(?:\s*-\s*(.+?))?$/);
+        if (docMatch) {
+          target[finalKey] = {
+            name: 'Dr. ' + docMatch[1].trim(),
+            specialty: docMatch[2] ? docMatch[2].trim() : '',
+            phone: docMatch[3] ? docMatch[3].trim() : ''
+          };
+        }
+        break;
+
+      case 'select':
+        if (response === 'Je ne sais pas') {
+          target[finalKey] = '';
+        } else {
+          target[finalKey] = response;
+        }
+        break;
+
+      default:
+        target[finalKey] = response;
+    }
+
+    // Sauvegarder automatiquement
+    localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+    
+    // Synchronisation Firebase automatique
+    if (user.uid) {
+      saveToFirebase('patients', medicalData, user.uid + '_medical').then(success => {
+        if (success) {
+          console.log('Données mises à jour et synchronisées avec Firebase');
+        }
+      });
+    }
+  }
   localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
   let activeTab = 'emergency';
   render();
@@ -496,6 +920,7 @@ function renderPatientDashboard(user) {
           <div class="lg:col-span-1">
             <nav class="space-y-2">
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='emergency' ? 'bg-red-100 text-red-700 border-l-4 border-red-600':'text-gray-600 hover:bg-gray-100'}" data-tab="emergency">${icons.emergency} <span class="ml-3">🚑 Urgence</span></button>
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='assistant' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="assistant">${icons.bot} <span class="ml-3">🤖 Assistant IA</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='profile' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="profile">${icons.user} <span class="ml-3">Profil complet</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='medical' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="medical">${icons.medical} <span class="ml-3">Médical</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='history' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="history">${icons.activity} <span class="ml-3">Historique</span></button>
@@ -504,6 +929,7 @@ function renderPatientDashboard(user) {
           </div>
           <div class="lg:col-span-3">
             ${activeTab === 'emergency' ? renderEmergencyTab() : ''}
+            ${activeTab === 'assistant' ? renderAssistantTab() : ''}
             ${activeTab === 'profile' ? renderProfileTab() : ''}
             ${activeTab === 'medical' ? renderMedicalTab() : ''}
             ${activeTab === 'history' ? renderHistoryTab() : ''}
@@ -516,6 +942,7 @@ function renderPatientDashboard(user) {
     document.getElementById('logoutBtn').onclick = () => { logout(); };
     document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { activeTab = btn.getAttribute('data-tab'); render(); });
     if (activeTab === 'emergency') tabEmergencyEvents();
+    if (activeTab === 'assistant') tabAssistantEvents();
     if (activeTab === 'profile') tabProfileEvents();
     if (activeTab === 'medical') tabMedicalEvents();
     if (activeTab === 'bracelet') tabBraceletEvents();
