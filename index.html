@@ -1,1302 +1,2187 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>SYL Medical - Système d'Urgence</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Firebase CDN -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <style>
-    .animate-spin { animation: spin 1s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .modal-bg { background: rgba(0,0,0,0.5); }
-    .modal { z-index: 50; }
-    .icon { width: 1em; height: 1em; display: inline-block; vertical-align: middle; }
-    .emergency-card { border-left: 4px solid #ef4444; }
-    .critical-info { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>📋 MediCare - Données Médicales</title>
+    <script src=https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js></script>
+
+    <!-- Firebase SDKs -->
+    <script src=https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js></script>
+    <script src=https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js></script>
+    <script src=https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            color: #333;
+            overflow-x: hidden;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        .dashboard-container {
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            position: relative;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            margin-bottom: 8px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .last-update {
+            font-size: clamp(0.75rem, 2vw, 0.9rem);
+            color: #666;
+        }
+        
+        .cloud-status {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: clamp(0.7rem, 1.8vw, 0.8rem);
+            font-weight: 600;
+        }
+        
+        .cloud-online {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .cloud-offline {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .cloud-syncing {
+            background: #cce5ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            padding: 0 5px;
+        }
+        
+        .nav-tab {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 16px;
+            border-radius: 12px;
+            color: #666;
+            cursor: pointer;
+            font-size: clamp(12px, 3vw, 14px);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-height: 44px;
+            min-width: 44px;
+            touch-action: manipulation;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .nav-tab:hover, .nav-tab:active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .nav-tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .section {
+            display: none;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .section.active {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .kpi-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 15px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-height: 100px;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        }
+        
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+        
+        .kpi-icon {
+            font-size: clamp(1.5rem, 4vw, 2rem);
+            margin-bottom: 8px;
+        }
+        
+        .kpi-value {
+            font-size: clamp(1rem, 3vw, 1.5rem);
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 4px;
+            word-break: break-word;
+        }
+        
+        .kpi-label {
+            font-size: clamp(0.75rem, 2vw, 0.9rem);
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .filters-section {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #333;
+            font-size: clamp(12px, 2.5vw, 14px);
+            display: block;
+        }
+        
+        .filter-group input, .filter-group select {
+            padding: 12px 8px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: clamp(12px, 3vw, 14px);
+            transition: all 0.3s ease;
+            min-height: 44px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .filter-group input:focus, .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: clamp(12px, 3vw, 14px);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 44px;
+            min-width: 44px;
+            touch-action: manipulation;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(45deg, #ffc107, #fd7e14);
+            color: #333;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #dc3545, #e83e8c);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(45deg, #6c757d, #495057);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(45deg, #17a2b8, #20c997);
+            color: white;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .chart-title {
+            font-size: clamp(1rem, 3vw, 1.2rem);
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            text-align: center;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+        
+        .chart-container.tall {
+            height: 300px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-size: clamp(11px, 2.5vw, 14px);
+        }
+        
+        .data-table th, .data-table td {
+            padding: 8px 6px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .data-table th {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            font-weight: 600;
+            font-size: clamp(10px, 2.5vw, 12px);
+        }
+        
+        .data-table tr:hover {
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: clamp(12px, 2.5vw, 14px);
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: clamp(12px, 3vw, 14px);
+            transition: all 0.3s ease;
+            min-height: 44px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .medical-form-section {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .vital-signs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .symptoms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .symptom-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        
+        .symptom-checkbox:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+        }
+        
+        .symptom-checkbox input[type="checkbox"] {
+            width: auto;
+            height: auto;
+            min-height: auto;
+        }
+        
+        /* Chat IA Styles */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 70vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .chat-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: rgba(248, 249, 250, 0.8);
+            scroll-behavior: smooth;
+        }
+        
+        .chat-message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            animation: slideInMessage 0.3s ease-out;
+        }
+        
+        @keyframes slideInMessage {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .chat-message.user {
+            flex-direction: row-reverse;
+        }
+        
+        .chat-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .chat-avatar.user {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .chat-avatar.ai {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .chat-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+        
+        .chat-bubble.user {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .chat-bubble.ai {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            color: #333;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-bottom-left-radius: 4px;
+        }
+        
+        .chat-input-container {
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: clamp(0.9rem, 2.5vw, 1rem);
+            outline: none;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .chat-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .chat-send-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+        }
+        
+        .chat-send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .chat-send-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .chat-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .chat-suggestion {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid #667eea;
+            color: #667eea;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: clamp(0.8rem, 2vw, 0.9rem);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-suggestion:hover {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 3px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #667eea;
+            border-radius: 50%;
+            animation: typingDot 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typingDot {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+        
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 12px 0;
+            font-weight: 500;
+            font-size: clamp(12px, 2.5vw, 14px);
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+        
+        /* Optimisations mobile */
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 8px;
+            }
+            
+            .header {
+                padding: 16px;
+            }
+            
+            .nav-tabs {
+                gap: 6px;
+                padding: 0;
+            }
+            
+            .nav-tab {
+                padding: 10px 12px;
+                font-size: 12px;
+                flex: 1;
+                min-width: auto;
+                text-align: center;
+            }
+            
+            .card {
+                padding: 16px;
+                margin-bottom: 15px;
+            }
+            
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            
+            .filters-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .vital-signs-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .symptoms-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chat-container {
+                height: 60vh;
+            }
+            
+            .chat-bubble {
+                max-width: 85%;
+                font-size: 0.9rem;
+            }
+            
+            .chat-input {
+                font-size: 16px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-tabs {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .nav-tab {
+                width: 100%;
+                padding: 12px;
+            }
+            
+            .vital-signs-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chat-container {
+                height: 50vh;
+            }
+        }
+    </style>
 </head>
-<body class="bg-gray-50">
-<div id="app"></div>
-<script>
-// Configuration Firebase intégrée
-const firebaseConfig = {
-  apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
-  authDomain: "syl-medical-app-1c58a.firebaseapp.com",
-  databaseURL: "https://syl-medical-app-1c58a-default-rtdb.firebaseio.com",
-  projectId: "syl-medical-app-1c58a",
-  storageBucket: "syl-medical-app-1c58a.firebasestorage.app",
-  messagingSenderId: "765684422018",
-  appId: "1:765684422018:web:19320fe1e546631fc86b9b",
-  measurementId: "G-PD7TP5J233"
-};
-
-// Initialiser Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
-
-// Configuration de l'authentification
-const googleProvider = new firebase.auth.GoogleAuthProvider();
-
-const icons = {
-  heart: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 21C12 21 7.5 16.5 4 12.5C1.5 9.5 3.5 5 8 5C10 5 12 7 12 7C12 7 14 5 16 5C20.5 5 22.5 9.5 20 12.5C16.5 16.5 12 21 12 21Z" stroke-width="2"/></svg>',
-  user: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke-width="2"/><path d="M6 20c0-2.22 3.58-4 6-4s6 1.78 6 4" stroke-width="2"/></svg>',
-  stethoscope: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M8 7v5a4 4 0 008 0V7" stroke-width="2"/><circle cx="12" cy="17" r="2" stroke-width="2"/></svg>',
-  mail: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6" stroke-width="2"/></svg>',
-  lock: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M7 11V7a5 5 0 1110 0v4" stroke-width="2"/></svg>',
-  eye: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8z"/></svg>',
-  eyeOff: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 012 12s4-8 10-8a9.93 9.93 0 016.94 3.06"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
-  plus: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-  trash: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="14" rx="2"/><line x1="8" y1="11" x2="8" y2="17"/><line x1="16" y1="11" x2="16" y2="17"/></svg>',
-  check: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
-  shield: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>',
-  smartphone: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1"/></svg>',
-  clock: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-  alert: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><polygon points="12 2 2 22 22 22 12 2"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>',
-  activity: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-  users: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-3-3.87"/><path d="M9 21v-2a4 4 0 013-3.87"/><path d="M7 7a4 4 0 018 0"/><path d="M5 21v-2a4 4 0 013-3.87"/><path d="M5 7a4 4 0 018 0"/></svg>',
-  userPlus: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-3-3.87"/><path d="M8 21v-2a4 4 0 013-3.87"/><path d="M12 7a4 4 0 018 0"/><path d="M2 8v6"/><path d="M5 11H2"/></svg>',
-  edit: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M11 4h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M19 20v-2a2 2 0 00-2-2h-2a2 2 0 00-2 2v2"/></svg>',
-  logout: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
-  search: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
-  settings: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h.09a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51h.09a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.09a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
-  phone: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>',
-  calendar: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-  medical: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
-  emergency: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
-  cross: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-  warning: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-  fire: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>'
-};
-
-// Données de référence médicales
-const MEDICAL_DATA = {
-  bloodTypes: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
-  chronicConditions: [
-    'Diabète type 1', 'Diabète type 2', 'Hypertension artérielle', 'Insuffisance cardiaque',
-    'Asthme', 'BPCO', 'Épilepsie', 'Maladie de Crohn', 'Polyarthrite rhumatoïde',
-    'Sclérose en plaques', 'Maladie de Parkinson', 'Alzheimer', 'Insuffisance rénale',
-    'Cirrhose', 'Cancer', 'VIH/SIDA', 'Hépatite B', 'Hépatite C', 'Hypothyroïdie',
-    'Hyperthyroïdie', 'Fibromyalgie', 'Lupus', 'Bipolarité', 'Dépression majeure'
-  ],
-  commonAllergies: [
-    'Pénicilline', 'Aspirine', 'Iode', 'Latex', 'Arachides', 'Fruits de mer',
-    'Œufs', 'Lait', 'Soja', 'Gluten', 'Pollen', 'Acariens', 'Poils d\'animaux',
-    'Morphine', 'Codéine', 'AINS', 'Sulfamides', 'Anesthésiques locaux'
-  ],
-  emergencyMedications: [
-    'Adrénaline auto-injecteur', 'Ventoline', 'Glucagon', 'Insuline rapide',
-    'Diazépam rectal', 'Trinitrine', 'Prednisone', 'Antihistaminiques',
-    'Beta-bloquants', 'Digitaline', 'Warfarine', 'Héparine'
-  ],
-  medicalDevices: [
-    'Pacemaker', 'Défibrillateur implantable', 'Pompe à insuline', 'Prothèse de hanche',
-    'Prothèse de genou', 'Stent cardiaque', 'Valve cardiaque artificielle',
-    'Implant cochléaire', 'Neurostimulateur', 'Port-à-cath', 'Sonde gastrique',
-    'Cathéter urinaire', 'Dialyse péritonéale'
-  ]
-};
-
-// Fonctions Firebase
-async function saveToFirebase(collection, data, id = null) {
-  try {
-    if (id) {
-      await db.collection(collection).doc(id).set(data);
-    } else {
-      await db.collection(collection).add(data);
-    }
-    console.log('Données sauvegardées dans Firebase');
-    return true;
-  } catch (error) {
-    console.error('Erreur Firebase:', error);
-    return false;
-  }
-}
-
-async function loadFromFirebase(collection, id) {
-  try {
-    const doc = await db.collection(collection).doc(id).get();
-    if (doc.exists) {
-      return doc.data();
-    }
-    return null;
-  } catch (error) {
-    console.error('Erreur Firebase:', error);
-    return null;
-  }
-}
-
-function saveUser(user) {
-  localStorage.setItem('syl-user', JSON.stringify(user));
-  // Synchronisation Firebase automatique
-  if (user.uid) {
-    saveToFirebase('users', user, user.uid);
-  }
-}
-
-function getUser() {
-  const u = localStorage.getItem('syl-user');
-  return u ? JSON.parse(u) : null;
-}
-
-function clearUser() {
-  localStorage.removeItem('syl-user');
-}
-
-function showLogin() {
-  document.getElementById('app').innerHTML = `
-<div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-  <div class="w-full max-w-md">
-    <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-      <div class="text-center mb-8">
-        <div class="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
-          ${icons.heart}
-        </div>
-        <h1 class="text-2xl font-bold text-gray-900">SYL Medical</h1>
-        <p class="text-gray-600 mt-2">Système d'Urgence Médicale</p>
-      </div>
-
-      <!-- Sélection du rôle -->
-      <div class="grid grid-cols-2 gap-4 mb-6">
-        <button type="button" id="rolePatient" class="p-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700">
-          ${icons.user} <span class="text-sm font-medium">Patient</span>
-        </button>
-        <button type="button" id="roleMedecin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
-          ${icons.stethoscope} <span class="text-sm font-medium">Médecin</span>
-        </button>
-      </div>
-
-      <!-- Onglets de connexion -->
-      <div class="flex space-x-2 mb-4">
-        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-blue-600 text-white" id="tabEmail">Email</button>
-        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-200 text-gray-600" id="tabGoogle">Google</button>
-        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-400 text-gray-500 cursor-not-allowed" disabled title="Nécessite la facturation Firebase">SMS (Bientôt)</button>
-      </div>
-
-      <!-- Formulaire Email -->
-      <div id="emailForm" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-          <div class="relative">
-            <input type="email" id="email" required placeholder="votre@email.com"
-              class="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-            <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">${icons.mail}</span>
-          </div>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-          <input type="password" id="password" required placeholder="••••••••"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
-        </div>
-        <div class="flex space-x-2">
-          <button id="loginEmail" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3">
-            ${icons.lock} Se connecter
-          </button>
-          <button id="registerEmail" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3">
-            ${icons.user} S'inscrire
-          </button>
-        </div>
-      </div>
-
-      <!-- Formulaire Google -->
-      <div id="googleForm" class="hidden">
-        <button id="loginGoogle" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-          <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-          Se connecter avec Google
-        </button>
-        <div class="mt-4 p-3 bg-blue-50 rounded-lg">
-          <p class="text-blue-700 text-sm">📝 <strong>Note :</strong> Si vous obtenez une erreur "domaine non autorisé", ajoutez votre domaine dans Firebase Console → Authentication → Settings → Authorized domains</p>
-        </div>
-      </div>
-
-      <div class="mt-8 pt-6 border-t border-gray-200">
-        <div class="text-xs text-gray-500 space-y-1">
-          <p>🚑 Accès d'urgence instantané</p>
-          <p>🔒 Authentification Firebase sécurisée</p>
-          <p>🏥 Conforme RGPD & HDS</p>
-          <p>⚡ Synchronisation temps réel</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-  `;
-
-  let role = 'patient';
-  let activeTab = 'email';
-
-  // Gestion des rôles
-  document.getElementById('rolePatient').onclick = () => {
-    role = 'patient';
-    document.getElementById('rolePatient').classList.add('border-blue-600', 'bg-blue-50', 'text-blue-700');
-    document.getElementById('rolePatient').classList.remove('border-gray-300');
-    document.getElementById('roleMedecin').classList.remove('border-green-600', 'bg-green-50', 'text-green-700');
-    document.getElementById('roleMedecin').classList.add('border-gray-300');
-  };
-  document.getElementById('roleMedecin').onclick = () => {
-    role = 'medecin';
-    document.getElementById('roleMedecin').classList.add('border-green-600', 'bg-green-50', 'text-green-700');
-    document.getElementById('roleMedecin').classList.remove('border-gray-300');
-    document.getElementById('rolePatient').classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-700');
-    document.getElementById('rolePatient').classList.add('border-gray-300');
-  };
-
-  // Gestion des onglets
-  function switchTab(tab) {
-    activeTab = tab;
-    // Reset tous les onglets
-    document.getElementById('tabEmail').classList.remove('bg-blue-600', 'text-white');
-    document.getElementById('tabEmail').classList.add('bg-gray-200', 'text-gray-600');
-    document.getElementById('tabGoogle').classList.remove('bg-blue-600', 'text-white');
-    document.getElementById('tabGoogle').classList.add('bg-gray-200', 'text-gray-600');
-    
-    // Activer l'onglet sélectionné
-    if (tab === 'email') {
-      document.getElementById('tabEmail').classList.remove('bg-gray-200', 'text-gray-600');
-      document.getElementById('tabEmail').classList.add('bg-blue-600', 'text-white');
-    } else if (tab === 'google') {
-      document.getElementById('tabGoogle').classList.remove('bg-gray-200', 'text-gray-600');
-      document.getElementById('tabGoogle').classList.add('bg-blue-600', 'text-white');
-    }
-    
-    // Afficher le bon formulaire
-    document.getElementById('emailForm').classList.add('hidden');
-    document.getElementById('googleForm').classList.add('hidden');
-    document.getElementById(tab + 'Form').classList.remove('hidden');
-  }
-
-  document.getElementById('tabEmail').onclick = () => switchTab('email');
-  document.getElementById('tabGoogle').onclick = () => switchTab('google');
-
-  // Authentification par email
-  document.getElementById('loginEmail').onclick = async () => {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    
-    try {
-      showLoader();
-      const userCredential = await auth.signInWithEmailAndPassword(email, password);
-      await handleAuthSuccess(userCredential.user, role);
-    } catch (error) {
-      hideLoader();
-      alert('Erreur de connexion: ' + getErrorMessage(error.code));
-    }
-  };
-
-  document.getElementById('registerEmail').onclick = async () => {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    
-    if (password.length < 6) {
-      alert('Le mot de passe doit contenir au moins 6 caractères');
-      return;
-    }
-    
-    try {
-      showLoader();
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-      await handleAuthSuccess(userCredential.user, role);
-    } catch (error) {
-      hideLoader();
-      alert('Erreur d\'inscription: ' + getErrorMessage(error.code));
-    }
-  };
-
-  // Authentification par Google
-  document.getElementById('loginGoogle').onclick = async () => {
-    try {
-      showLoader();
-      const result = await auth.signInWithPopup(googleProvider);
-      await handleAuthSuccess(result.user, role);
-    } catch (error) {
-      hideLoader();
-      if (error.code === 'auth/unauthorized-domain') {
-        alert('❌ Domaine non autorisé.\n\n📝 Solution :\n1. Allez dans Firebase Console\n2. Authentication → Settings → Authorized domains\n3. Ajoutez "localhost" et votre domaine');
-      } else {
-        alert('Erreur de connexion Google: ' + getErrorMessage(error.code));
-      }
-    }
-  };
-}
-
-async function handleAuthSuccess(firebaseUser, role) {
-  try {
-    const userData = {
-      uid: firebaseUser.uid,
-      email: firebaseUser.email,
-      phone: firebaseUser.phoneNumber,
-      displayName: firebaseUser.displayName,
-      role: role,
-      profile: {
-        firstName: role === 'patient' ? (firebaseUser.displayName?.split(' ')[0] || 'Patient') : 'Dr. ' + (firebaseUser.displayName?.split(' ')[0] || 'Médecin'),
-        lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
-        phone: firebaseUser.phoneNumber || '',
-        ...(role === 'medecin' && { 
-          speciality: 'Médecine générale', 
-          hospital: 'Établissement de santé' 
-        })
-      },
-      createdAt: new Date().toISOString()
-    };
-    
-    saveUser(userData);
-    hideLoader();
-    renderApp();
-  } catch (error) {
-    hideLoader();
-    console.error('Erreur lors de la sauvegarde:', error);
-    alert('Connexion réussie mais erreur de sauvegarde');
-  }
-}
-
-function getErrorMessage(errorCode) {
-  switch (errorCode) {
-    case 'auth/user-not-found':
-      return 'Aucun compte trouvé avec cet email';
-    case 'auth/wrong-password':
-      return 'Mot de passe incorrect';
-    case 'auth/email-already-in-use':
-      return 'Cet email est déjà utilisé';
-    case 'auth/weak-password':
-      return 'Mot de passe trop faible';
-    case 'auth/invalid-email':
-      return 'Email invalide';
-    case 'auth/too-many-requests':
-      return 'Trop de tentatives, réessayez plus tard';
-    default:
-      return errorCode;
-  }
-}
-
-function hideLoader() {
-  const loader = document.querySelector('.animate-spin')?.parentElement?.parentElement;
-  if (loader) loader.remove();
-}
-
-function showLoader(callback = null) {
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div class="text-center">
-        <div class="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p class="text-gray-600">Authentification en cours...</p>
-      </div>
-    </div>
-  `;
-  if (callback) setTimeout(callback, 800);
-}
-
-// ----------- PATIENT DASHBOARD -----------
-function renderPatientDashboard(user) {
-  let medicalData = JSON.parse(localStorage.getItem('syl-medicalData') || 'null');
-  if (!medicalData) {
-    medicalData = {
-      personalInfo: {
-        firstName: user.profile.firstName,
-        lastName: user.profile.lastName,
-        dateOfBirth: '',
-        bloodType: '',
-        height: '',
-        weight: '',
-        emergencyContact: { name: '', relation: '', phone: '' },
-        secondaryContact: { name: '', relation: '', phone: '' },
-        address: '',
-        city: '',
-        postalCode: '',
-        nationalId: '',
-        socialSecurityNumber: '',
-        insuranceNumber: '',
-        preferredHospital: '',
-        organDonor: false,
-        advanceDirectives: false
-      },
-      medicalHistory: {
-        allergies: [],
-        medications: [],
-        conditions: [],
-        surgeries: [],
-        chronicDiseases: [],
-        medicalDevices: [],
-        emergencyMedications: []
-      },
-      emergencyInfo: {
-        primaryPhysician: { name: '', phone: '', specialty: '' },
-        pharmacist: { name: '', phone: '', address: '' },
-        lastUpdate: new Date().toISOString(),
-        criticalNotes: '',
-        contraindications: [],
-        riskFactors: []
-      },
-      braceletId: '',
-      isActive: false
-    };
-  }
-  localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
-  let activeTab = 'emergency';
-  render();
-
-  function render() {
-    document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gray-50">
-      <header class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-          <div class="flex items-center">
-            ${icons.heart}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Patient</h1>
-          </div>
-          <div class="flex items-center space-x-4">
-            <div class="text-sm text-gray-600">Bonjour, ${user.profile.firstName}</div>
-            <button id="logoutBtn" class="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
-          </div>
-        </div>
-      </header>
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div class="lg:col-span-1">
-            <nav class="space-y-2">
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='emergency' ? 'bg-red-100 text-red-700 border-l-4 border-red-600':'text-gray-600 hover:bg-gray-100'}" data-tab="emergency">${icons.emergency} <span class="ml-3">🚑 Urgence</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='profile' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="profile">${icons.user} <span class="ml-3">Profil complet</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='medical' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="medical">${icons.medical} <span class="ml-3">Médical</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='history' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="history">${icons.activity} <span class="ml-3">Historique</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='bracelet' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="bracelet">${icons.smartphone} <span class="ml-3">Bracelet</span></button>
-            </nav>
-          </div>
-          <div class="lg:col-span-3">
-            ${activeTab === 'emergency' ? renderEmergencyTab() : ''}
-            ${activeTab === 'profile' ? renderProfileTab() : ''}
-            ${activeTab === 'medical' ? renderMedicalTab() : ''}
-            ${activeTab === 'history' ? renderHistoryTab() : ''}
-            ${activeTab === 'bracelet' ? renderBraceletTab() : ''}
-          </div>
-        </div>
-      </div>
-    </div>
-`;
-    document.getElementById('logoutBtn').onclick = () => { logout(); };
-    document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { activeTab = btn.getAttribute('data-tab'); render(); });
-    if (activeTab === 'emergency') tabEmergencyEvents();
-    if (activeTab === 'profile') tabProfileEvents();
-    if (activeTab === 'medical') tabMedicalEvents();
-    if (activeTab === 'bracelet') tabBraceletEvents();
-  }
-
-  function renderEmergencyTab() {
-    return `
-      <div class="space-y-6">
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-          <div class="flex items-center">
-            <div class="text-red-500 mr-3">${icons.emergency}</div>
-            <h2 class="text-2xl font-bold text-red-800">INFORMATIONS D'URGENCE</h2>
-          </div>
-          <p class="text-red-700 mt-2">Ces informations sont critiques pour les secours</p>
-        </div>
-
-        <!-- Carte d'identité d'urgence -->
-        <div class="bg-white rounded-xl shadow-lg border-l-4 border-red-500 p-6">
-          <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-            ${icons.cross} <span class="ml-2">CARTE D'URGENCE MÉDICALE</span>
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-4">
-              <div class="bg-red-50 p-4 rounded-lg">
-                <h4 class="font-bold text-red-800">IDENTITÉ</h4>
-                <p><strong>Nom:</strong> ${medicalData.personalInfo.lastName}</p>
-                <p><strong>Prénom:</strong> ${medicalData.personalInfo.firstName}</p>
-                <p><strong>Né(e) le:</strong> ${medicalData.personalInfo.dateOfBirth}</p>
-                <p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-2 py-1 rounded font-bold">${medicalData.personalInfo.bloodType || 'NON RENSEIGNÉ'}</span></p>
-              </div>
-              <div class="bg-orange-50 p-4 rounded-lg">
-                <h4 class="font-bold text-orange-800">CONTACTS D'URGENCE</h4>
-                <p><strong>Principal:</strong> ${medicalData.personalInfo.emergencyContact.name} (${medicalData.personalInfo.emergencyContact.relation})</p>
-                <p><strong>Tél:</strong> ${medicalData.personalInfo.emergencyContact.phone}</p>
-                <p><strong>Secondaire:</strong> ${medicalData.personalInfo.secondaryContact.name}</p>
-                <p><strong>Tél:</strong> ${medicalData.personalInfo.secondaryContact.phone}</p>
-              </div>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>📋 MediCare - Suivi Médical Patient</h1>
+            <div class="last-update" id="lastUpdate">Dernière mise à jour: --</div>
+            <div style="margin-top: 8px; font-size: clamp(0.7rem, 1.8vw, 0.8rem); color: #666;">
+                <span>Version: <strong id="appVersion">2.1.0</strong></span>
+                <span style="margin-left: 15px;">Sync auto: <span id="autoSyncStatus">🟢 Actif</span></span>
             </div>
-            <div class="space-y-4">
-              <div class="bg-yellow-50 p-4 rounded-lg">
-                <h4 class="font-bold text-yellow-800">⚠️ ALLERGIES CRITIQUES</h4>
-                ${medicalData.medicalHistory.allergies.length ? medicalData.medicalHistory.allergies.map(a => `<span class="bg-red-500 text-white px-2 py-1 rounded text-sm mr-1 mb-1 inline-block">${a}</span>`).join('') : '<p class="text-gray-500">Aucune allergie connue</p>'}
-              </div>
-              <div class="bg-blue-50 p-4 rounded-lg">
-                <h4 class="font-bold text-blue-800">💊 TRAITEMENTS EN COURS</h4>
-                ${medicalData.medicalHistory.medications.length ? medicalData.medicalHistory.medications.slice(0,5).map(m => `<span class="bg-blue-500 text-white px-2 py-1 rounded text-sm mr-1 mb-1 inline-block">${m}</span>`).join('') : '<p class="text-gray-500">Aucun traitement</p>'}
-              </div>
-              <div class="bg-purple-50 p-4 rounded-lg">
-                <h4 class="font-bold text-purple-800">🏥 PATHOLOGIES</h4>
-                ${medicalData.medicalHistory.chronicDiseases.length ? medicalData.medicalHistory.chronicDiseases.map(c => `<span class="bg-purple-500 text-white px-2 py-1 rounded text-sm mr-1 mb-1 inline-block">${c}</span>`).join('') : '<p class="text-gray-500">Aucune pathologie chronique</p>'}
-              </div>
-            </div>
-          </div>
-          ${medicalData.emergencyInfo.criticalNotes ? `
-          <div class="mt-6 bg-red-100 border border-red-300 p-4 rounded-lg">
-            <h4 class="font-bold text-red-800 mb-2">🚨 NOTES CRITIQUES POUR LES SECOURS</h4>
-            <p class="text-red-700">${medicalData.emergencyInfo.criticalNotes}</p>
-          </div>
-          ` : ''}
+            <span class="cloud-status" id="cloudStatus">🔄 Initialisation...</span>
         </div>
-
-        <!-- Médecin traitant -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">👨‍⚕️ Médecin traitant</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Dr. Nom" value="${medicalData.emergencyInfo.primaryPhysician.name}" id="physicianName">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Spécialité" value="${medicalData.emergencyInfo.primaryPhysician.specialty}" id="physicianSpecialty">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Téléphone" value="${medicalData.emergencyInfo.primaryPhysician.phone}" id="physicianPhone">
-          </div>
-        </div>
-
-        <!-- Notes critiques -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">🚨 Notes critiques pour les secours</h3>
-          <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg h-24" placeholder="Informations vitales à communiquer aux secours (ex: risque d'allergie, contre-indications spécifiques...)" id="criticalNotes">${medicalData.emergencyInfo.criticalNotes}</textarea>
-        </div>
-
-        <button id="saveEmergency" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">
-          ${icons.check} SAUVEGARDER LES INFOS D'URGENCE
-        </button>
-      </div>
-    `;
-  }
-
-  function renderProfileTab() {
-    return `
-      <div class="space-y-6">
-        <div class="flex justify-between items-center">
-          <h2 class="text-2xl font-bold text-gray-900">Profil Complet</h2>
-          <button id="saveProfile" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.check} Sauvegarder</button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Informations personnelles</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Prénom" value="${medicalData.personalInfo.firstName}" id="pfFirstName">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Nom" value="${medicalData.personalInfo.lastName}" id="pfLastName">
-            <input type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="${medicalData.personalInfo.dateOfBirth}" id="pfBirth">
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="pfBlood">
-              <option value="">Groupe sanguin</option>
-              ${MEDICAL_DATA.bloodTypes.map(type => `<option value="${type}" ${medicalData.personalInfo.bloodType===type?'selected':''}>${type}</option>`).join('')}
-            </select>
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Taille (cm)" value="${medicalData.personalInfo.height}" id="pfHeight">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Poids (kg)" value="${medicalData.personalInfo.weight}" id="pfWeight">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="N° Sécurité Sociale" value="${medicalData.personalInfo.socialSecurityNumber}" id="pfSSN">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="N° Mutuelle" value="${medicalData.personalInfo.insuranceNumber}" id="pfInsurance">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Adresse" value="${medicalData.personalInfo.address}" id="pfAddress">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Ville" value="${medicalData.personalInfo.city}" id="pfCity">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Code postal" value="${medicalData.personalInfo.postalCode}" id="pfPostal">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Hôpital de référence" value="${medicalData.personalInfo.preferredHospital}" id="pfHospital">
-          </div>
-          
-          <div class="mt-6 space-y-4">
-            <h4 class="font-semibold text-gray-900">Contacts d'urgence</h4>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Contact principal" value="${medicalData.personalInfo.emergencyContact.name}" id="pfContact1Name">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Relation" value="${medicalData.personalInfo.emergencyContact.relation}" id="pfContact1Rel">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Téléphone" value="${medicalData.personalInfo.emergencyContact.phone}" id="pfContact1Phone">
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Contact secondaire" value="${medicalData.personalInfo.secondaryContact.name}" id="pfContact2Name">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Relation" value="${medicalData.personalInfo.secondaryContact.relation}" id="pfContact2Rel">
-              <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Téléphone" value="${medicalData.personalInfo.secondaryContact.phone}" id="pfContact2Phone">
-            </div>
-          </div>
-
-          <div class="mt-6 space-y-2">
-            <label class="flex items-center">
-              <input type="checkbox" ${medicalData.personalInfo.organDonor ? 'checked' : ''} id="pfOrganDonor" class="mr-2">
-              <span>Donneur d'organes</span>
-            </label>
-            <label class="flex items-center">
-              <input type="checkbox" ${medicalData.personalInfo.advanceDirectives ? 'checked' : ''} id="pfDirectives" class="mr-2">
-              <span>Directives anticipées rédigées</span>
-            </label>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderMedicalTab() {
-    return `
-      <div class="space-y-6">
-        <h2 class="text-2xl font-bold text-gray-900">Dossier Médical Complet</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          ${renderMedicalListManager('Allergies', 'allergies', MEDICAL_DATA.commonAllergies)}
-          ${renderMedicalListManager('Médicaments actuels', 'medications', MEDICAL_DATA.emergencyMedications)}
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showSection('dashboard')">📊 Tableau de Bord</button>
+            <button class="nav-tab" onclick="showSection('medical')">🩺 Données Médicales</button>
+            <button class="nav-tab" onclick="showSection('history')">📋 Historique</button>
+            <button class="nav-tab" onclick="showSection('chat')">🤖 Assistant IA</button>
+            <button class="nav-tab" onclick="showSection('settings')">⚙️ Paramètres</button>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          ${renderMedicalListManager('Pathologies chroniques', 'chronicDiseases', MEDICAL_DATA.chronicConditions)}
-          ${renderMedicalListManager('Dispositifs médicaux', 'medicalDevices', MEDICAL_DATA.medicalDevices)}
-        </div>
-        
-        ${renderMedicalListManager('Interventions chirurgicales', 'surgeries', [])}
-        ${renderMedicalListManager('Médicaments d\'urgence', 'emergencyMedications', MEDICAL_DATA.emergencyMedications)}
-        ${renderMedicalListManager('Contre-indications', 'contraindications', [])}
-        ${renderMedicalListManager('Facteurs de risque', 'riskFactors', [])}
-      </div>
-    `;
-  }
-
-  function renderMedicalListManager(title, listType, suggestions) {
-    const list = listType.includes('.') ? 
-      medicalData.medicalHistory[listType.split('.')[1]] || medicalData.emergencyInfo[listType.split('.')[1]] :
-      medicalData.medicalHistory[listType] || medicalData.emergencyInfo[listType] || [];
-    
-    return `
-      <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">${title}</h3>
-        <div class="space-y-3">
-          <div class="flex gap-2">
-            <input type="text" list="suggestions_${listType}" placeholder="Ajouter..." class="flex-1 px-3 py-2 border border-gray-300 rounded-lg" id="add_${listType}">
-            <datalist id="suggestions_${listType}">
-              ${suggestions.map(item => `<option value="${item}">`).join('')}
-            </datalist>
-            <button class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-2" id="btn_${listType}">${icons.plus}</button>
-          </div>
-          <div class="space-y-2" id="list_${listType}">
-            ${list.map((item, idx) => `
-              <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                <span class="text-gray-700">${item}</span>
-                <button class="text-red-600 hover:text-red-700" data-del="${listType}" data-idx="${idx}">${icons.trash}</button>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderHistoryTab() {
-    return `<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-      <h2 class="text-xl font-bold text-gray-900 mb-4">Historique médical</h2>
-      <p class="text-gray-600">Aucune consultation enregistrée.</p>
-      <div class="mt-4 p-4 bg-blue-50 rounded-lg">
-        <p class="text-blue-700">Dernière mise à jour: ${new Date(medicalData.emergencyInfo.lastUpdate).toLocaleString('fr-FR')}</p>
-      </div>
-    </div>`;
-  }
-
-  function renderBraceletTab() {
-    return `
-      <div class="space-y-6">
-        <h2 class="text-2xl font-bold text-gray-900">Bracelet SYL d'Urgence</h2>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <div class="text-center">
-            <div class="mx-auto w-24 h-24 bg-gradient-to-r from-red-600 to-orange-600 rounded-full flex items-center justify-center mb-4">${icons.smartphone}</div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">Bracelet d'urgence médicale</h3>
-            <p class="text-gray-600 mb-6">${medicalData.isActive ? 'Votre bracelet est actif et accessible aux secours' : 'Activez votre bracelet pour l\'accès d\'urgence'}</p>
+        <!-- Dashboard Section -->
+        <div id="dashboard" class="section active">
+            <div class="filters-section">
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label for="dateStart">Date début</label>
+                        <input type="date" id="dateStart" onchange="applyFilters()">
+                    </div>
+                    <div class="filter-group">
+                        <label for="dateEnd">Date fin</label>
+                        <input type="date" id="dateEnd" onchange="applyFilters()">
+                    </div>
+                    <div class="filter-group">
+                        <label for="typeFilter">Type de données</label>
+                        <select id="typeFilter" onchange="applyFilters()">
+                            <option value="">Toutes les données</option>
+                            <option value="consultation">Consultations</option>
+                            <option value="vital">Signes vitaux</option>
+                            <option value="symptom">Symptômes</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <button class="btn btn-info" onclick="setAllTimeFilters()">📅 Toutes périodes</button>
+                    </div>
+                    <div class="filter-group">
+                        <button class="btn btn-warning" onclick="resetFilters()">📅 Mois en cours</button>
+                    </div>
+                </div>
+            </div>
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="kpi-card">
+                    <div class="kpi-icon">🩺</div>
+                    <div class="kpi-value" id="totalConsultations">0</div>
+                    <div class="kpi-label">Consultations</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">💓</div>
+                    <div class="kpi-value" id="avgHeartRate">-- bpm</div>
+                    <div class="kpi-label">FC Moyenne</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">🌡️</div>
+                    <div class="kpi-value" id="avgTemperature">-- °C</div>
+                    <div class="kpi-label">Température Moy.</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">🩸</div>
+                    <div class="kpi-value" id="avgBloodPressure">--/--</div>
+                    <div class="kpi-label">Tension Moy.</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon">⚠️</div>
+                    <div class="kpi-value" id="activeSymptoms">0</div>
+                    <div class="kpi-label">Symptômes Actifs</div>
+                </div>
+            </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div class="bg-red-50 p-4 rounded-lg">${icons.emergency}<p class="text-sm font-medium text-red-700">Accès Urgence 24h/24</p></div>
-              <div class="bg-blue-50 p-4 rounded-lg">${icons.shield}<p class="text-sm font-medium text-blue-700">NFC Sécurisé</p></div>
-              <div class="bg-green-50 p-4 rounded-lg">${icons.clock}<p class="text-sm font-medium text-green-700">Sync Temps Réel</p></div>
+            <div class="charts-grid">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="chart-card">
+                        <h3 class="chart-title">💓 Évolution Fréquence Cardiaque</h3>
+                        <div class="chart-container">
+                            <canvas id="heartRateChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3 class="chart-title">🌡️ Évolution Température</h3>
+                        <div class="chart-container">
+                            <canvas id="temperatureChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3 class="chart-title">📈 Tendances des Signes Vitaux</h3>
+                    <div class="chart-container tall">
+                        <canvas id="vitalSignsChart"></canvas>
+                    </div>
+                </div>
             </div>
-
-            <div class="mb-6 p-4 bg-yellow-50 rounded-lg">
-              <h4 class="font-bold text-yellow-800 mb-2">🚨 Code d'accès d'urgence</h4>
-              <p class="text-2xl font-mono font-bold text-yellow-900">${medicalData.braceletId || 'SYL-' + Math.random().toString(36).substr(2,6).toUpperCase()}</p>
-              <p class="text-sm text-yellow-700 mt-1">À communiquer aux secours pour accès immédiat</p>
-            </div>
-
-            <button class="${medicalData.isActive ? 'bg-gray-200 text-gray-600' : 'bg-red-600 text-white hover:bg-red-700'} rounded-lg px-6 py-3 font-bold" id="activateBracelet">
-              ${medicalData.isActive ? 'Bracelet d\'Urgence Activé' : 'Activer le Bracelet d\'Urgence'}
-            </button>
-          </div>
         </div>
-      </div>
-    `;
-  }
 
-  function tabEmergencyEvents() {
-    document.getElementById('saveEmergency').onclick = async () => {
-      medicalData.emergencyInfo.primaryPhysician.name = document.getElementById('physicianName').value;
-      medicalData.emergencyInfo.primaryPhysician.specialty = document.getElementById('physicianSpecialty').value;
-      medicalData.emergencyInfo.primaryPhysician.phone = document.getElementById('physicianPhone').value;
-      medicalData.emergencyInfo.criticalNotes = document.getElementById('criticalNotes').value;
-      medicalData.emergencyInfo.lastUpdate = new Date().toISOString();
-      localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
-      
-      // Synchronisation Firebase automatique
-      if (user.uid) {
-        const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
-        if (success) {
-          alert('✅ Données d\'urgence sauvegardées et synchronisées avec Firebase !');
-        } else {
-          alert('⚠️ Données sauvegardées localement. Synchronisation Firebase échouée.');
-        }
-      } else {
-        alert('✅ Données d\'urgence sauvegardées !');
-      }
-      render();
-    };
-  }
+        <!-- Medical Data Section -->
+        <div id="medical" class="section">
+            <div class="card">
+                <h2 style="margin-bottom: 20px; font-size: clamp(1.2rem, 4vw, 1.5rem);">🩺 Saisie Données Médicales</h2>
+                
+                <!-- Informations générales -->
+                <div class="medical-form-section">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">👤 Informations Générales</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="consultationDate">Date *</label>
+                            <input type="date" id="consultationDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="consultationType">Type de consultation</label>
+                            <select id="consultationType">
+                                <option value="routine">Consultation de routine</option>
+                                <option value="urgence">Urgence</option>
+                                <option value="suivi">Suivi</option>
+                                <option value="controle">Contrôle</option>
+                                <option value="autre">Autre</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="medecin">Médecin</label>
+                            <input type="text" id="medecin" placeholder="Dr. Nom du médecin">
+                        </div>
+                    </div>
+                </div>
 
-  function tabProfileEvents() {
-    document.getElementById('saveProfile').onclick = async () => {
-      medicalData.personalInfo.firstName = document.getElementById('pfFirstName').value;
-      medicalData.personalInfo.lastName = document.getElementById('pfLastName').value;
-      medicalData.personalInfo.dateOfBirth = document.getElementById('pfBirth').value;
-      medicalData.personalInfo.bloodType = document.getElementById('pfBlood').value;
-      medicalData.personalInfo.height = document.getElementById('pfHeight').value;
-      medicalData.personalInfo.weight = document.getElementById('pfWeight').value;
-      medicalData.personalInfo.socialSecurityNumber = document.getElementById('pfSSN').value;
-      medicalData.personalInfo.insuranceNumber = document.getElementById('pfInsurance').value;
-      medicalData.personalInfo.address = document.getElementById('pfAddress').value;
-      medicalData.personalInfo.city = document.getElementById('pfCity').value;
-      medicalData.personalInfo.postalCode = document.getElementById('pfPostal').value;
-      medicalData.personalInfo.preferredHospital = document.getElementById('pfHospital').value;
-      medicalData.personalInfo.emergencyContact.name = document.getElementById('pfContact1Name').value;
-      medicalData.personalInfo.emergencyContact.relation = document.getElementById('pfContact1Rel').value;
-      medicalData.personalInfo.emergencyContact.phone = document.getElementById('pfContact1Phone').value;
-      medicalData.personalInfo.secondaryContact.name = document.getElementById('pfContact2Name').value;
-      medicalData.personalInfo.secondaryContact.relation = document.getElementById('pfContact2Rel').value;
-      medicalData.personalInfo.secondaryContact.phone = document.getElementById('pfContact2Phone').value;
-      medicalData.personalInfo.organDonor = document.getElementById('pfOrganDonor').checked;
-      medicalData.personalInfo.advanceDirectives = document.getElementById('pfDirectives').checked;
-      localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
-      
-      // Synchronisation Firebase automatique
-      if (user.uid) {
-        const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
-        if (success) {
-          alert('✅ Profil sauvegardé et synchronisé avec Firebase !');
-        } else {
-          alert('⚠️ Profil sauvegardé localement. Synchronisation Firebase échouée.');
-        }
-      } else {
-        alert('✅ Profil sauvegardé !');
-      }
-      render();
-    };
-  }
+                <!-- Signes vitaux -->
+                <div class="medical-form-section">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">💓 Signes Vitaux</h3>
+                    <div class="vital-signs-grid">
+                        <div class="form-group">
+                            <label for="heartRate">Fréquence cardiaque (bpm)</label>
+                            <input type="number" id="heartRate" min="30" max="200" placeholder="72">
+                        </div>
+                        <div class="form-group">
+                            <label for="systolic">Tension systolique (mmHg)</label>
+                            <input type="number" id="systolic" min="70" max="250" placeholder="120">
+                        </div>
+                        <div class="form-group">
+                            <label for="diastolic">Tension diastolique (mmHg)</label>
+                            <input type="number" id="diastolic" min="40" max="150" placeholder="80">
+                        </div>
+                        <div class="form-group">
+                            <label for="temperature">Température (°C)</label>
+                            <input type="number" id="temperature" step="0.1" min="30" max="45" placeholder="36.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="weight">Poids (kg)</label>
+                            <input type="number" id="weight" step="0.1" min="20" max="300" placeholder="70">
+                        </div>
+                        <div class="form-group">
+                            <label for="height">Taille (cm)</label>
+                            <input type="number" id="height" min="100" max="250" placeholder="170">
+                        </div>
+                    </div>
+                </div>
 
-  function tabMedicalEvents() {
-    const listTypes = ['allergies', 'medications', 'chronicDiseases', 'medicalDevices', 'surgeries', 'emergencyMedications', 'contraindications', 'riskFactors'];
-    listTypes.forEach(type => {
-      const btnEl = document.getElementById(`btn_${type}`);
-      if (btnEl) {
-        btnEl.onclick = async () => {
-          const v = document.getElementById(`add_${type}`).value.trim();
-          if (v) {
-            if (medicalData.medicalHistory[type]) {
-              medicalData.medicalHistory[type].push(v);
-            } else if (medicalData.emergencyInfo[type]) {
-              medicalData.emergencyInfo[type].push(v);
-            }
-            localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
-            
-            // Synchronisation Firebase automatique
-            if (user.uid) {
-              await saveToFirebase('patients', medicalData, user.uid + '_medical');
-            }
-            render();
-          }
+                <!-- Symptômes -->
+                <div class="medical-form-section">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">🔍 Symptômes</h3>
+                    <div class="symptoms-grid" id="symptomsGrid">
+                        <!-- Les symptômes seront générés dynamiquement -->
+                    </div>
+                </div>
+
+                <!-- Notes et observations -->
+                <div class="medical-form-section">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">📝 Notes et Observations</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="symptoms">Description des symptômes</label>
+                            <textarea id="symptoms" rows="3" placeholder="Décrivez vos symptômes en détail..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="medications">Médicaments pris</label>
+                            <textarea id="medications" rows="3" placeholder="Liste des médicaments et dosages..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes">Notes supplémentaires</label>
+                            <textarea id="notes" rows="3" placeholder="Autres observations importantes..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div style="text-align: center; margin-top: 20px;">
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="saveMedicalData()" style="min-width: 200px;">💾 Enregistrer</button>
+                        <button class="btn btn-warning" onclick="clearMedicalForm()" style="min-width: 150px;">🔄 Nouveau</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div id="history" class="section">
+            <div class="card">
+                <h2 style="margin-bottom: 20px; font-size: clamp(1.2rem, 4vw, 1.5rem);">📋 Historique Médical</h2>
+                
+                <div class="filters-section">
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label for="historyDateStart">Date début</label>
+                            <input type="date" id="historyDateStart" onchange="applyHistoryFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label for="historyDateEnd">Date fin</label>
+                            <input type="date" id="historyDateEnd" onchange="applyHistoryFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label for="historyTypeFilter">Type</label>
+                            <select id="historyTypeFilter" onchange="applyHistoryFilters()">
+                                <option value="">Tous les types</option>
+                                <option value="routine">Routine</option>
+                                <option value="urgence">Urgence</option>
+                                <option value="suivi">Suivi</option>
+                                <option value="controle">Contrôle</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <button class="btn btn-secondary" onclick="resetHistoryFilters()">🗑️ Reset</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="overflow-x: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Médecin</th>
+                                <th>FC</th>
+                                <th>Tension</th>
+                                <th>Temp.</th>
+                                <th>Poids</th>
+                                <th>Symptômes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat IA Section -->
+        <div id="chat" class="section">
+            <div class="card">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <span>🤖</span>
+                        <div>
+                            <div style="font-size: 1.1rem;">Assistant Médical IA</div>
+                            <div style="font-size: 0.85rem; opacity: 0.9;">Je vous aide à renseigner vos données médicales</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-message">
+                            <div class="chat-avatar ai">🤖</div>
+                            <div class="chat-bubble ai">
+                                <strong>Bonjour ! 👋</strong><br><br>
+                                Je suis votre assistant médical intelligent. Je peux vous aider à :<br><br>
+                                🩺 <strong>Renseigner vos données</strong> : Je pose les questions médicales<br>
+                                📊 <strong>Analyser vos tendances</strong> : Évolution de vos signes vitaux<br>
+                                💡 <strong>Conseils santé</strong> : Recommandations personnalisées<br>
+                                📋 <strong>Suivi médical</strong> : Rappels et observations<br>
+                                <br><br>
+                                <div class="chat-suggestions">
+                                    <div class="chat-suggestion" onclick="sendSuggestion('Commencer une consultation')">Nouvelle consultation</div>
+                                    <div class="chat-suggestion" onclick="sendSuggestion('Renseigner mes signes vitaux')">Signes vitaux</div>
+                                    <div class="chat-suggestion" onclick="sendSuggestion('Analyser mes tendances')">Mes tendances</div>
+                                    <div class="chat-suggestion" onclick="sendSuggestion('J\'ai des symptômes')">Déclarer symptômes</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-container">
+                        <input type="text" class="chat-input" id="chatInput" placeholder="Décrivez vos symptômes ou posez une question..." onkeypress="handleChatKeyPress(event)">
+                        <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+                            ➤
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Section -->
+        <div id="settings" class="section">
+            <div class="card">
+                <h2 style="margin-bottom: 20px; font-size: clamp(1.2rem, 4vw, 1.5rem);">⚙️ Paramètres</h2>
+                
+                <div class="medical-form-section">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">💾 Gestion des données</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Export données</label>
+                            <button class="btn btn-success" onclick="exportMedicalData()">📊 Export Médical</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Synchronisation</label>
+                            <button class="btn btn-info" onclick="forceSyncFromFirebase()">🔄 Forcer Sync</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Sauvegarde</label>
+                            <button class="btn btn-warning" onclick="backupMedicalData()">💾 Sauvegarder</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Réinitialiser</label>
+                            <button class="btn btn-danger" onclick="clearAllMedicalData()">🗑️ Effacer Tout</button>
+                            <small style="color: #dc3545; margin-top: 5px; display: block; font-size: clamp(0.7rem, 2vw, 0.8rem);">
+                                ⚠️ Action irréversible
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="medical-form-section">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">👤 Profil Patient</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="patientName">Nom complet</label>
+                            <input type="text" id="patientName" placeholder="Votre nom complet">
+                        </div>
+                        <div class="form-group">
+                            <label for="patientAge">Âge</label>
+                            <input type="number" id="patientAge" min="0" max="120" placeholder="Votre âge">
+                        </div>
+                        <div class="form-group">
+                            <label for="patientGender">Sexe</label>
+                            <select id="patientGender">
+                                <option value="">Sélectionner</option>
+                                <option value="M">Masculin</option>
+                                <option value="F">Féminin</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="bloodType">Groupe sanguin</label>
+                            <select id="bloodType">
+                                <option value="">Sélectionner</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="allergies">Allergies connues</label>
+                            <textarea id="allergies" rows="2" placeholder="Liste de vos allergies..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="chronicConditions">Conditions chroniques</label>
+                            <textarea id="chronicConditions" rows="2" placeholder="Maladies chroniques, conditions particulières..."></textarea>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="savePatientProfile()">💾 Sauvegarder Profil</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        let medicalData = [];
+        let patientProfile = {};
+        let filteredData = [];
+        let charts = {};
+        let db = null;
+        let isFirebaseInitialized = false;
+        let currentStep = 0;
+        let chatConversation = [];
+
+        // Version de l'application
+        const APP_VERSION = "2.1.0";
+        let autoSyncInterval = null;
+
+        // Symptômes prédéfinis
+        const commonSymptoms = [
+            'Fièvre', 'Maux de tête', 'Fatigue', 'Toux', 'Mal de gorge',
+            'Nausées', 'Vomissements', 'Diarrhée', 'Constipation', 'Douleurs abdominales',
+            'Douleurs musculaires', 'Douleurs articulaires', 'Essoufflement', 'Vertiges',
+            'Palpitations', 'Troubles du sommeil', 'Perte d\'appétit', 'Sueurs nocturnes'
+        ];
+
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBuR-B_bOyMtN1xnSQCCsxfJWydzg9mvs",
+            authDomain: "medicare-dashboard.firebaseapp.com",
+            projectId: "medicare-dashboard",
+            storageBucket: "medicare-dashboard.appspot.com",
+            messagingSenderId: "220610836736",
+            appId: "1:220610836736:web:medical123456789abc",
+            measurementId: "G-MEDICAL123"
         };
-      }
-      document.querySelectorAll(`[data-del="${type}"]`).forEach(btn => btn.onclick = async () => {
-        const idx = parseInt(btn.getAttribute('data-idx'));
-        if (medicalData.medicalHistory[type]) {
-          medicalData.medicalHistory[type].splice(idx, 1);
-        } else if (medicalData.emergencyInfo[type]) {
-          medicalData.emergencyInfo[type].splice(idx, 1);
-        }
-        localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
-        
-        // Synchronisation Firebase automatique
-        if (user.uid) {
-          await saveToFirebase('patients', medicalData, user.uid + '_medical');
-        }
-        render();
-      });
-    });
-  }
 
-  function tabBraceletEvents() {
-    document.getElementById('activateBracelet').onclick = async () => {
-      medicalData.isActive = true;
-      if (!medicalData.braceletId) {
-        medicalData.braceletId = 'SYL-' + Math.random().toString(36).substr(2,6).toUpperCase();
-      }
-      localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
-      
-      // Synchronisation Firebase automatique
-      if (user.uid) {
-        const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
-        if (success) {
-          alert('✅ Bracelet d\'urgence activé et synchronisé avec Firebase !');
-        } else {
-          alert('⚠️ Bracelet activé localement. Synchronisation Firebase échouée.');
-        }
-      } else {
-        alert('✅ Bracelet d\'urgence activé !');
-      }
-      render();
-    };
-  }
-}
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
 
-// ----------- MEDECIN DASHBOARD -----------
-function renderMedecinDashboard(user) {
-  let patients = JSON.parse(localStorage.getItem('syl-patients') || 'null');
-  if (!patients) {
-    patients = [
-      {
-        id: '1',
-        personalInfo: { firstName: 'Jean', lastName: 'Martin', dateOfBirth: '1978-05-15', bloodType: 'O+', height: '175', weight: '80' },
-        medicalHistory: { allergies: ['Pénicilline', 'Pollen'], medications: ['Metformine 500mg'], conditions: ['Diabète type 2'], chronicDiseases: ['Diabète type 2', 'Hypertension'] },
-        emergencyInfo: { criticalNotes: 'Risque hypoglycémie', contraindications: ['Corticoïdes'] },
-        lastAccess: '2024-01-15',
-        isActive: true
-      },
-      {
-        id: '2',
-        personalInfo: { firstName: 'Marie', lastName: 'Dubois', dateOfBirth: '1985-08-22', bloodType: 'A+', height: '165', weight: '65' },
-        medicalHistory: { allergies: ['Aspirine'], medications: ['Levothyrox'], conditions: ['Hypothyroïdie'], chronicDiseases: ['Hypothyroïdie'] },
-        emergencyInfo: { criticalNotes: '', contraindications: [] },
-        lastAccess: '2024-01-14',
-        isActive: true
-      }
-    ];
-    localStorage.setItem('syl-patients', JSON.stringify(patients));
-  }
-  let searchTerm = '';
-  let selectedPatient = null;
-  let activeTab = 'patients';
-  render();
-
-  function render() {
-    const filteredPatients = patients.filter(patient =>
-      `${patient.personalInfo.firstName} ${patient.personalInfo.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    document.getElementById('app').innerHTML = `
-      <div class="min-h-screen bg-gray-50">
-        <header class="bg-white shadow-sm border-b">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-            <div class="flex items-center">
-              ${icons.stethoscope}
-              <div class="ml-3">
-                <h1 class="text-xl font-bold text-gray-900">SYL Medical Pro</h1>
-                <p class="text-xs text-gray-500">${user.profile.speciality||''} • ${user.profile.hospital||''}</p>
-              </div>
-            </div>
-            <div class="flex items-center space-x-4">
-              <div class="text-sm text-gray-600">Dr. ${user.profile.firstName} ${user.profile.lastName}</div>
-              <button id="logoutBtn" class="border-2 border-green-600 text-green-600 hover:bg-green-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
-            </div>
-          </div>
-        </header>
-        
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div class="mb-8">
-            <!-- Navigation tabs -->
-            <div class="flex space-x-4 mb-6">
-              <button class="px-4 py-2 rounded-lg ${activeTab==='patients' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="patients">Patients</button>
-              <button class="px-4 py-2 rounded-lg ${activeTab==='emergency' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="emergency">🚑 Accès Urgence</button>
-            </div>
-
-            ${activeTab === 'patients' ? renderPatientsTab(filteredPatients) : ''}
-            ${activeTab === 'emergency' ? renderEmergencyAccessTab() : ''}
-          </div>
-        </div>
-
-        ${selectedPatient ? renderPatientModal(selectedPatient) : ''}
-      </div>
-    `;
-    
-    document.getElementById('logoutBtn').onclick = () => { logout(); };
-    document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { activeTab = btn.getAttribute('data-tab'); render(); });
-    
-    if (activeTab === 'patients') patientsTabEvents(filteredPatients);
-    if (activeTab === 'emergency') emergencyTabEvents();
-    if (selectedPatient) modalEvents();
-  }
-
-  function renderPatientsTab(filteredPatients) {
-    return `
-      <h2 class="text-2xl font-bold text-gray-900 mb-4">Patients</h2>
-      
-      <!-- Barre de recherche -->
-      <div class="flex items-center space-x-4 mb-6">
-        <div class="flex-1 relative">
-          ${icons.search}
-          <input type="text" placeholder="Rechercher un patient..." value="${searchTerm}" id="searchPatient" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-        </div>
-        <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2" id="addPatient">${icons.userPlus} Nouveau patient</button>
-      </div>
-
-      <!-- Stats rapides -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.users}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">${patients.length}</p><p class="text-sm text-gray-600">Patients totaux</p></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.activity}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">${patients.filter(p=>p.isActive).length}</p><p class="text-sm text-gray-600">Actifs</p></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.alert}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">${patients.filter(p=>p.emergencyInfo?.criticalNotes).length}</p><p class="text-sm text-gray-600">Alertes</p></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.clock}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">5</p><p class="text-sm text-gray-600">RDV aujourd'hui</p></div>
-        </div>
-      </div>
-
-      <!-- Liste des patients -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        ${filteredPatients.map(patient => `
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-4 hover:shadow-lg transition-shadow cursor-pointer ${patient.emergencyInfo?.criticalNotes ? 'border-l-4 border-red-500' : ''}" data-patient="${patient.id}">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center">${icons.user}</div>
-                <div>
-                  <h3 class="font-semibold text-gray-900">${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h3>
-                  <p class="text-sm text-gray-500">Groupe: ${patient.personalInfo.bloodType || 'Non renseigné'} • ${patient.lastAccess}</p>
-                  ${patient.emergencyInfo?.criticalNotes ? `<p class="text-xs text-red-600 font-bold">⚠️ Notes d'urgence</p>` : ''}
-                </div>
-              </div>
-              <div class="flex items-center space-x-2">
-                ${patient.isActive ? '<div class="w-3 h-3 bg-green-500 rounded-full"></div>' : ''}
-                <span class="text-xs text-gray-400">Actif</span>
-              </div>
-            </div>
+        function initializeApp() {
+            console.log('Initialisation de l\'application médicale...');
             
-            <div class="mt-3 flex flex-wrap gap-2">
-              ${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).slice(0, 2).map(condition => `<span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">${condition}</span>`).join('')}
-              ${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).length > 2 ? `<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">+${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).length - 2} autres</span>` : ''}
-            </div>
+            document.getElementById('appVersion').textContent = APP_VERSION;
+            document.getElementById('autoSyncStatus').innerHTML = '🟢 Actif';
             
-            ${patient.medicalHistory.allergies?.length ? `
-            <div class="mt-2 p-2 bg-red-50 rounded">
-              <p class="text-xs text-red-700 font-bold">Allergies: ${patient.medicalHistory.allergies.slice(0,3).join(', ')}</p>
-            </div>
-            ` : ''}
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  function renderEmergencyAccessTab() {
-    return `
-      <div class="space-y-6">
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-          <h2 class="text-2xl font-bold text-red-800 flex items-center">
-            ${icons.emergency} <span class="ml-2">ACCÈS D'URGENCE MÉDICAL</span>
-          </h2>
-          <p class="text-red-700 mt-2">Recherche rapide par code d'urgence ou nom</p>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Recherche d'urgence</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Code d'urgence (bracelet)</label>
-              <input type="text" placeholder="SYL-XXXXXX" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-lg font-mono" id="emergencyCode">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Nom du patient</label>
-              <input type="text" placeholder="Nom ou prénom" class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="emergencyName">
-            </div>
-          </div>
-          <div class="mt-4 flex space-x-4">
-            <button class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 flex items-center gap-2" id="searchEmergency">
-              ${icons.search} RECHERCHE D'URGENCE
-            </button>
-            <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-6 py-3 flex items-center gap-2">
-              ${icons.phone} APPELER SAMU (15)
-            </button>
-          </div>
-        </div>
-
-        <!-- Patients avec alertes -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">⚠️ Patients avec alertes d'urgence</h3>
-          <div class="space-y-3">
-            ${patients.filter(p => p.emergencyInfo?.criticalNotes).map(patient => `
-              <div class="border-l-4 border-red-500 bg-red-50 p-4 rounded cursor-pointer hover:bg-red-100" data-patient="${patient.id}">
-                <div class="flex justify-between items-start">
-                  <div>
-                    <h4 class="font-bold text-red-800">${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h4>
-                    <p class="text-red-700">${patient.emergencyInfo.criticalNotes}</p>
-                    <p class="text-sm text-red-600">Groupe sanguin: ${patient.personalInfo.bloodType || 'Non renseigné'}</p>
-                  </div>
-                  <span class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">CRITIQUE</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderPatientModal(patient) {
-    return `
-      <div class="fixed inset-0 modal-bg flex items-center justify-center p-4 modal">
-        <div class="bg-white rounded-xl max-w-6xl w-full max-h-[95vh] overflow-y-auto shadow-lg">
-          <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-            <div>
-              <h2 class="text-2xl font-bold text-gray-900">${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h2>
-              <p class="text-gray-600">Dossier médical d'urgence complet</p>
-            </div>
-            <button class="bg-gray-200 text-gray-800 rounded-lg px-4 py-2" id="closeModal">✕</button>
-          </div>
-
-          <div class="p-6 space-y-6">
-            <!-- Informations d'urgence critiques -->
-            ${patient.emergencyInfo?.criticalNotes ? `
-            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-              <h3 class="font-bold text-red-800 mb-2">🚨 NOTES CRITIQUES D'URGENCE</h3>
-              <p class="text-red-700 font-medium">${patient.emergencyInfo.criticalNotes}</p>
-            </div>
-            ` : ''}
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <!-- Identité -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">👤 Identité</h3>
-                <div class="space-y-2 text-sm">
-                  <p><strong>Né(e) le:</strong> ${patient.personalInfo.dateOfBirth}</p>
-                  <p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-2 py-1 rounded font-bold">${patient.personalInfo.bloodType || 'NON RENSEIGNÉ'}</span></p>
-                  <p><strong>Taille:</strong> ${patient.personalInfo.height} cm</p>
-                  <p><strong>Poids:</strong> ${patient.personalInfo.weight} kg</p>
-                </div>
-              </div>
-
-              <!-- Allergies -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">⚠️ Allergies</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.allergies || []).length ? patient.medicalHistory.allergies.map(allergy => `<span class="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full mr-2 mb-1">${allergy}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucune allergie connue</p>'}
-                </div>
-              </div>
-
-              <!-- Médicaments -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">💊 Traitements</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.medications || []).length ? patient.medicalHistory.medications.map(medication => `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full mr-2 mb-1">${medication}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucun traitement</p>'}
-                </div>
-              </div>
-
-              <!-- Pathologies -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">🏥 Pathologies</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).length ? (patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions).map(condition => `<span class="inline-block px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full mr-2 mb-1">${condition}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucune pathologie</p>'}
-                </div>
-              </div>
-
-              <!-- Contre-indications -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">🚫 Contre-indications</h3>
-                <div class="space-y-1">
-                  ${(patient.emergencyInfo?.contraindications || []).length ? patient.emergencyInfo.contraindications.map(contra => `<span class="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full mr-2 mb-1">${contra}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucune contre-indication</p>'}
-                </div>
-              </div>
-
-              <!-- Dispositifs médicaux -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">🔧 Dispositifs</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.medicalDevices || []).length ? patient.medicalHistory.medicalDevices.map(device => `<span class="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full mr-2 mb-1">${device}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucun dispositif</p>'}
-                </div>
-              </div>
-            </div>
-
-            <div class="flex justify-end space-x-4">
-              <button class="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2" id="editPatient">${icons.edit} Modifier</button>
-              <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Nouvelle consultation</button>
-              <button class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.emergency} Déclarer urgence</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function patientsTabEvents(filteredPatients) {
-    document.getElementById('searchPatient').oninput = (e) => { searchTerm = e.target.value; render(); };
-    document.getElementById('addPatient').onclick = () => showAddPatientModal();
-    document.querySelectorAll('[data-patient]').forEach(card => card.onclick = () => {
-      selectedPatient = patients.find(p=>p.id===card.getAttribute('data-patient'));
-      render();
-    });
-  }
-
-  function emergencyTabEvents() {
-    document.getElementById('searchEmergency').onclick = () => {
-      const code = document.getElementById('emergencyCode').value;
-      const name = document.getElementById('emergencyName').value;
-      
-      let foundPatient = null;
-      if (code) {
-        foundPatient = patients.find(p => p.braceletId === code);
-      } else if (name) {
-        foundPatient = patients.find(p => 
-          p.personalInfo.firstName.toLowerCase().includes(name.toLowerCase()) || 
-          p.personalInfo.lastName.toLowerCase().includes(name.toLowerCase())
-        );
-      }
-      
-      if (foundPatient) {
-        selectedPatient = foundPatient;
-        render();
-      } else {
-        alert('Patient non trouvé');
-      }
-    };
-    
-    document.querySelectorAll('[data-patient]').forEach(card => card.onclick = () => {
-      selectedPatient = patients.find(p=>p.id===card.getAttribute('data-patient'));
-      render();
-    });
-  }
-
-  function modalEvents() {
-    document.getElementById('closeModal').onclick = () => { selectedPatient = null; render(); };
-    if (document.getElementById('editPatient')) {
-      document.getElementById('editPatient').onclick = () => showEditPatientModal(selectedPatient);
-    }
-  }
-
-  function showEditPatientModal(patient) {
-    // Modal d'édition du patient
-    document.getElementById('app').querySelector('.modal').innerHTML = `
-      <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-lg">
-        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 class="text-2xl font-bold text-gray-900">Modifier ${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h2>
-          <button class="bg-gray-200 text-gray-800 rounded-lg px-4 py-2" id="closeEditModal">✕</button>
-        </div>
-        <div class="p-6 space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editFirstName" value="${patient.personalInfo.firstName}" placeholder="Prénom">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editLastName" value="${patient.personalInfo.lastName}" placeholder="Nom">
-            <input type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editBirth" value="${patient.personalInfo.dateOfBirth}">
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editBlood">
-              <option value="">Groupe sanguin</option>
-              ${MEDICAL_DATA.bloodTypes.map(type => `<option value="${type}" ${patient.personalInfo.bloodType===type?'selected':''}>${type}</option>`).join('')}
-            </select>
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editHeight" value="${patient.personalInfo.height}" placeholder="Taille (cm)">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editWeight" value="${patient.personalInfo.weight}" placeholder="Poids (kg)">
-          </div>
-          <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg h-20" id="editCriticalNotes" placeholder="Notes critiques d'urgence">${patient.emergencyInfo?.criticalNotes || ''}</textarea>
-          <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2" id="saveEditPatient">Sauvegarder</button>
-        </div>
-      </div>
-    `;
-    document.getElementById('closeEditModal').onclick = () => render();
-    document.getElementById('saveEditPatient').onclick = async () => {
-      patient.personalInfo.firstName = document.getElementById('editFirstName').value;
-      patient.personalInfo.lastName = document.getElementById('editLastName').value;
-      patient.personalInfo.dateOfBirth = document.getElementById('editBirth').value;
-      patient.personalInfo.bloodType = document.getElementById('editBlood').value;
-      patient.personalInfo.height = document.getElementById('editHeight').value;
-      patient.personalInfo.weight = document.getElementById('editWeight').value;
-      if (!patient.emergencyInfo) patient.emergencyInfo = {};
-      patient.emergencyInfo.criticalNotes = document.getElementById('editCriticalNotes').value;
-      localStorage.setItem('syl-patients', JSON.stringify(patients));
-      
-      // Synchronisation Firebase automatique
-      await saveToFirebase('patients', patient, patient.id);
-      alert('✅ Patient modifié et synchronisé avec Firebase !');
-      render();
-    };
-  }
-
-  function showAddPatientModal() {
-    document.body.insertAdjacentHTML('beforeend', `
-      <div class="fixed inset-0 modal-bg flex items-center justify-center p-4 modal">
-        <div class="bg-white rounded-xl max-w-md w-full overflow-y-auto shadow-lg p-6">
-          <h2 class="text-2xl font-bold text-gray-900 mb-4">Nouveau patient</h2>
-          <div class="space-y-3">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newFirstName" placeholder="Prénom">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newLastName" placeholder="Nom">
-            <input type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newBirth">
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newBlood">
-              <option value="">Groupe sanguin</option>
-              ${MEDICAL_DATA.bloodTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
-            </select>
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newHeight" placeholder="Taille (cm)">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newWeight" placeholder="Poids (kg)">
-          </div>
-          <div class="flex space-x-2 mt-4">
-            <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2" id="saveNewPatient">Ajouter</button>
-            <button class="bg-gray-200 text-gray-800 rounded-lg px-6 py-2" id="cancelNewPatient">Annuler</button>
-          </div>
-        </div>
-      </div>
-    `);
-    document.getElementById('cancelNewPatient').onclick = () => { document.querySelector('.modal').remove(); };
-    document.getElementById('saveNewPatient').onclick = async () => {
-      const patient = {
-        id: Math.random().toString(36).substr(2,9),
-        personalInfo: {
-          firstName: document.getElementById('newFirstName').value,
-          lastName: document.getElementById('newLastName').value,
-          dateOfBirth: document.getElementById('newBirth').value,
-          bloodType: document.getElementById('newBlood').value,
-          height: document.getElementById('newHeight').value,
-          weight: document.getElementById('newWeight').value
-        },
-        medicalHistory: { allergies: [], medications: [], conditions: [], chronicDiseases: [], medicalDevices: [] },
-        emergencyInfo: { criticalNotes: '', contraindications: [] },
-        lastAccess: new Date().toISOString().split('T')[0],
-        isActive: true
-      };
-      patients.push(patient);
-      localStorage.setItem('syl-patients', JSON.stringify(patients));
-      
-      // Synchronisation Firebase automatique
-      await saveToFirebase('patients', patient, patient.id);
-      alert('✅ Nouveau patient ajouté et synchronisé avec Firebase !');
-      document.querySelector('.modal').remove();
-      render();
-    };
-  }
-}
-
-// ----------- MAIN -----------
-function renderApp() {
-  // Vérifier l'état d'authentification Firebase
-  auth.onAuthStateChanged((firebaseUser) => {
-    if (firebaseUser) {
-      // Utilisateur connecté
-      const user = getUser();
-      if (user && user.uid === firebaseUser.uid) {
-        if (user.role === 'patient') {
-          renderPatientDashboard(user);
-        } else if (user.role === 'medecin') {
-          renderMedecinDashboard(user);
+            setDefaultDates();
+            updateLastUpdateTime();
+            
+            loadFromLocalStorage();
+            initializeFirebase();
+            generateSymptomsGrid();
+            
+            applyFilters();
+            updateCharts();
+            setTodayForConsultation();
+            loadPatientProfile();
         }
-      } else {
-        // Utilisateur Firebase mais pas de données locales
-        showLogin();
-      }
-    } else {
-      // Pas d'utilisateur connecté
-      showLogin();
-    }
-  });
-}
 
-// Fonction de déconnexion mise à jour
-function logout() {
-  auth.signOut().then(() => {
-    clearUser();
-    renderApp();
-  }).catch((error) => {
-    console.error('Erreur de déconnexion:', error);
-  });
-}
+        function loadFromLocalStorage() {
+            medicalData = JSON.parse(localStorage.getItem('medicalData') || '[]');
+            patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}');
+        }
 
-// Init - Attendre que Firebase soit prêt
-firebase.auth().onAuthStateChanged(() => {
-  renderApp();
-});
-</script>
-</body>
-</html>
+        function saveToLocalStorage() {
+            localStorage.setItem('medicalData', JSON.stringify(medicalData));
+            localStorage.setItem('patientProfile', JSON.stringify(patientProfile));
+        }
+
+        function updateCloudStatus(status, message) {
+            const statusElement = document.getElementById('cloudStatus');
+            statusElement.className = `cloud-status cloud-${status}`;
+            statusElement.textContent = message;
+        }
+
+        function initializeFirebase() {
+            try {
+                updateCloudStatus('syncing', '🔄 Connexion...');
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                isFirebaseInitialized = true;
+                
+                setupRealtimeSync();
+                startAutoSync();
+                
+                updateCloudStatus('online', '☁️ Sync');
+            } catch (error) {
+                console.error('Erreur Firebase:', error);
+                updateCloudStatus('offline', '❌ Offline');
+            }
+        }
+
+        function setupRealtimeSync() {
+            if (!isFirebaseInitialized) return;
+            
+            db.collection('medical_records').onSnapshot((snapshot) => {
+                updateCloudStatus('syncing', '⬇️ Sync...');
+                let hasChanges = false;
+                const existingIds = new Set(medicalData.map(record => record.id));
+                
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    delete data.lastUpdated;
+                    
+                    if (change.type === 'added' && !existingIds.has(data.id)) {
+                        medicalData.push(data);
+                        hasChanges = true;
+                    }
+                    if (change.type === 'modified') {
+                        const index = medicalData.findIndex(r => r.id === data.id);
+                        if (index !== -1) {
+                            medicalData[index] = data;
+                            hasChanges = true;
+                        }
+                    }
+                    if (change.type === 'removed') {
+                        medicalData = medicalData.filter(r => r.id !== data.id);
+                        hasChanges = true;
+                    }
+                });
+                
+                if (hasChanges) {
+                    saveToLocalStorage();
+                    applyFilters();
+                    updateCharts();
+                }
+                updateCloudStatus('online', '☁️ Sync');
+            });
+        }
+
+        function startAutoSync() {
+            autoSyncInterval = setInterval(async () => {
+                if (isFirebaseInitialized) {
+                    try {
+                        updateCloudStatus('syncing', '🔄 Sync auto...');
+                        
+                        const medicalSnapshot = await db.collection('medical_records').get();
+                        
+                        if (medicalSnapshot.size !== medicalData.length) {
+                            console.log('Auto-sync: différences détectées, synchronisation...');
+                            await performAutoSync();
+                        }
+                        
+                        updateCloudStatus('online', '☁️ Sync');
+                    } catch (error) {
+                        console.error('Erreur auto-sync périodique:', error);
+                        updateCloudStatus('offline', '❌ Offline');
+                    }
+                }
+            }, 300000); // 5 minutes
+        }
+
+        async function performAutoSync() {
+            try {
+                medicalData = [];
+                
+                const medicalSnapshot = await db.collection('medical_records').get();
+                medicalSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    delete data.lastUpdated;
+                    medicalData.push(data);
+                });
+                
+                saveToLocalStorage();
+                applyFilters();
+                updateCharts();
+                
+                showAlert(`✅ Synchronisation réussie ! 📊 ${medicalData.length} enregistrements médicaux`, 'success');
+                
+            } catch (error) {
+                console.error('Erreur auto-sync:', error);
+                showAlert(`Erreur synchronisation: ${error.message}`, 'error');
+            }
+        }
+
+        // Génération de la grille des symptômes
+        function generateSymptomsGrid() {
+            const container = document.getElementById('symptomsGrid');
+            container.innerHTML = '';
+            
+            commonSymptoms.forEach(symptom => {
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'symptom-checkbox';
+                checkboxDiv.innerHTML = `
+                    <input type="checkbox" id="symptom_${symptom.replace(/[^a-zA-Z0-9]/g, '')}" value="${symptom}">
+                    <label for="symptom_${symptom.replace(/[^a-zA-Z0-9]/g, '')}">${symptom}</label>
+                `;
+                container.appendChild(checkboxDiv);
+            });
+        }
+
+        // Navigation entre sections
+        function showSection(sectionName) {
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(sectionName).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (sectionName === 'dashboard') {
+                applyFilters();
+                updateCharts();
+            } else if (sectionName === 'history') {
+                applyHistoryFilters();
+            } else if (sectionName === 'chat') {
+                setTimeout(() => {
+                    document.getElementById('chatInput').focus();
+                }, 100);
+            }
+        }
+
+        // Sauvegarde des données médicales
+        async function saveMedicalData() {
+            const date = document.getElementById('consultationDate').value;
+            const type = document.getElementById('consultationType').value;
+            const medecin = document.getElementById('medecin').value.trim();
+            
+            if (!date) {
+                showAlert('Veuillez renseigner la date de consultation', 'error');
+                return;
+            }
+            
+            // Récupération des signes vitaux
+            const heartRate = parseInt(document.getElementById('heartRate').value) || null;
+            const systolic = parseInt(document.getElementById('systolic').value) || null;
+            const diastolic = parseInt(document.getElementById('diastolic').value) || null;
+            const temperature = parseFloat(document.getElementById('temperature').value) || null;
+            const weight = parseFloat(document.getElementById('weight').value) || null;
+            const height = parseInt(document.getElementById('height').value) || null;
+            
+            // Récupération des symptômes cochés
+            const selectedSymptoms = [];
+            commonSymptoms.forEach(symptom => {
+                const checkbox = document.getElementById(`symptom_${symptom.replace(/[^a-zA-Z0-9]/g, '')}`);
+                if (checkbox && checkbox.checked) {
+                    selectedSymptoms.push(symptom);
+                }
+            });
+            
+            const symptomsText = document.getElementById('symptoms').value.trim();
+            const medications = document.getElementById('medications').value.trim();
+            const notes = document.getElementById('notes').value.trim();
+            
+            const medicalRecord = {
+                id: Date.now() + Math.random(),
+                date: new Date(date).toLocaleDateString('fr-FR'),
+                type: type,
+                medecin: medecin,
+                heartRate: heartRate,
+                systolic: systolic,
+                diastolic: diastolic,
+                temperature: temperature,
+                weight: weight,
+                height: height,
+                selectedSymptoms: selectedSymptoms,
+                symptomsText: symptomsText,
+                medications: medications,
+                notes: notes,
+                bmi: calculateBMI(weight, height),
+                timestamp: new Date().toISOString()
+            };
+            
+            medicalData.push(medicalRecord);
+            saveToLocalStorage();
+            
+            if (isFirebaseInitialized) {
+                try {
+                    await db.collection('medical_records').doc(medicalRecord.id.toString()).set({
+                        ...medicalRecord,
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } catch (error) {
+                    console.error('Erreur sync medical:', error);
+                }
+            }
+            
+            showAlert('📋 Données médicales enregistrées avec succès !', 'success');
+            clearMedicalForm();
+            applyFilters();
+            updateCharts();
+        }
+
+        function calculateBMI(weight, height) {
+            if (!weight || !height) return null;
+            const heightInMeters = height / 100;
+            return Math.round((weight / (heightInMeters * heightInMeters)) * 10) / 10;
+        }
+
+        function clearMedicalForm() {
+            document.getElementById('consultationType').value = 'routine';
+            document.getElementById('medecin').value = '';
+            document.getElementById('heartRate').value = '';
+            document.getElementById('systolic').value = '';
+            document.getElementById('diastolic').value = '';
+            document.getElementById('temperature').value = '';
+            document.getElementById('weight').value = '';
+            document.getElementById('height').value = '';
+            document.getElementById('symptoms').value = '';
+            document.getElementById('medications').value = '';
+            document.getElementById('notes').value = '';
+            
+            // Décocher tous les symptômes
+            commonSymptoms.forEach(symptom => {
+                const checkbox = document.getElementById(`symptom_${symptom.replace(/[^a-zA-Z0-9]/g, '')}`);
+                if (checkbox) checkbox.checked = false;
+            });
+            
+            setTodayForConsultation();
+        }
+
+        function setTodayForConsultation() {
+            document.getElementById('consultationDate').value = formatDate(new Date());
+        }
+
+        // Assistant IA Médical
+        function analyzeQuestion(question) {
+            const q = question.toLowerCase();
+            
+            try {
+                // Démarrer une consultation guidée
+                if (q.includes('consultation') || q.includes('commencer') || q.includes('nouvelle')) {
+                    return startGuidedConsultation();
+                }
+                
+                // Renseigner signes vitaux
+                if (q.includes('signes vitaux') || q.includes('tension') || q.includes('température') || q.includes('pouls')) {
+                    return startVitalSignsEntry();
+                }
+                
+                // Symptômes
+                if (q.includes('symptôme') || q.includes('mal') || q.includes('douleur') || q.includes('fièvre')) {
+                    return handleSymptomsQuery(question);
+                }
+                
+                // Analyses et tendances
+                if (q.includes('analyse') || q.includes('tendance') || q.includes('évolution')) {
+                    return analyzeMedicalTrends();
+                }
+                
+                // Conseils santé
+                if (q.includes('conseil') || q.includes('recommandation') || q.includes('que faire')) {
+                    return provideHealthAdvice(question);
+                }
+                
+                return generateDefaultMedicalResponse(question);
+                
+            } catch (error) {
+                console.error('Erreur analyse:', error);
+                return "❌ Erreur d'analyse. Reformulez votre demande.";
+            }
+        }
+
+        function startGuidedConsultation() {
+            currentStep = 1;
+            return `🩺 <strong>Consultation Médicale Guidée</strong><br><br>
+            Je vais vous poser quelques questions pour renseigner vos données médicales.<br><br>
+            <strong>Question 1/6 :</strong> Quel type de consultation s'agit-il ?<br><br>
+            <div class="chat-suggestions">
+                <div class="chat-suggestion" onclick="sendSuggestion('Consultation de routine')">Routine</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Urgence médicale')">Urgence</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Suivi médical')">Suivi</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Contrôle périodique')">Contrôle</div>
+            </div>`;
+        }
+
+        function startVitalSignsEntry() {
+            return `💓 <strong>Renseignement des Signes Vitaux</strong><br><br>
+            Je vais vous aider à renseigner vos signes vitaux. Répondez aux questions suivantes :<br><br>
+            <strong>1. Quelle est votre fréquence cardiaque ?</strong><br>
+            (en battements par minute, ex: "72 bpm" ou "mon pouls est à 68")<br><br>
+            💡 <em>Vous pouvez prendre votre pouls au niveau du poignet ou du cou pendant 15 secondes et multiplier par 4.</em><br><br>
+            <div class="chat-suggestions">
+                <div class="chat-suggestion" onclick="sendSuggestion('Mon pouls est à 72')">72 bpm</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Fréquence cardiaque 68')">68 bpm</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Je ne sais pas mesurer')">Aide mesure</div>
+            </div>`;
+        }
+
+        function handleSymptomsQuery(question) {
+            if (question.toLowerCase().includes('fièvre')) {
+                return `🌡️ <strong>Symptôme : Fièvre</strong><br><br>
+                Vous mentionnez avoir de la fièvre. Quelques questions :<br><br>
+                1. Quelle est votre température actuelle ?<br>
+                2. Depuis quand avez-vous de la fièvre ?<br>
+                3. Avez-vous d'autres symptômes associés ?<br><br>
+                <div class="chat-suggestions">
+                    <div class="chat-suggestion" onclick="sendSuggestion('Ma température est de 38.5°C')">Temp 38.5°C</div>
+                    <div class="chat-suggestion" onclick="sendSuggestion('Fièvre depuis hier')">Depuis hier</div>
+                    <div class="chat-suggestion" onclick="sendSuggestion('J\'ai aussi mal à la tête')">+ Maux de tête</div>
+                </div>`;
+            }
+            
+            return `🔍 <strong>Déclaration de Symptômes</strong><br><br>
+            Décrivez-moi vos symptômes en détail. Je peux vous aider à les enregistrer.<br><br>
+            Symptômes fréquents :<br><br>
+            <div class="chat-suggestions">
+                <div class="chat-suggestion" onclick="sendSuggestion('J\'ai mal à la tête')">Maux de tête</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Je suis fatigué')">Fatigue</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('J\'ai de la fièvre')">Fièvre</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Je tousse')">Toux</div>
+            </div>`;
+        }
+
+        function analyzeMedicalTrends() {
+            if (medicalData.length === 0) {
+                return `📊 <strong>Aucune donnée disponible</strong><br><br>
+                Vous n'avez pas encore d'historique médical enregistré. Commencez par saisir vos premières données !<br><br>
+                <div class="chat-suggestions">
+                    <div class="chat-suggestion" onclick="sendSuggestion('Commencer une consultation')">Première consultation</div>
+                </div>`;
+            }
+            
+            const recentData = medicalData.slice(-5);
+            const avgHeartRate = calculateAverage(recentData, 'heartRate');
+            const avgTemperature = calculateAverage(recentData, 'temperature');
+            
+            return `📈 <strong>Analyse de vos Tendances Médicales</strong><br><br>
+            Basé sur vos ${medicalData.length} derniers enregistrements :<br><br>
+            💓 <strong>Fréquence cardiaque moyenne :</strong> ${avgHeartRate ? Math.round(avgHeartRate) + ' bpm' : 'Non renseignée'}<br>
+            🌡️ <strong>Température moyenne :</strong> ${avgTemperature ? avgTemperature.toFixed(1) + ' °C' : 'Non renseignée'}<br><br>
+            ${generateHealthInsights(recentData)}<br><br>
+            <div class="chat-suggestions">
+                <div class="chat-suggestion" onclick="sendSuggestion('Voir mes graphiques')">Graphiques détaillés</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Nouvelle mesure')">Nouvelle mesure</div>
+            </div>`;
+        }
+
+        function generateHealthInsights(data) {
+            let insights = "💡 <strong>Observations :</strong><br>";
+            
+            const temperatures = data.filter(d => d.temperature).map(d => d.temperature);
+            if (temperatures.length > 0) {
+                const avgTemp = temperatures.reduce((a, b) => a + b, 0) / temperatures.length;
+                if (avgTemp > 37.5) {
+                    insights += "• Température élevée détectée - consultez un médecin<br>";
+                } else if (avgTemp < 36) {
+                    insights += "• Température basse - surveillez votre état<br>";
+                } else {
+                    insights += "• Température dans la normale<br>";
+                }
+            }
+            
+            const heartRates = data.filter(d => d.heartRate).map(d => d.heartRate);
+            if (heartRates.length > 0) {
+                const avgHR = heartRates.reduce((a, b) => a + b, 0) / heartRates.length;
+                if (avgHR > 100) {
+                    insights += "• Fréquence cardiaque élevée - repos recommandé<br>";
+                } else if (avgHR < 60) {
+                    insights += "• Fréquence cardiaque basse - bonne condition physique<br>";
+                } else {
+                    insights += "• Fréquence cardiaque normale<br>";
+                }
+            }
+            
+            return insights;
+        }
+
+        function provideHealthAdvice(question) {
+            const q = question.toLowerCase();
+            
+            if (q.includes('fièvre')) {
+                return `🌡️ <strong>Conseils pour la Fièvre</strong><br><br>
+                • Repos et hydratation (boire beaucoup d'eau)<br>
+                • Paracétamol si nécessaire (respecter les doses)<br>
+                • Surveiller l'évolution de la température<br>
+                • Consulter si fièvre > 39°C ou persistance > 3 jours<br><br>
+                ⚠️ <em>Ces conseils ne remplacent pas un avis médical.</em>`;
+            }
+            
+            return `💡 <strong>Conseils Santé Généraux</strong><br><br>
+            • Surveillez régulièrement vos signes vitaux<br>
+            • Maintenez une alimentation équilibrée<br>
+            • Pratiquez une activité physique régulière<br>
+            • Dormez suffisamment (7-8h par nuit)<br>
+            • Consultez régulièrement votre médecin<br><br>
+            <div class="chat-suggestions">
+                <div class="chat-suggestion" onclick="sendSuggestion('Conseils pour la tension')">Tension artérielle</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Conseils sommeil')">Sommeil</div>
+            </div>`;
+        }
+
+        function generateDefaultMedicalResponse(question) {
+            return `🤔 <strong>Je n'ai pas bien compris</strong><br><br>
+            Vous avez dit : <em>"${question}"</em><br><br>
+            Voici comment je peux vous aider :<br><br>
+            <div class="chat-suggestions">
+                <div class="chat-suggestion" onclick="sendSuggestion('Commencer une consultation')">Nouvelle consultation</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Renseigner mes signes vitaux')">Signes vitaux</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('J\'ai des symptômes')">Déclarer symptômes</div>
+                <div class="chat-suggestion" onclick="sendSuggestion('Analyser mes données')">Mes analyses</div>
+            </div>`;
+        }
+
+        // Chat IA
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendChatMessage();
+            }
+        }
+
+        function sendSuggestion(message) {
+            document.getElementById('chatInput').value = message;
+            sendChatMessage();
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addChatMessage(message, 'user');
+            input.value = '';
+            
+            const sendBtn = document.getElementById('chatSendBtn');
+            sendBtn.disabled = true;
+            
+            showTypingIndicator();
+            
+            setTimeout(() => {
+                const response = analyzeQuestion(message);
+                hideTypingIndicator();
+                addChatMessage(response, 'ai');
+                sendBtn.disabled = false;
+            }, 1500 + Math.random() * 1000);
+        }
+
+        function addChatMessage(message, sender) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${sender}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = `chat-avatar ${sender}`;
+            avatar.textContent = sender === 'user' ? '👤' : '🤖';
+            
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${sender}`;
+            bubble.innerHTML = message;
+            
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(bubble);
+            messagesContainer.appendChild(messageDiv);
+            
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const messagesContainer = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-message';
+            typingDiv.id = 'typingIndicator';
+            
+            typingDiv.innerHTML = `
+                <div class="chat-avatar ai">🤖</div>
+                <div class="chat-bubble ai">
+                    <div class="typing-indicator">
+                        <span>Assistant médical en réflexion</span>
+                        <div class="typing-dots">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        // Graphiques et KPIs
+        function updateCharts() {
+            updateHeartRateChart();
+            updateTemperatureChart();
+            updateVitalSignsChart();
+            updateKPIs();
+        }
+
+        function updateKPIs() {
+            const totalConsultations = filteredData.length;
+            const avgHeartRate = calculateAverage(filteredData, 'heartRate');
+            const avgTemperature = calculateAverage(filteredData, 'temperature');
+            const avgSystolic = calculateAverage(filteredData, 'systolic');
+            const avgDiastolic = calculateAverage(filteredData, 'diastolic');
+            
+            // Compter les symptômes actifs (dernière consultation)
+            const latestRecord = filteredData[filteredData.length - 1];
+            const activeSymptoms = latestRecord ? (latestRecord.selectedSymptoms ? latestRecord.selectedSymptoms.length : 0) : 0;
+            
+            document.getElementById('totalConsultations').textContent = totalConsultations;
+            document.getElementById('avgHeartRate').textContent = avgHeartRate ? Math.round(avgHeartRate) + ' bpm' : '-- bpm';
+            document.getElementById('avgTemperature').textContent = avgTemperature ? avgTemperature.toFixed(1) + ' °C' : '-- °C';
+            document.getElementById('avgBloodPressure').textContent = 
+                (avgSystolic && avgDiastolic) ? `${Math.round(avgSystolic)}/${Math.round(avgDiastolic)}` : '--/--';
+            document.getElementById('activeSymptoms').textContent = activeSymptoms;
+        }
+
+        function updateHeartRateChart() {
+            const ctx = document.getElementById('heartRateChart');
+            if (!ctx) return;
+            
+            if (charts.heartRate) {
+                charts.heartRate.destroy();
+            }
+            
+            const heartRateData = filteredData.filter(d => d.heartRate);
+            const labels = heartRateData.map(d => d.date);
+            const data = heartRateData.map(d => d.heartRate);
+            
+            charts.heartRate = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Fréquence Cardiaque (bpm)',
+                        data: data,
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        borderColor: '#ff6384',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 50,
+                            max: 120
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTemperatureChart() {
+            const ctx = document.getElementById('temperatureChart');
+            if (!ctx) return;
+            
+            if (charts.temperature) {
+                charts.temperature.destroy();
+            }
+            
+            const temperatureData = filteredData.filter(d => d.temperature);
+            const labels = temperatureData.map(d => d.date);
+            const data = temperatureData.map(d => d.temperature);
+            
+            charts.temperature = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Température (°C)',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        borderColor: '#36a2eb',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 35,
+                            max: 40
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateVitalSignsChart() {
+            const ctx = document.getElementById('vitalSignsChart');
+            if (!ctx) return;
+            
+            if (charts.vitalSigns) {
+                charts.vitalSigns.destroy();
+            }
+            
+            const labels = filteredData.map(d => d.date);
+            const heartRateData = filteredData.map(d => d.heartRate || null);
+            const systolicData = filteredData.map(d => d.systolic || null);
+            const temperatureData = filteredData.map(d => d.temperature ? d.temperature * 10 : null); // Mise à l'échelle pour visualisation
+            
+            charts.vitalSigns = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Fréquence Cardiaque (bpm)',
+                        data: heartRateData,
+                        borderColor: '#ff6384',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Tension Systolique (mmHg)',
+                        data: systolicData,
+                        borderColor: '#36a2eb',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Température (°C × 10)',
+                        data: temperatureData,
+                        borderColor: '#4bc0c0',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        yAxisID: 'y'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: { size: window.innerWidth < 768 ? 10 : 12 }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Filtres et historique
+        function setDefaultDates() {
+            const today = new Date();
+            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            
+            document.getElementById('dateStart').value = formatDate(firstDayOfMonth);
+            document.getElementById('dateEnd').value = formatDate(today);
+            document.getElementById('historyDateStart').value = formatDate(firstDayOfMonth);
+            document.getElementById('historyDateEnd').value = formatDate(today);
+        }
+
+        function applyFilters() {
+            const dateStart = document.getElementById('dateStart').value;
+            const dateEnd = document.getElementById('dateEnd').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            
+            filteredData = medicalData.filter(record => {
+                let include = true;
+                
+                if (dateStart || dateEnd) {
+                    const recordDate = parseDate(record.date);
+                    if (recordDate) {
+                        if (dateStart && recordDate < new Date(dateStart)) include = false;
+                        if (dateEnd && recordDate > new Date(dateEnd + 'T23:59:59')) include = false;
+                    }
+                }
+                
+                if (typeFilter && record.type !== typeFilter) include = false;
+                
+                return include;
+            });
+            
+            updateKPIs();
+            updateCharts();
+        }
+
+        function applyHistoryFilters() {
+            const dateStart = document.getElementById('historyDateStart').value;
+            const dateEnd = document.getElementById('historyDateEnd').value;
+            const typeFilter = document.getElementById('historyTypeFilter').value;
+            
+            let filteredHistory = medicalData.filter(record => {
+                let include = true;
+                
+                if (dateStart || dateEnd) {
+                    const recordDate = parseDate(record.date);
+                    if (recordDate) {
+                        if (dateStart && recordDate < new Date(dateStart)) include = false;
+                        if (dateEnd && recordDate > new Date(dateEnd + 'T23:59:59')) include = false;
+                    }
+                }
+                
+                if (typeFilter && record.type !== typeFilter) include = false;
+                
+                return include;
+            });
+            
+            updateHistoryTable(filteredHistory);
+        }
+
+        function updateHistoryTable(data) {
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+            
+            const sortedData = data.sort((a, b) => {
+                const dateA = parseDate(a.date);
+                const dateB = parseDate(b.date);
+                return dateB - dateA;
+            });
+            
+            sortedData.forEach(record => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${record.date}</td>
+                    <td>${record.type || '-'}</td>
+                    <td>${record.medecin || '-'}</td>
+                    <td>${record.heartRate ? record.heartRate + ' bpm' : '-'}</td>
+                    <td>${(record.systolic && record.diastolic) ? record.systolic + '/' + record.diastolic : '-'}</td>
+                    <td>${record.temperature ? record.temperature + ' °C' : '-'}</td>
+                    <td>${record.weight ? record.weight + ' kg' : '-'}</td>
+                    <td>${record.selectedSymptoms ? record.selectedSymptoms.join(', ') : '-'}</td>
+                    <td>
+                        <button class="btn btn-warning" onclick="editMedicalRecord(${record.id})" style="padding: 4px 8px; font-size: 10px;">✏️</button>
+                        <button class="btn btn-danger" onclick="deleteMedicalRecord(${record.id})" style="padding: 4px 8px; font-size: 10px;">🗑️</button>
+                    </td>
+                `;
+            });
+        }
+
+        function resetFilters() {
+            setDefaultDates();
+            document.getElementById('typeFilter').value = '';
+            applyFilters();
+        }
+
+        function resetHistoryFilters() {
+            setDefaultDates();
+            document.getElementById('historyTypeFilter').value = '';
+            applyHistoryFilters();
+        }
+
+        function setAllTimeFilters() {
+            document.getElementById('dateStart').value = '';
+            document.getElementById('dateEnd').value = '';
+            applyFilters();
+            showAlert('Filtres étendus à toutes les périodes', 'success');
+        }
+
+        // Profil patient
+        function loadPatientProfile() {
+            if (patientProfile.name) {
+                document.getElementById('patientName').value = patientProfile.name;
+                document.getElementById('patientAge').value = patientProfile.age || '';
+                document.getElementById('patientGender').value = patientProfile.gender || '';
+                document.getElementById('bloodType').value = patientProfile.bloodType || '';
+                document.getElementById('allergies').value = patientProfile.allergies || '';
+                document.getElementById('chronicConditions').value = patientProfile.chronicConditions || '';
+            }
+        }
+
+        async function savePatientProfile() {
+            const profile = {
+                name: document.getElementById('patientName').value.trim(),
+                age: parseInt(document.getElementById('patientAge').value) || null,
+                gender: document.getElementById('patientGender').value,
+                bloodType: document.getElementById('bloodType').value,
+                allergies: document.getElementById('allergies').value.trim(),
+                chronicConditions: document.getElementById('chronicConditions').value.trim(),
+                lastUpdated: new Date().toISOString()
+            };
+            
+            patientProfile = profile;
+            saveToLocalStorage();
+            
+            if (isFirebaseInitialized) {
+                try {
+                    await db.collection('patient_profiles').doc('current').set({
+                        ...profile,
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } catch (error) {
+                    console.error('Erreur sync profil:', error);
+                }
+            }
+            
+            showAlert('👤 Profil patient sauvegardé avec succès !', 'success');
+        }
+
+        // Export et gestion des données
+        function exportMedicalData() {
+            const headers = ['Date', 'Type', 'Médecin', 'FC (bpm)', 'Tension', 'Temp (°C)', 'Poids (kg)', 'Taille (cm)', 'IMC', 'Symptômes', 'Médicaments', 'Notes'];
+            const csvContent = [
+                headers.join(','),
+                ...medicalData.map(record => [
+                    record.date,
+                    `"${record.type || ''}"`,
+                    `"${record.medecin || ''}"`,
+                    record.heartRate || '',
+                    (record.systolic && record.diastolic) ? `${record.systolic}/${record.diastolic}` : '',
+                    record.temperature || '',
+                    record.weight || '',
+                    record.height || '',
+                    record.bmi || '',
+                    `"${record.selectedSymptoms ? record.selectedSymptoms.join(', ') : ''}"`,
+                    `"${record.medications || ''}"`,
+                    `"${record.notes || ''}"`
+                ].join(','))
+            ].join('\n');
+            
+            downloadFile(csvContent, `donnees_medicales_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+            showAlert('Export médical CSV terminé', 'success');
+        }
+
+        function backupMedicalData() {
+            const backup = {
+                medicalData: medicalData,
+                patientProfile: patientProfile,
+                exportDate: new Date().toISOString(),
+                version: APP_VERSION
+            };
+            
+            const jsonContent = JSON.stringify(backup, null, 2);
+            downloadFile(jsonContent, `sauvegarde_medicale_${new Date().toISOString().split('T')[0]}.json`, 'application/json');
+            showAlert('Sauvegarde créée avec succès', 'success');
+        }
+
+        async function forceSyncFromFirebase() {
+            if (!isFirebaseInitialized) {
+                showAlert('Firebase non initialisé. Impossible de synchroniser.', 'error');
+                return;
+            }
+            
+            if (confirm('🔄 Forcer la synchronisation depuis Firebase ?')) {
+                updateCloudStatus('syncing', '🔄 Synchronisation forcée...');
+                
+                try {
+                    localStorage.removeItem('medicalData');
+                    localStorage.removeItem('patientProfile');
+                    
+                    medicalData = [];
+                    patientProfile = {};
+                    
+                    const medicalSnapshot = await db.collection('medical_records').get();
+                    medicalSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        delete data.lastUpdated;
+                        medicalData.push(data);
+                    });
+                    
+                    const profileSnapshot = await db.collection('patient_profiles').doc('current').get();
+                    if (profileSnapshot.exists) {
+                        patientProfile = profileSnapshot.data();
+                        delete patientProfile.lastUpdated;
+                    }
+                    
+                    saveToLocalStorage();
+                    loadPatientProfile();
+                    applyFilters();
+                    updateCharts();
+                    
+                    updateCloudStatus('online', '☁️ Sync');
+                    showAlert(`✅ Synchronisation réussie ! 📊 ${medicalData.length} enregistrements médicaux`, 'success');
+                    
+                } catch (error) {
+                    console.error('Erreur synchronisation forcée:', error);
+                    updateCloudStatus('offline', '❌ Erreur');
+                    showAlert(`Erreur de synchronisation: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        function clearAllMedicalData() {
+            if (confirm('⚠️ ATTENTION : Cette action supprimera TOUTES vos données médicales. Êtes-vous sûr ?')) {
+                if (confirm('Dernière confirmation : Supprimer toutes les données médicales ?')) {
+                    medicalData = [];
+                    patientProfile = {};
+                    saveToLocalStorage();
+                    applyFilters();
+                    updateCharts();
+                    loadPatientProfile();
+                    showAlert('Toutes les données médicales ont été supprimées', 'warning');
+                }
+            }
+        }
+
+        async function deleteMedicalRecord(recordId) {
+            if (confirm('Supprimer cet enregistrement médical ?')) {
+                medicalData = medicalData.filter(r => r.id !== recordId);
+                saveToLocalStorage();
+                
+                if (isFirebaseInitialized) {
+                    try {
+                        await db.collection('medical_records').doc(recordId.toString()).delete();
+                    } catch (error) {
+                        console.error('Erreur suppression enregistrement:', error);
+                    }
+                }
+                
+                applyFilters();
+                applyHistoryFilters();
+                updateCharts();
+                showAlert('Enregistrement médical supprimé', 'warning');
+            }
+        }
+
+        // Fonctions utilitaires
+        function parseDate(dateStr) {
+            if (!dateStr) return null;
+            
+            if (dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    return new Date(parts[2], parts[1] - 1, parts[0]);
+                }
+            }
+            
+            return new Date(dateStr);
+        }
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function calculateAverage(data, field) {
+            const values = data.filter(d => d[field] && d[field] > 0).map(d => d[field]);
+            if (values.length === 0) return null;
+            return values.reduce((a, b) => a +
