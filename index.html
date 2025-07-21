@@ -107,38 +107,6 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 
 console.log("SYL Medical - Début du chargement");
 
-// Fonction de fallback simple
-function showSimpleLogin() {
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-md">
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
-          <div class="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
-            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 3.5c3.038 0 5.5 2.462 5.5 5.5s-2.462 5.5-5.5 5.5-5.5-2.462-5.5-5.5 2.462-5.5 5.5-5.5z"/>
-            </svg>
-          </div>
-          <h1 class="text-2xl font-bold text-gray-900 mb-2">SYL Medical</h1>
-          <p class="text-gray-600 mb-6">Système d'Urgence Médicale</p>
-          
-          <div class="space-y-4">
-            <button onclick="alert('Connexion en cours de développement')" 
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3">
-              Se connecter
-            </button>
-          </div>
-          
-          <div class="mt-8 pt-6 border-t border-gray-200">
-            <div class="text-xs text-gray-500">
-              <p>Version de test - Firebase: ${typeof firebase !== 'undefined' ? 'OK' : 'Erreur'}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 // Configuration Firebase sécurisée
 const firebaseConfig = {
   apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
@@ -149,6 +117,11 @@ const firebaseConfig = {
   messagingSenderId: "765684422018",
   appId: "1:765684422018:web:19320fe1e546631fc86b9b",
   measurementId: "G-PD7TP5J233"
+};
+
+// Comptes admin prédéfinis
+const adminAccounts = {
+  'jadetaraf@hotmail.fr': 'ADMINTARAF'
 };
 
 // Initialiser Firebase
@@ -812,16 +785,43 @@ function showLogin() {
 
   // Authentification par email
   document.getElementById('loginEmail').onclick = async () => {
-    const email = document.getElementById('email').value;
+    const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+    
+    if (!email || !password) {
+      alert('Veuillez remplir tous les champs');
+      return;
+    }
     
     try {
       showLoader();
+      
+      // Vérification admin en local d'abord
+      if (role === 'admin' && adminAccounts[email] === password) {
+        const adminData = {
+          uid: 'admin_' + email.replace(/[^a-zA-Z0-9]/g, '_'),
+          email: email,
+          role: 'admin',
+          profile: {
+            firstName: 'Admin',
+            lastName: 'Système',
+            phone: ''
+          },
+          createdAt: new Date().toISOString()
+        };
+        saveUser(adminData);
+        hideLoader();
+        renderApp();
+        return;
+      }
+      
+      // Connexion Firebase pour les autres rôles
       const userCredential = await auth.signInWithEmailAndPassword(email, password);
       await handleAuthSuccess(userCredential.user, role);
     } catch (error) {
       hideLoader();
-      alert('Erreur de connexion: ' + getErrorMessage(error.code));
+      console.error('Erreur de connexion:', error);
+      alert('Erreur de connexion: ' + getErrorMessage(error.code || 'unknown'));
     }
   };
 
@@ -905,8 +905,10 @@ function getErrorMessage(errorCode) {
       return 'Email invalide';
     case 'auth/too-many-requests':
       return 'Trop de tentatives, réessayez plus tard';
+    case 'unknown':
+      return 'Erreur de connexion inconnue';
     default:
-      return errorCode;
+      return errorCode || 'Erreur de connexion';
   }
 }
 
@@ -2657,21 +2659,33 @@ function renderApp() {
     // Vérifier que Firebase est chargé
     if (typeof firebase === 'undefined') {
       console.error("Firebase n'est pas charge");
-      showSimpleLogin();
+      showLogin();
       return;
     }
     
-    // Vérifier que la fonction showLogin existe
-    if (typeof showLogin === 'function') {
-      console.log("Affichage de l'interface de connexion");
-      showLogin();
+    // Récupérer l'utilisateur local
+    const localUser = getUser();
+    
+    if (localUser) {
+      console.log("Utilisateur connecté, rôle:", localUser.role);
+      if (localUser.role === 'patient') {
+        renderPatientDashboard(localUser);
+      } else if (localUser.role === 'medecin') {
+        renderMedecinDashboard(localUser);
+      } else if (localUser.role === 'admin') {
+        renderAdminDashboard(localUser);
+      } else {
+        console.error("Rôle utilisateur inconnu:", localUser.role);
+        showLogin();
+      }
     } else {
-      console.warn("showLogin n'est pas definie, utilisation du fallback");
-      showSimpleLogin();
+      // Pas d'utilisateur connecté
+      console.log("Redirection vers login");
+      showLogin();
     }
   } catch (error) {
     console.error("Erreur dans renderApp:", error);
-    showSimpleLogin();
+    showLogin();
   }
 }
 
