@@ -3561,162 +3561,178 @@ function showPatientMedicalRecord(patientId) {
     return;
   }
   
-  // Afficher la fiche médicale complète
+  // Calculer l'âge
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return 'N/A';
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age + ' ans';
+  };
+  
+  // Afficher la fiche d'information médicale d'urgence (lecture seule)
   document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <header class="bg-white shadow-sm border-b">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-          <div class="flex items-center">
-            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mr-3">
-              🏥
+    <div class="min-h-screen bg-gradient-to-br from-red-50 to-pink-100">
+      <!-- En-tête d'urgence -->
+      <div class="bg-red-600 text-white py-4">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-red-600 font-bold mr-4">
+                🚑
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold">FICHE MÉDICALE D'URGENCE</h1>
+                <p class="text-red-100">Informations vitales - Accès via NFC</p>
+              </div>
             </div>
-            <h1 class="text-xl font-bold text-gray-900">SYL Medical - Fiche Patient</h1>
+            <button onclick="location.href='${window.location.pathname}'" class="bg-red-700 hover:bg-red-800 text-white rounded-lg px-4 py-2">
+              Fermer
+            </button>
           </div>
-          <button onclick="location.href='${window.location.pathname}'" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">
-            Retour
-          </button>
         </div>
-      </header>
+      </div>
       
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- En-tête patient -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h2 class="text-2xl font-bold text-gray-900">
-                ${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}
-              </h2>
-              <p class="text-gray-600">${patient.email || 'Email non renseigné'}</p>
-            </div>
-            <div class="text-right">
-              <div class="text-sm text-gray-500">Accès via NFC</div>
-              <div class="text-xs text-gray-400">${new Date().toLocaleString('fr-FR')}</div>
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- Identification du patient -->
+        <div class="bg-white rounded-xl shadow-xl border-2 border-red-200 p-6 mb-6">
+          <div class="text-center mb-6">
+            <h2 class="text-3xl font-bold text-gray-900 mb-2">
+              ${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}
+            </h2>
+            <div class="inline-flex items-center px-4 py-2 bg-blue-100 rounded-full">
+              <span class="text-blue-800 font-medium">Âge: ${calculateAge(patient.personalInfo?.dateOfBirth)}</span>
             </div>
           </div>
           
-          <!-- Informations vitales -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
-            <div class="text-center">
-              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.bloodType || 'N/A'}</div>
-              <div class="text-sm text-gray-600">Groupe sanguin</div>
+          <!-- Informations vitales en grand -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="text-center p-4 bg-red-50 rounded-xl border-2 border-red-200">
+              <div class="text-2xl font-bold text-red-600 mb-1">${patient.personalInfo?.bloodType || '?'}</div>
+              <div class="text-sm font-medium text-gray-700">Groupe sanguin</div>
             </div>
-            <div class="text-center">
-              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.dateOfBirth || 'N/A'}</div>
-              <div class="text-sm text-gray-600">Date de naissance</div>
+            <div class="text-center p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
+              <div class="text-2xl font-bold text-blue-600 mb-1">${patient.personalInfo?.height || '?'}</div>
+              <div class="text-sm font-medium text-gray-700">Taille (cm)</div>
             </div>
-            <div class="text-center">
-              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.height || 'N/A'} cm</div>
-              <div class="text-sm text-gray-600">Taille</div>
+            <div class="text-center p-4 bg-green-50 rounded-xl border-2 border-green-200">
+              <div class="text-2xl font-bold text-green-600 mb-1">${patient.personalInfo?.weight || '?'}</div>
+              <div class="text-sm font-medium text-gray-700">Poids (kg)</div>
             </div>
-            <div class="text-center">
-              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.weight || 'N/A'} kg</div>
-              <div class="text-sm text-gray-600">Poids</div>
+            <div class="text-center p-4 bg-purple-50 rounded-xl border-2 border-purple-200">
+              <div class="text-2xl font-bold text-purple-600 mb-1">${patient.personalInfo?.dateOfBirth || '?'}</div>
+              <div class="text-sm font-medium text-gray-700">Naissance</div>
             </div>
           </div>
         </div>
         
-        <!-- Informations médicales critiques -->
         ${patient.emergencyInfo?.criticalNotes ? `
-        <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-6 mb-6">
-          <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Notes Critiques d'Urgence</h3>
-          <p class="text-red-700">${patient.emergencyInfo.criticalNotes}</p>
+        <!-- ALERTE CRITIQUE -->
+        <div class="bg-red-600 text-white rounded-xl p-6 mb-6 border-4 border-red-700">
+          <div class="flex items-center mb-3">
+            <span class="text-3xl mr-3">⚠️</span>
+            <h3 class="text-xl font-bold">ALERTE MÉDICALE CRITIQUE</h3>
+          </div>
+          <p class="text-lg font-medium">${patient.emergencyInfo.criticalNotes}</p>
         </div>
         ` : ''}
         
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- Allergies -->
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center text-red-600 mr-3">⚠️</span>
-              Allergies
+          <!-- ALLERGIES -->
+          <div class="bg-white rounded-xl shadow-lg border-l-4 border-red-500 p-6">
+            <h3 class="text-xl font-bold text-red-600 mb-4 flex items-center">
+              <span class="text-2xl mr-2">⚠️</span> ALLERGIES
             </h3>
-            <div class="space-y-2">
-              ${patient.medicalHistory?.allergies?.length ? 
-                patient.medicalHistory.allergies.map(allergy => `
-                  <div class="bg-red-50 border border-red-200 rounded px-3 py-2 text-red-800">
-                    ${allergy}
-                  </div>
-                `).join('') : 
-                '<div class="text-gray-500 italic">Aucune allergie connue</div>'
-              }
-            </div>
-          </div>
-          
-          <!-- Médicaments -->
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mr-3">💊</span>
-              Médicaments
-            </h3>
-            <div class="space-y-2">
-              ${patient.medicalHistory?.medications?.length ? 
-                patient.medicalHistory.medications.map(medication => `
-                  <div class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-blue-800">
-                    ${medication}
-                  </div>
-                `).join('') : 
-                '<div class="text-gray-500 italic">Aucun médicament</div>'
-              }
-            </div>
-          </div>
-          
-          <!-- Maladies chroniques -->
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 mr-3">🏥</span>
-              Maladies chroniques
-            </h3>
-            <div class="space-y-2">
-              ${patient.medicalHistory?.chronicDiseases?.length ? 
-                patient.medicalHistory.chronicDiseases.map(disease => `
-                  <div class="bg-orange-50 border border-orange-200 rounded px-3 py-2 text-orange-800">
-                    ${disease}
-                  </div>
-                `).join('') : 
-                '<div class="text-gray-500 italic">Aucune maladie chronique</div>'
-              }
-            </div>
-          </div>
-          
-          <!-- Contact d'urgence -->
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600 mr-3">📞</span>
-              Contact d'urgence
-            </h3>
-            <div class="space-y-3">
-              ${patient.personalInfo?.emergencyContact?.name ? `
-                <div>
-                  <div class="font-medium text-gray-900">${patient.personalInfo.emergencyContact.name}</div>
-                  <div class="text-gray-600">${patient.personalInfo.emergencyContact.relationship || ''}</div>
+            ${patient.medicalHistory?.allergies?.length ? 
+              patient.medicalHistory.allergies.map(allergy => `
+                <div class="bg-red-100 border-2 border-red-300 rounded-lg px-4 py-3 mb-2">
+                  <span class="text-red-800 font-bold text-lg">${allergy}</span>
                 </div>
-              ` : ''}
-              ${patient.personalInfo?.emergencyContact?.phone ? `
-                <div>
-                  <a href="tel:${patient.personalInfo.emergencyContact.phone}" 
-                     class="bg-green-600 hover:bg-green-700 text-white rounded px-4 py-2 inline-flex items-center">
-                    📞 ${patient.personalInfo.emergencyContact.phone}
-                  </a>
+              `).join('') : 
+              '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucune allergie connue</div>'
+            }
+          </div>
+          
+          <!-- MÉDICAMENTS -->
+          <div class="bg-white rounded-xl shadow-lg border-l-4 border-blue-500 p-6">
+            <h3 class="text-xl font-bold text-blue-600 mb-4 flex items-center">
+              <span class="text-2xl mr-2">💊</span> MÉDICAMENTS
+            </h3>
+            ${patient.medicalHistory?.medications?.length ? 
+              patient.medicalHistory.medications.map(medication => `
+                <div class="bg-blue-100 border-2 border-blue-300 rounded-lg px-4 py-3 mb-2">
+                  <span class="text-blue-800 font-medium">${medication}</span>
                 </div>
-              ` : '<div class="text-gray-500 italic">Aucun contact d\'urgence</div>'}
-            </div>
+              `).join('') : 
+              '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucun médicament</div>'
+            }
+          </div>
+          
+          <!-- PATHOLOGIES -->
+          <div class="bg-white rounded-xl shadow-lg border-l-4 border-orange-500 p-6">
+            <h3 class="text-xl font-bold text-orange-600 mb-4 flex items-center">
+              <span class="text-2xl mr-2">🏥</span> PATHOLOGIES
+            </h3>
+            ${patient.medicalHistory?.chronicDiseases?.length ? 
+              patient.medicalHistory.chronicDiseases.map(disease => `
+                <div class="bg-orange-100 border-2 border-orange-300 rounded-lg px-4 py-3 mb-2">
+                  <span class="text-orange-800 font-medium">${disease}</span>
+                </div>
+              `).join('') : 
+              '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucune pathologie connue</div>'
+            }
+          </div>
+          
+          <!-- CONTACT D'URGENCE -->
+          <div class="bg-white rounded-xl shadow-lg border-l-4 border-green-500 p-6">
+            <h3 class="text-xl font-bold text-green-600 mb-4 flex items-center">
+              <span class="text-2xl mr-2">📞</span> CONTACT D'URGENCE
+            </h3>
+            ${patient.personalInfo?.emergencyContact?.name ? `
+              <div class="bg-green-100 border-2 border-green-300 rounded-lg px-4 py-3 mb-3">
+                <div class="font-bold text-green-800 text-lg">${patient.personalInfo.emergencyContact.name}</div>
+                <div class="text-green-700">${patient.personalInfo.emergencyContact.relationship || ''}</div>
+              </div>
+            ` : ''}
+            ${patient.personalInfo?.emergencyContact?.phone ? `
+              <a href="tel:${patient.personalInfo.emergencyContact.phone}" 
+                 class="block w-full bg-green-600 hover:bg-green-700 text-white text-center rounded-lg px-4 py-3 font-bold text-lg">
+                📞 ${patient.personalInfo.emergencyContact.phone}
+              </a>
+            ` : '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucun contact d\'urgence</div>'}
           </div>
         </div>
         
-        <!-- Actions d'urgence -->
-        <div class="mt-6 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-bold text-gray-900 mb-4">🚑 Actions d'urgence</h3>
+        <!-- ACTIONS D'URGENCE -->
+        <div class="mt-6 bg-white rounded-xl shadow-xl border-2 border-red-300 p-6">
+          <h3 class="text-2xl font-bold text-red-600 mb-4 text-center">🚨 NUMÉROS D'URGENCE</h3>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button onclick="window.open('tel:15')" class="bg-red-600 hover:bg-red-700 text-white rounded-lg px-6 py-3 font-bold">
-              📞 SAMU (15)
-            </button>
-            <button onclick="window.open('tel:18')" class="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-6 py-3 font-bold">
-              🚒 Pompiers (18)
-            </button>
-            <button onclick="window.open('tel:112')" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 font-bold">
-              🆘 Urgences (112)
-            </button>
+            <a href="tel:15" class="block bg-red-600 hover:bg-red-700 text-white text-center rounded-xl px-6 py-4 font-bold text-lg transition-colors">
+              <div class="text-2xl mb-1">🚑</div>
+              <div>SAMU</div>
+              <div class="text-xl">15</div>
+            </a>
+            <a href="tel:18" class="block bg-orange-600 hover:bg-orange-700 text-white text-center rounded-xl px-6 py-4 font-bold text-lg transition-colors">
+              <div class="text-2xl mb-1">🚒</div>
+              <div>POMPIERS</div>
+              <div class="text-xl">18</div>
+            </a>
+            <a href="tel:112" class="block bg-blue-600 hover:bg-blue-700 text-white text-center rounded-xl px-6 py-4 font-bold text-lg transition-colors">
+              <div class="text-2xl mb-1">🆘</div>
+              <div>URGENCES</div>
+              <div class="text-xl">112</div>
+            </a>
           </div>
+        </div>
+        
+        <!-- Footer informatif -->
+        <div class="mt-6 text-center text-gray-500 text-sm">
+          <p>📋 Fiche d'information médicale • Consultation seule • ${new Date().toLocaleString('fr-FR')}</p>
+          <p class="mt-1">🔒 Données sensibles - Usage strictement médical</p>
         </div>
       </div>
     </div>
@@ -3725,7 +3741,8 @@ function showPatientMedicalRecord(patientId) {
   // Enregistrer l'accès
   SYLAnalytics.trackEvent('patient_medical_access', { 
     patientId: patient.id || patient.uid, 
-    accessMethod: 'nfc_link' 
+    accessMethod: 'nfc_link',
+    accessTime: new Date().toISOString()
   });
 }
 
