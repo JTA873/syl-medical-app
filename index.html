@@ -3694,7 +3694,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ndef = new NDEFReader();
       ndef.addEventListener('reading', ({ message }) => {
         const tagId = message.records[0]?.data ? new TextDecoder().decode(message.records[0].data) : null;
-        if (tagId && tagId.startsWith('SYL_') || tagId.startsWith('NFC_')) {
+        if (tagId && (tagId.startsWith('SYL_') || tagId.startsWith('NFC_'))) {
           console.log('🏷️ Tag NFC SYL détecté:', tagId);
           SYLUtilities.handleNFCAccess(tagId);
         }
