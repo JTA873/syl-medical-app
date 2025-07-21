@@ -1661,7 +1661,7 @@ async function loadPatientsFromFirebase() {
       permissionTestPassed = true;
       
       const userData = userDoc.data();
-      if (userData && userData.role === 'admin') {
+      if (userData && (userData.role === 'admin' || userData.role === 'Admin')) {
         console.log('✅ Utilisateur admin détecté');
       } else {
         console.log('⚠️ Utilisateur non-admin:', userData?.role);
@@ -1978,6 +1978,7 @@ function renderAdminDashboard(user) {
           </div>
           <div class="flex gap-4">
             <button id="scanNFC" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 flex items-center gap-2">${icons.smartphone} Scanner Tag</button>
+            <button id="writeNFC" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 flex items-center gap-2">${icons.edit} Écrire Tag</button>
             <button id="registerNFC" class="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2 flex items-center gap-2">${icons.check} Enregistrer</button>
           </div>
         </div>
@@ -1989,7 +1990,11 @@ function renderAdminDashboard(user) {
               <div class="border border-gray-200 rounded-lg p-4 ${tag.assignedTo ? 'bg-green-50 border-green-200' : 'bg-gray-50'}">
                 <div class="flex justify-between items-start mb-2">
                   <div class="font-medium text-gray-900">${tag.id}</div>
-                  <button onclick="deleteNFCTag('${tag.id}')" class="text-red-600 hover:text-red-700">${icons.trash}</button>
+                  <div class="flex gap-1">
+                    <button onclick="testNFCTag('${tag.id}')" class="text-blue-600 hover:text-blue-700 text-sm" title="Tester le tag">${icons.activity}</button>
+                    <button onclick="writeNFCTagData('${tag.id}')" class="text-purple-600 hover:text-purple-700 text-sm" title="Programmer le tag">${icons.edit}</button>
+                    <button onclick="deleteNFCTag('${tag.id}')" class="text-red-600 hover:text-red-700 text-sm" title="Supprimer">${icons.trash}</button>
+                  </div>
                 </div>
                 <div class="text-sm text-gray-600 mb-2">${tag.description || 'Aucune description'}</div>
                 <div class="text-sm">
@@ -2265,24 +2270,339 @@ function renderAdminDashboard(user) {
   function setupNFCEvents() {
     document.getElementById('scanNFC')?.addEventListener('click', async () => {
       try {
-        if ('NDEFReader' in window) {
-          const ndef = new NDEFReader();
-          await ndef.scan();
-          
-          ndef.addEventListener('reading', ({ message }) => {
-            const tagId = message.records[0]?.data ? new TextDecoder().decode(message.records[0].data) : 'tag_' + Date.now();
-            document.getElementById('nfcTagId').value = tagId;
-            SYLUtilities.showNotification('Tag NFC détecté', { body: `ID: ${tagId}` });
-          });
-        } else {
-          // Fallback pour navigateurs sans support NFC
-          const tagId = 'NFC_' + Math.random().toString(36).substr(2, 8).toUpperCase();
-          document.getElementById('nfcTagId').value = tagId;
-          alert('Simulation NFC: Tag généré automatiquement');
+        // Vérifier le support NFC
+        if (!('NDEFReader' in window)) {
+          // Fallback avec simulation
+          showNFCSimulationModal();
+          return;
         }
+
+        // Vérifier les permissions
+        const permission = await navigator.permissions.query({ name: 'nfc' });
+        if (permission.state === 'denied') {
+          throw new Error('Permissions NFC refusées. Activez le NFC dans les paramètres du navigateur.');
+        }
+
+        // Vérifier HTTPS
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          throw new Error('NFC nécessite HTTPS. Utilisez un serveur HTTPS ou localhost.');
+        }
+
+        // Démarrer le scan NFC
+        const ndef = new NDEFReader();
+        
+        // Afficher un modal de scan en cours
+        const scanModal = document.createElement('div');
+        scanModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        scanModal.innerHTML = `
+          <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+            <div class="animate-pulse mb-4">
+              <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">
+                📱
+              </div>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Scan NFC en cours...</h3>
+            <p class="text-gray-600 mb-4">Approchez votre tag NFC du téléphone</p>
+            <button id="cancelNFCScan" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+          </div>
+        `;
+        document.body.appendChild(scanModal);
+
+        // Gérer l'annulation
+        document.getElementById('cancelNFCScan').onclick = () => {
+          scanModal.remove();
+        };
+
+        // Démarrer le scan
+        await ndef.scan();
+        console.log('📡 Scan NFC démarré');
+
+        // Écouter la détection
+        ndef.addEventListener('reading', ({ message, serialNumber }) => {
+          scanModal.remove();
+          
+          let tagId = '';
+          
+          // Essayer de lire les données du tag
+          if (message.records.length > 0) {
+            const record = message.records[0];
+            if (record.recordType === 'text') {
+              tagId = new TextDecoder().decode(record.data);
+            } else if (record.recordType === 'url') {
+              tagId = new TextDecoder().decode(record.data);
+            } else {
+              // Utiliser le numéro de série si pas de données
+              tagId = serialNumber || 'NFC_' + Date.now();
+            }
+          } else {
+            // Utiliser le numéro de série
+            tagId = serialNumber || 'NFC_' + Date.now();
+          }
+
+          // Formater l'ID
+          if (!tagId.startsWith('NFC_') && !tagId.startsWith('SYL_')) {
+            tagId = 'NFC_' + tagId;
+          }
+
+          document.getElementById('nfcTagId').value = tagId;
+          
+          // Afficher une confirmation
+          showNFCSuccessModal(tagId);
+        });
+
+        // Timeout pour le scan
+        setTimeout(() => {
+          if (document.body.contains(scanModal)) {
+            scanModal.remove();
+            alert('⏰ Timeout du scan NFC. Réessayez.');
+          }
+        }, 30000); // 30 secondes
+
       } catch (error) {
         console.error('Erreur NFC:', error);
-        alert('Erreur lors du scan NFC: ' + error.message);
+        
+        let errorMessage = 'Erreur NFC: ';
+        if (error.name === 'NotAllowedError') {
+          errorMessage += 'Permissions NFC refusées. Activez le NFC dans les paramètres.';
+        } else if (error.name === 'NotSupportedError') {
+          errorMessage += 'NFC non supporté sur cet appareil.';
+        } else if (error.message.includes('HTTPS')) {
+          errorMessage += 'NFC nécessite HTTPS. Testez sur un serveur sécurisé.';
+        } else {
+          errorMessage += error.message;
+        }
+        
+        // Proposer une simulation
+        if (confirm(errorMessage + '\n\nVoulez-vous utiliser la simulation NFC ?')) {
+          showNFCSimulationModal();
+        }
+      }
+    });
+
+    // Fonction pour la simulation NFC
+    function showNFCSimulationModal() {
+      const simModal = document.createElement('div');
+      simModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      simModal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+          <h3 class="text-lg font-bold text-gray-900 mb-4">🎭 Simulation NFC</h3>
+          <p class="text-gray-600 mb-4">Génération d'un tag NFC virtuel pour les tests</p>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Type de tag</label>
+              <select id="nfcSimType" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                <option value="random">Générer aléatoirement</option>
+                <option value="bracelet">Bracelet médical</option>
+                <option value="card">Carte médicale</option>
+                <option value="keychain">Porte-clés</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">ID personnalisé (optionnel)</label>
+              <input type="text" id="nfcSimCustom" placeholder="Ex: MON_TAG_123" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            </div>
+          </div>
+          <div class="flex gap-2 mt-6">
+            <button id="generateNFCTag" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">Générer</button>
+            <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(simModal);
+
+      document.getElementById('generateNFCTag').onclick = () => {
+        const type = document.getElementById('nfcSimType').value;
+        const custom = document.getElementById('nfcSimCustom').value.trim();
+        
+        let tagId = '';
+        if (custom) {
+          tagId = custom.startsWith('NFC_') || custom.startsWith('SYL_') ? custom : 'NFC_' + custom;
+        } else {
+          const random = Math.random().toString(36).substr(2, 8).toUpperCase();
+          switch (type) {
+            case 'bracelet': tagId = 'SYL_BRACELET_' + random; break;
+            case 'card': tagId = 'SYL_CARD_' + random; break;
+            case 'keychain': tagId = 'SYL_KEY_' + random; break;
+            default: tagId = 'NFC_' + random;
+          }
+        }
+        
+        document.getElementById('nfcTagId').value = tagId;
+        simModal.remove();
+        showNFCSuccessModal(tagId, true);
+      };
+    }
+
+    // Fonction pour afficher le succès
+    function showNFCSuccessModal(tagId, isSimulated = false) {
+      const successModal = document.createElement('div');
+      successModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      successModal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+          <div class="w-16 h-16 bg-green-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+            ${isSimulated ? '🎭' : '📱'}
+          </div>
+          <h3 class="text-lg font-bold text-green-600 mb-2">Tag NFC ${isSimulated ? 'simulé' : 'détecté'} !</h3>
+          <div class="bg-gray-100 rounded p-3 mb-4">
+            <code class="text-sm font-mono">${tagId}</code>
+          </div>
+          <p class="text-gray-600 text-sm mb-4">${isSimulated ? 'Tag virtuel généré pour les tests' : 'Tag physique détecté avec succès'}</p>
+          <button onclick="this.closest('.fixed').remove()" class="bg-green-600 hover:bg-green-700 text-white rounded px-6 py-2">Continuer</button>
+        </div>
+      `;
+      document.body.appendChild(successModal);
+      
+      // Auto-fermer après 3 secondes
+      setTimeout(() => {
+        if (document.body.contains(successModal)) {
+          successModal.remove();
+        }
+      }, 3000);
+    }
+
+    // Fonction pour écrire des données sur un tag NFC
+    document.getElementById('writeNFC')?.addEventListener('click', async () => {
+      const tagId = document.getElementById('nfcTagId').value.trim();
+      const description = document.getElementById('nfcTagDescription').value.trim();
+      
+      if (!tagId) {
+        alert('Veuillez d\'abord entrer un ID de tag ou scanner un tag');
+        return;
+      }
+
+      try {
+        if (!('NDEFReader' in window)) {
+          alert('⚠️ Écriture NFC non supportée sur cet appareil.\n\nLe tag sera enregistré sans données physiques.');
+          return;
+        }
+
+        // Vérifier HTTPS
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          throw new Error('NFC nécessite HTTPS pour l\'écriture');
+        }
+
+        // Créer le modal d'écriture
+        const writeModal = document.createElement('div');
+        writeModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        writeModal.innerHTML = `
+          <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h3 class="text-lg font-bold text-gray-900 mb-4">✍️ Écriture NFC</h3>
+            <div class="space-y-3 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">ID du tag</label>
+                <div class="bg-gray-100 rounded p-2">
+                  <code class="text-sm">${tagId}</code>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <div class="bg-gray-100 rounded p-2 text-sm">
+                  ${description || 'Aucune description'}
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Type de données</label>
+                <select id="nfcDataType" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <option value="text">Texte (ID du tag)</option>
+                  <option value="url">URL (accès d'urgence)</option>
+                  <option value="contact">Contact d'urgence</option>
+                </select>
+              </div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+              <p class="text-sm text-blue-800">📱 Approchez le tag NFC de votre appareil pour écrire les données</p>
+            </div>
+            <div class="flex gap-2">
+              <button id="startNFCWrite" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white rounded px-4 py-2">Écrire</button>
+              <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(writeModal);
+
+        document.getElementById('startNFCWrite').onclick = async () => {
+          try {
+            const dataType = document.getElementById('nfcDataType').value;
+            const ndef = new NDEFReader();
+            
+            // Préparer les données selon le type
+            let ndefMessage;
+            switch (dataType) {
+              case 'url':
+                const emergencyUrl = `${window.location.origin}${window.location.pathname}?nfc=${tagId}`;
+                ndefMessage = { records: [{ recordType: 'url', data: emergencyUrl }] };
+                break;
+              case 'contact':
+                const vcard = `BEGIN:VCARD
+VERSION:3.0
+FN:SYL Medical Emergency
+ORG:SYL Medical
+TEL:15
+NOTE:Tag d'urgence médicale ID: ${tagId}
+END:VCARD`;
+                ndefMessage = { records: [{ recordType: 'mime', mediaType: 'text/vcard', data: vcard }] };
+                break;
+              default: // text
+                ndefMessage = { records: [{ recordType: 'text', data: tagId }] };
+            }
+
+            // Afficher le statut d'écriture
+            writeModal.querySelector('.bg-white').innerHTML = `
+              <div class="text-center py-8">
+                <div class="animate-pulse mb-4">
+                  <div class="w-16 h-16 bg-purple-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">
+                    ✍️
+                  </div>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Écriture en cours...</h3>
+                <p class="text-gray-600 mb-4">Maintenez le tag NFC proche de l'appareil</p>
+                <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+              </div>
+            `;
+
+            // Écrire sur le tag
+            await ndef.write(ndefMessage);
+            
+            // Succès
+            writeModal.querySelector('.bg-white').innerHTML = `
+              <div class="text-center py-8">
+                <div class="w-16 h-16 bg-green-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+                  ✅
+                </div>
+                <h3 class="text-lg font-bold text-green-600 mb-2">Écriture réussie !</h3>
+                <div class="bg-gray-100 rounded p-3 mb-4">
+                  <code class="text-sm font-mono">${tagId}</code>
+                </div>
+                <p class="text-gray-600 text-sm mb-4">Données écrites avec succès sur le tag NFC</p>
+                <button onclick="this.closest('.fixed').remove()" class="bg-green-600 hover:bg-green-700 text-white rounded px-6 py-2">Terminer</button>
+              </div>
+            `;
+
+            // Auto-fermer après 3 secondes
+            setTimeout(() => {
+              if (document.body.contains(writeModal)) {
+                writeModal.remove();
+              }
+            }, 3000);
+
+          } catch (writeError) {
+            console.error('Erreur écriture NFC:', writeError);
+            writeModal.querySelector('.bg-white').innerHTML = `
+              <div class="text-center py-8">
+                <div class="w-16 h-16 bg-red-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+                  ❌
+                </div>
+                <h3 class="text-lg font-bold text-red-600 mb-2">Erreur d'écriture</h3>
+                <p class="text-gray-600 text-sm mb-4">${writeError.message}</p>
+                <button onclick="this.closest('.fixed').remove()" class="bg-red-600 hover:bg-red-700 text-white rounded px-6 py-2">Fermer</button>
+              </div>
+            `;
+          }
+        };
+
+      } catch (error) {
+        console.error('Erreur NFC:', error);
+        alert('❌ Erreur: ' + error.message);
       }
     });
 
@@ -2487,6 +2807,204 @@ function removeAssociation(tagId) {
   
   SYLUtilities.showNotification('Association supprimée', { body: `Tag ${tagId} dissocié` });
   location.reload();
+}
+
+// Fonction pour tester un tag NFC spécifique
+function testNFCTag(tagId) {
+  const modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+      <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+        🧪
+      </div>
+      <h3 class="text-lg font-bold text-gray-900 mb-4">Test du Tag NFC</h3>
+      <div class="bg-gray-100 rounded p-3 mb-4">
+        <code class="text-sm font-mono">${tagId}</code>
+      </div>
+      <div class="space-y-3">
+        <button onclick="testNFCRead('${tagId}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">📱 Tester la lecture</button>
+        <button onclick="testNFCEmergency('${tagId}')" class="w-full bg-red-600 hover:bg-red-700 text-white rounded px-4 py-2">🚑 Simuler accès d'urgence</button>
+        <button onclick="this.closest('.fixed').remove()" class="w-full bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Fermer</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// Fonction pour programmer un tag NFC avec des données
+function writeNFCTagData(tagId) {
+  const nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
+  const tag = nfcTags.find(t => t.id === tagId);
+  
+  if (!tag) {
+    alert('Tag non trouvé');
+    return;
+  }
+
+  // Remplir les champs et déclencher l'écriture
+  document.getElementById('nfcTagId').value = tagId;
+  document.getElementById('nfcTagDescription').value = tag.description || '';
+  
+  // Déclencher l'événement d'écriture
+  document.getElementById('writeNFC').click();
+}
+
+// Tester la lecture d'un tag NFC
+async function testNFCRead(tagId) {
+  try {
+    if (!('NDEFReader' in window)) {
+      alert('📱 API NFC non supportée sur cet appareil.\n\nTest simulé : Le tag contiendrait les données d\'urgence du patient associé.');
+      return;
+    }
+
+    const readModal = document.createElement('div');
+    readModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    readModal.innerHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+        <div class="animate-pulse mb-4">
+          <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">
+            📱
+          </div>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-2">Lecture NFC en cours...</h3>
+        <p class="text-gray-600 mb-4">Approchez le tag ${tagId} de votre appareil</p>
+        <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(readModal);
+
+    const ndef = new NDEFReader();
+    await ndef.scan();
+
+    ndef.addEventListener('reading', ({ message, serialNumber }) => {
+      readModal.remove();
+      
+      let content = 'Aucune donnée lisible';
+      if (message.records.length > 0) {
+        const record = message.records[0];
+        if (record.recordType === 'text') {
+          content = new TextDecoder().decode(record.data);
+        } else if (record.recordType === 'url') {
+          content = new TextDecoder().decode(record.data);
+        }
+      }
+
+      const resultModal = document.createElement('div');
+      resultModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      resultModal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+          <h3 class="text-lg font-bold text-green-600 mb-4">✅ Lecture réussie</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Tag ID:</label>
+              <div class="bg-gray-100 rounded p-2 text-sm font-mono">${tagId}</div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Numéro de série:</label>
+              <div class="bg-gray-100 rounded p-2 text-sm font-mono">${serialNumber || 'Non disponible'}</div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Contenu:</label>
+              <div class="bg-gray-100 rounded p-2 text-sm">${content}</div>
+            </div>
+          </div>
+          <button onclick="this.closest('.fixed').remove()" class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white rounded px-4 py-2">Fermer</button>
+        </div>
+      `;
+      document.body.appendChild(resultModal);
+    });
+
+    // Timeout
+    setTimeout(() => {
+      if (document.body.contains(readModal)) {
+        readModal.remove();
+        alert('⏰ Timeout de lecture. Réessayez.');
+      }
+    }, 30000);
+
+  } catch (error) {
+    console.error('Erreur test lecture NFC:', error);
+    alert('❌ Erreur de lecture: ' + error.message);
+  }
+}
+
+// Simuler un accès d'urgence
+function testNFCEmergency(tagId) {
+  const nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
+  const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  
+  const tag = nfcTags.find(t => t.id === tagId);
+  const patient = patients.find(p => (p.id || p.uid) === tag?.assignedTo);
+  
+  if (!patient) {
+    alert('❌ Aucun patient associé à ce tag.\n\nAssociez d\'abord un patient au tag pour tester l\'accès d\'urgence.');
+    return;
+  }
+  
+  // Simuler l'interface d'urgence
+  const emergencyModal = document.createElement('div');
+  emergencyModal.className = 'fixed inset-0 bg-red-900 bg-opacity-95 flex items-center justify-center z-50';
+  emergencyModal.innerHTML = `
+    <div class="bg-white rounded-lg p-6 max-w-2xl mx-4 border-4 border-red-600">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-red-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+          🚑
+        </div>
+        <h2 class="text-2xl font-bold text-red-600 mb-2">ACCÈS D'URGENCE ACTIVÉ</h2>
+        <p class="text-gray-600">Tag NFC: ${tagId}</p>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+          <h3 class="font-bold text-red-800 mb-3">👤 Patient</h3>
+          <div class="space-y-2 text-sm">
+            <div><strong>Nom:</strong> ${patient.personalInfo?.firstName} ${patient.personalInfo?.lastName}</div>
+            <div><strong>Né(e) le:</strong> ${patient.personalInfo?.dateOfBirth || 'Non renseigné'}</div>
+            <div><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-2 py-1 rounded text-xs">${patient.personalInfo?.bloodType || 'Non renseigné'}</span></div>
+          </div>
+        </div>
+        
+        <div class="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
+          <h3 class="font-bold text-orange-800 mb-3">⚠️ Alertes Médicales</h3>
+          <div class="space-y-2 text-sm">
+            <div><strong>Allergies:</strong> ${patient.medicalHistory?.allergies?.join(', ') || 'Aucune connue'}</div>
+            <div><strong>Médicaments:</strong> ${patient.medicalHistory?.medications?.join(', ') || 'Aucun'}</div>
+            <div><strong>Maladies chroniques:</strong> ${patient.medicalHistory?.chronicDiseases?.join(', ') || 'Aucune'}</div>
+          </div>
+        </div>
+        
+        <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <h3 class="font-bold text-blue-800 mb-3">📞 Contact d'Urgence</h3>
+          <div class="space-y-2 text-sm">
+            <div><strong>Nom:</strong> ${patient.personalInfo?.emergencyContact?.name || 'Non renseigné'}</div>
+            <div><strong>Relation:</strong> ${patient.personalInfo?.emergencyContact?.relation || 'Non renseigné'}</div>
+            <div><strong>Téléphone:</strong> 
+              <a href="tel:${patient.personalInfo?.emergencyContact?.phone}" class="text-blue-600 underline">
+                ${patient.personalInfo?.emergencyContact?.phone || 'Non renseigné'}
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+          <h3 class="font-bold text-yellow-800 mb-3">📝 Notes Critiques</h3>
+          <div class="text-sm">
+            ${patient.emergencyInfo?.criticalNotes || 'Aucune note critique'}
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex gap-2 mt-6">
+        <button onclick="window.open('tel:15')" class="flex-1 bg-red-600 hover:bg-red-700 text-white rounded px-4 py-2 font-bold">📞 SAMU (15)</button>
+        <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Fermer Test</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(emergencyModal);
+  
+  // Enregistrer l'accès d'urgence
+  SYLAnalytics.trackEvent('emergency_access_test', { tagId, patientId: patient.id || patient.uid });
 }
 
 function testNFC(tagId) {
