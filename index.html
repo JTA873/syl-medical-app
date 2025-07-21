@@ -107,6 +107,38 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 
 console.log("SYL Medical - Début du chargement");
 
+// Fonction de fallback simple
+function showSimpleLogin() {
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+      <div class="w-full max-w-md">
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
+          <div class="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 3.5c3.038 0 5.5 2.462 5.5 5.5s-2.462 5.5-5.5 5.5-5.5-2.462-5.5-5.5 2.462-5.5 5.5-5.5z"/>
+            </svg>
+          </div>
+          <h1 class="text-2xl font-bold text-gray-900 mb-2">SYL Medical</h1>
+          <p class="text-gray-600 mb-6">Système d'Urgence Médicale</p>
+          
+          <div class="space-y-4">
+            <button onclick="alert('Connexion en cours de développement')" 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3">
+              Se connecter
+            </button>
+          </div>
+          
+          <div class="mt-8 pt-6 border-t border-gray-200">
+            <div class="text-xs text-gray-500">
+              <p>Version de test - Firebase: ${typeof firebase !== 'undefined' ? 'OK' : 'Erreur'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // Configuration Firebase sécurisée
 const firebaseConfig = {
   apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
@@ -2619,28 +2651,28 @@ function renderMedecinDashboard(user) {
 
 // ----------- MAIN -----------
 function renderApp() {
-  // Vérifier l'état d'authentification Firebase
-  auth.onAuthStateChanged((firebaseUser) => {
-    if (firebaseUser) {
-      // Utilisateur connecté
-      const user = getUser();
-      if (user && user.uid === firebaseUser.uid) {
-        if (user.role === 'patient') {
-          renderPatientDashboard(user);
-        } else if (user.role === 'medecin') {
-          renderMedecinDashboard(user);
-        } else if (user.role === 'admin') {
-          renderAdminDashboard(user);
-        }
-      } else {
-        // Utilisateur Firebase mais pas de données locales
-        showLogin();
-      }
-    } else {
-      // Pas d'utilisateur connecté
-      showLogin();
+  console.log("renderApp appellee");
+  
+  try {
+    // Vérifier que Firebase est chargé
+    if (typeof firebase === 'undefined') {
+      console.error("Firebase n'est pas charge");
+      showSimpleLogin();
+      return;
     }
-  });
+    
+    // Vérifier que la fonction showLogin existe
+    if (typeof showLogin === 'function') {
+      console.log("Affichage de l'interface de connexion");
+      showLogin();
+    } else {
+      console.warn("showLogin n'est pas definie, utilisation du fallback");
+      showSimpleLogin();
+    }
+  } catch (error) {
+    console.error("Erreur dans renderApp:", error);
+    showSimpleLogin();
+  }
 }
 
 // Fonction de déconnexion mise à jour
@@ -2817,10 +2849,28 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('• 🔍 Recherche et filtrage patients');
 });
 
-// Init - Attendre que Firebase soit prêt
-firebase.auth().onAuthStateChanged(() => {
+// Init - Attendre que Firebase soit prêt avec timeout
+let authInitialized = false;
+
+firebase.auth().onAuthStateChanged((user) => {
+  console.log("Auth state changed:", user ? "connecté" : "déconnecté");
+  authInitialized = true;
   renderApp();
 });
+
+// Timeout de sécurité si Firebase ne répond pas
+setTimeout(() => {
+  if (!authInitialized) {
+    console.log("Timeout Firebase - Chargement forcé de l'interface");
+    showLogin();
+  }
+}, 5000); // 5 secondes
+
+// Test immédiat si Firebase est déjà prêt
+if (firebase.auth().currentUser !== undefined) {
+  console.log("Firebase déjà prêt");
+  renderApp();
+}
 </script>
 </body>
 </html>
