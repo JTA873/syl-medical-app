@@ -290,38 +290,19 @@ function clearUser() {
 
 // Configuration système centralisé Firebase - SYL Medical v2.1.0
 const SYL_CONFIG = {
-  VERSION: "2.1.0", // Version de l'application  
-  FIREBASE_AUTO_LOAD: true, // Chargement automatique depuis Firebase
-  NO_TEST_DATA: true, // Aucune donnée de test autorisée
-  FORCE_SYNC: true, // Synchronisation obligatoire entre appareils
-  LAST_UPDATE: "2025-07-21", // Date de dernière mise à jour
+  VERSION: "2.1.0",
+  FIREBASE_AUTO_LOAD: true,
+  NO_TEST_DATA: true,
+  FORCE_SYNC: true,
+  LAST_UPDATE: "2025-07-21",
 };
-
-// Vérification de version au démarrage
-function checkAppVersion() {
-  const localVersion = localStorage.getItem('syl-app-version');
-  if (localVersion !== SYL_CONFIG.VERSION) {
-    console.log("Mise a jour detectee: " + (localVersion || 'ancienne') + " vers " + SYL_CONFIG.VERSION);
-    
-    // Vider le cache pour forcer le rechargement des données
-    localStorage.removeItem('syl-patients');
-    localStorage.removeItem('syl-nfc-tags');
-    localStorage.removeItem('syl-medicalData'); 
-    localStorage.removeItem('syl-analytics');
-    
-    // Mettre à jour la version
-    localStorage.setItem('syl-app-version', SYL_CONFIG.VERSION);
-    
-    console.log('✅ Cache nettoyé pour nouvelle version');
-  }
-}
 
 // Nouvelles fonctionnalités
 class SYLUtilities {
   // Génération QR Code d'urgence
   static generateEmergencyQR(medicalData) {
     const emergencyData = {
-      name: `${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}`,
+      name: medicalData.personalInfo.firstName + ' ' + medicalData.personalInfo.lastName,
       bloodType: medicalData.personalInfo.bloodType,
       allergies: medicalData.medicalHistory.allergies,
       conditions: medicalData.medicalHistory.chronicDiseases,
@@ -332,7 +313,7 @@ class SYLUtilities {
     
     // QR Code simple avec données base64
     const qrData = btoa(JSON.stringify(emergencyData));
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+    return 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qrData);
   }
   
   // Géolocalisation d'urgence
@@ -359,27 +340,24 @@ class SYLUtilities {
   // Mode hors ligne
   static setupOfflineMode() {
     if ('serviceWorker' in navigator) {
-      const swCode = `
-        const CACHE_NAME = 'syl-medical-v1';
-        const urlsToCache = [
-          '/',
-          'https://cdn.tailwindcss.com'
-        ];
-
-        self.addEventListener('install', event => {
-          event.waitUntil(
-            caches.open(CACHE_NAME)
-              .then(cache => cache.addAll(urlsToCache))
-          );
-        });
-
-        self.addEventListener('fetch', event => {
-          event.respondWith(
-            caches.match(event.request)
-              .then(response => response || fetch(event.request))
-          );
-        });
-      `;
+      const swCode = 
+        'const CACHE_NAME = "syl-medical-v1";' +
+        'const urlsToCache = [' +
+          '"/",' +
+          '"https://cdn.tailwindcss.com"' +
+        '];' +
+        'self.addEventListener("install", event => {' +
+          'event.waitUntil(' +
+            'caches.open(CACHE_NAME)' +
+              '.then(cache => cache.addAll(urlsToCache))' +
+          ');' +
+        '});' +
+        'self.addEventListener("fetch", event => {' +
+          'event.respondWith(' +
+            'caches.match(event.request)' +
+              '.then(response => response || fetch(event.request))' +
+          ');' +
+        '});';
       
       const blob = new Blob([swCode], { type: 'application/javascript' });
       const swUrl = URL.createObjectURL(blob);
@@ -411,72 +389,64 @@ class SYLUtilities {
   
   // Export PDF
   static generatePDF(medicalData) {
-    const emergencyInfo = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>SYL Medical - Fiche d'urgence</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .header { text-align: center; color: #dc2626; border-bottom: 3px solid #dc2626; padding-bottom: 10px; }
-    .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
-    .critical { background-color: #fef2f2; border-color: #dc2626; }
-    .label { font-weight: bold; color: #374151; }
-    .value { color: #1f2937; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>🚑 FICHE MÉDICALE D'URGENCE</h1>
-    <h2>${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}</h2>
-  </div>
-  
-  <div class="section critical">
-    <h3>INFORMATIONS CRITIQUES</h3>
-    <div class="grid">
-      <div><span class="label">Groupe sanguin:</span> <span class="value">${medicalData.personalInfo.bloodType || 'Non renseigné'}</span></div>
-      <div><span class="label">Date de naissance:</span> <span class="value">${medicalData.personalInfo.dateOfBirth}</span></div>
-    </div>
-  </div>
-  
-  <div class="section">
-    <h3>ALLERGIES</h3>
-    <p class="value">${medicalData.medicalHistory.allergies.join(', ') || 'Aucune allergie connue'}</p>
-  </div>
-  
-  <div class="section">
-    <h3>TRAITEMENTS EN COURS</h3>
-    <p class="value">${medicalData.medicalHistory.medications.join(', ') || 'Aucun traitement'}</p>
-  </div>
-  
-  <div class="section">
-    <h3>CONTACT D'URGENCE</h3>
-    <p class="value">${medicalData.personalInfo.emergencyContact.name} (${medicalData.personalInfo.emergencyContact.relation})<br>
-    Tél: ${medicalData.personalInfo.emergencyContact.phone}</p>
-  </div>
-  
-  ${medicalData.emergencyInfo.criticalNotes ? `
-  <div class="section critical">
-    <h3>NOTES CRITIQUES</h3>
-    <p class="value">${medicalData.emergencyInfo.criticalNotes}</p>
-  </div>
-  ` : ''}
-  
-  <div class="section">
-    <p style="text-align: center; color: #6b7280; font-size: 12px;">
-      Généré le ${new Date().toLocaleString('fr-FR')} par SYL Medical
-    </p>
-  </div>
-</body>
-</html>
-    `;
+    const emergencyInfo = 
+      '<!DOCTYPE html>' +
+      '<html>' +
+      '<head>' +
+        '<title>SYL Medical - Fiche d\'urgence</title>' +
+        '<style>' +
+          'body { font-family: Arial, sans-serif; margin: 20px; }' +
+          '.header { text-align: center; color: #dc2626; border-bottom: 3px solid #dc2626; padding-bottom: 10px; }' +
+          '.section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }' +
+          '.critical { background-color: #fef2f2; border-color: #dc2626; }' +
+          '.label { font-weight: bold; color: #374151; }' +
+          '.value { color: #1f2937; }' +
+          '.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }' +
+        '</style>' +
+      '</head>' +
+      '<body>' +
+        '<div class="header">' +
+          '<h1>FICHE MEDICALE D\'URGENCE</h1>' +
+          '<h2>' + medicalData.personalInfo.firstName + ' ' + medicalData.personalInfo.lastName + '</h2>' +
+        '</div>' +
+        '<div class="section critical">' +
+          '<h3>INFORMATIONS CRITIQUES</h3>' +
+          '<div class="grid">' +
+            '<div><span class="label">Groupe sanguin:</span> <span class="value">' + (medicalData.personalInfo.bloodType || 'Non renseigne') + '</span></div>' +
+            '<div><span class="label">Date de naissance:</span> <span class="value">' + medicalData.personalInfo.dateOfBirth + '</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="section">' +
+          '<h3>ALLERGIES</h3>' +
+          '<p class="value">' + (medicalData.medicalHistory.allergies.join(', ') || 'Aucune allergie connue') + '</p>' +
+        '</div>' +
+        '<div class="section">' +
+          '<h3>TRAITEMENTS EN COURS</h3>' +
+          '<p class="value">' + (medicalData.medicalHistory.medications.join(', ') || 'Aucun traitement') + '</p>' +
+        '</div>' +
+        '<div class="section">' +
+          '<h3>CONTACT D\'URGENCE</h3>' +
+          '<p class="value">' + medicalData.personalInfo.emergencyContact.name + ' (' + medicalData.personalInfo.emergencyContact.relation + ')<br>' +
+          'Tel: ' + medicalData.personalInfo.emergencyContact.phone + '</p>' +
+        '</div>' +
+        (medicalData.emergencyInfo.criticalNotes ? 
+          '<div class="section critical">' +
+            '<h3>NOTES CRITIQUES</h3>' +
+            '<p class="value">' + medicalData.emergencyInfo.criticalNotes + '</p>' +
+          '</div>' : '') +
+        '<div class="section">' +
+          '<p style="text-align: center; color: #6b7280; font-size: 12px;">' +
+            'Genere le ' + new Date().toLocaleString('fr-FR') + ' par SYL Medical' +
+          '</p>' +
+        '</div>' +
+      '</body>' +
+      '</html>';
     
     const blob = new Blob([emergencyInfo], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `fiche-urgence-${medicalData.personalInfo.firstName}-${new Date().toISOString().split('T')[0]}.html`;
+    a.download = 'fiche-urgence-' + medicalData.personalInfo.firstName + '-' + new Date().toISOString().split('T')[0] + '.html';
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -543,89 +513,79 @@ class SYLUtilities {
     // Créer une interface d'urgence en plein écran
     const emergencyInterface = document.createElement('div');
     emergencyInterface.className = 'fixed inset-0 bg-red-600 z-50 overflow-y-auto';
-    emergencyInterface.innerHTML = `
-      <div class="min-h-screen p-4">
-        <div class="max-w-4xl mx-auto">
-          <div class="bg-white rounded-lg shadow-2xl overflow-hidden">
-            <div class="bg-red-600 text-white p-6 text-center">
-              <h1 class="text-3xl font-bold">🚑 ACCÈS D'URGENCE MÉDICALE</h1>
-              <p class="text-xl mt-2">Tag NFC: ${tagId}</p>
-              <p class="text-lg">Accès le ${new Date().toLocaleString('fr-FR')}</p>
-            </div>
-            
-            <div class="p-6 space-y-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-red-50 border-l-4 border-red-500 p-4">
-                  <h2 class="text-xl font-bold text-red-800 mb-4">IDENTITÉ PATIENT</h2>
-                  <div class="space-y-2">
-                    <p><strong>Nom:</strong> ${medicalData.personalInfo.lastName}</p>
-                    <p><strong>Prénom:</strong> ${medicalData.personalInfo.firstName}</p>
-                    <p><strong>Date de naissance:</strong> ${medicalData.personalInfo.dateOfBirth}</p>
-                    <p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-3 py-1 rounded font-bold text-lg">${medicalData.personalInfo.bloodType || 'NON RENSEIGNÉ'}</span></p>
-                  </div>
-                </div>
-                
-                <div class="bg-orange-50 border-l-4 border-orange-500 p-4">
-                  <h2 class="text-xl font-bold text-orange-800 mb-4">CONTACT D'URGENCE</h2>
-                  <div class="space-y-2">
-                    <p><strong>Nom:</strong> ${medicalData.personalInfo.emergencyContact.name}</p>
-                    <p><strong>Relation:</strong> ${medicalData.personalInfo.emergencyContact.relation}</p>
-                    <p><strong>Téléphone:</strong> <a href="tel:${medicalData.personalInfo.emergencyContact.phone}" class="text-blue-600 underline text-lg font-bold">${medicalData.personalInfo.emergencyContact.phone}</a></p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
-                  <h2 class="text-xl font-bold text-yellow-800 mb-4">⚠️ ALLERGIES CRITIQUES</h2>
-                  <div class="space-y-1">
-                    ${medicalData.medicalHistory.allergies?.length ? 
-                      medicalData.medicalHistory.allergies.map(a => `<span class="bg-red-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">${a}</span>`).join('') : 
-                      '<p class="text-gray-500">Aucune allergie connue</p>'
-                    }
-                  </div>
-                </div>
-                
-                <div class="bg-blue-50 border-l-4 border-blue-500 p-4">
-                  <h2 class="text-xl font-bold text-blue-800 mb-4">💊 TRAITEMENTS EN COURS</h2>
-                  <div class="space-y-1">
-                    ${medicalData.medicalHistory.medications?.length ? 
-                      medicalData.medicalHistory.medications.map(m => `<span class="bg-blue-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">${m}</span>`).join('') : 
-                      '<p class="text-gray-500">Aucun traitement</p>'
-                    }
-                  </div>
-                </div>
-              </div>
-              
-              <div class="bg-purple-50 border-l-4 border-purple-500 p-4">
-                <h2 class="text-xl font-bold text-purple-800 mb-4">🏥 PATHOLOGIES & CONDITIONS</h2>
-                <div class="space-y-1">
-                  ${medicalData.medicalHistory.chronicDiseases?.length ? 
-                    medicalData.medicalHistory.chronicDiseases.map(c => `<span class="bg-purple-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">${c}</span>`).join('') : 
-                    '<p class="text-gray-500">Aucune pathologie chronique</p>'
-                  }
-                </div>
-              </div>
-              
-              ${medicalData.emergencyInfo?.criticalNotes ? `
-              <div class="bg-red-100 border-2 border-red-300 p-4 rounded-lg">
-                <h2 class="text-xl font-bold text-red-800 mb-4">🚨 NOTES CRITIQUES POUR LES SECOURS</h2>
-                <p class="text-red-700 text-lg">${medicalData.emergencyInfo.criticalNotes}</p>
-              </div>
-              ` : ''}
-              
-              <div class="flex flex-wrap gap-4 justify-center">
-                <a href="tel:15" class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">📞 SAMU 15</a>
-                <a href="tel:18" class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-6 py-3 text-lg">🚒 Pompiers 18</a>
-                <a href="tel:112" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-3 text-lg">🆘 Urgences 112</a>
-                <button onclick="SYLUtilities.generatePDF(${JSON.stringify(medicalData).replace(/"/g, '&quot;')})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg px-6 py-3 text-lg">📄 Export PDF</button>
-                <button onclick="this.closest('.fixed').remove()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg px-6 py-3 text-lg">❌ Fermer</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    
+    const allergiesHtml = medicalData.medicalHistory.allergies?.length ? 
+      medicalData.medicalHistory.allergies.map(a => '<span class="bg-red-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">' + a + '</span>').join('') : 
+      '<p class="text-gray-500">Aucune allergie connue</p>';
+      
+    const medicationsHtml = medicalData.medicalHistory.medications?.length ? 
+      medicalData.medicalHistory.medications.map(m => '<span class="bg-blue-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">' + m + '</span>').join('') : 
+      '<p class="text-gray-500">Aucun traitement</p>';
+      
+    const diseasesHtml = medicalData.medicalHistory.chronicDiseases?.length ? 
+      medicalData.medicalHistory.chronicDiseases.map(c => '<span class="bg-purple-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">' + c + '</span>').join('') : 
+      '<p class="text-gray-500">Aucune pathologie chronique</p>';
+      
+    const criticalNotesHtml = medicalData.emergencyInfo?.criticalNotes ? 
+      '<div class="bg-red-100 border-2 border-red-300 p-4 rounded-lg">' +
+        '<h2 class="text-xl font-bold text-red-800 mb-4">NOTES CRITIQUES POUR LES SECOURS</h2>' +
+        '<p class="text-red-700 text-lg">' + medicalData.emergencyInfo.criticalNotes + '</p>' +
+      '</div>' : '';
+    
+    emergencyInterface.innerHTML = 
+      '<div class="min-h-screen p-4">' +
+        '<div class="max-w-4xl mx-auto">' +
+          '<div class="bg-white rounded-lg shadow-2xl overflow-hidden">' +
+            '<div class="bg-red-600 text-white p-6 text-center">' +
+              '<h1 class="text-3xl font-bold">ACCES D\'URGENCE MEDICALE</h1>' +
+              '<p class="text-xl mt-2">Tag NFC: ' + tagId + '</p>' +
+              '<p class="text-lg">Acces le ' + new Date().toLocaleString('fr-FR') + '</p>' +
+            '</div>' +
+            '<div class="p-6 space-y-6">' +
+              '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
+                '<div class="bg-red-50 border-l-4 border-red-500 p-4">' +
+                  '<h2 class="text-xl font-bold text-red-800 mb-4">IDENTITE PATIENT</h2>' +
+                  '<div class="space-y-2">' +
+                    '<p><strong>Nom:</strong> ' + medicalData.personalInfo.lastName + '</p>' +
+                    '<p><strong>Prenom:</strong> ' + medicalData.personalInfo.firstName + '</p>' +
+                    '<p><strong>Date de naissance:</strong> ' + medicalData.personalInfo.dateOfBirth + '</p>' +
+                    '<p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-3 py-1 rounded font-bold text-lg">' + (medicalData.personalInfo.bloodType || 'NON RENSEIGNE') + '</span></p>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="bg-orange-50 border-l-4 border-orange-500 p-4">' +
+                  '<h2 class="text-xl font-bold text-orange-800 mb-4">CONTACT D\'URGENCE</h2>' +
+                  '<div class="space-y-2">' +
+                    '<p><strong>Nom:</strong> ' + medicalData.personalInfo.emergencyContact.name + '</p>' +
+                    '<p><strong>Relation:</strong> ' + medicalData.personalInfo.emergencyContact.relation + '</p>' +
+                    '<p><strong>Telephone:</strong> <a href="tel:' + medicalData.personalInfo.emergencyContact.phone + '" class="text-blue-600 underline text-lg font-bold">' + medicalData.personalInfo.emergencyContact.phone + '</a></p>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
+                '<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">' +
+                  '<h2 class="text-xl font-bold text-yellow-800 mb-4">ALLERGIES CRITIQUES</h2>' +
+                  '<div class="space-y-1">' + allergiesHtml + '</div>' +
+                '</div>' +
+                '<div class="bg-blue-50 border-l-4 border-blue-500 p-4">' +
+                  '<h2 class="text-xl font-bold text-blue-800 mb-4">TRAITEMENTS EN COURS</h2>' +
+                  '<div class="space-y-1">' + medicationsHtml + '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="bg-purple-50 border-l-4 border-purple-500 p-4">' +
+                '<h2 class="text-xl font-bold text-purple-800 mb-4">PATHOLOGIES & CONDITIONS</h2>' +
+                '<div class="space-y-1">' + diseasesHtml + '</div>' +
+              '</div>' +
+              criticalNotesHtml +
+              '<div class="flex flex-wrap gap-4 justify-center">' +
+                '<a href="tel:15" class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">SAMU 15</a>' +
+                '<a href="tel:18" class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-6 py-3 text-lg">Pompiers 18</a>' +
+                '<a href="tel:112" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-3 text-lg">Urgences 112</a>' +
+                '<button onclick="this.closest(\'.fixed\').remove()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg px-6 py-3 text-lg">Fermer</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
     
     document.body.appendChild(emergencyInterface);
     
@@ -4234,12 +4194,9 @@ async function showPatientMedicalRecord(patientId) {
 
 // ----------- MAIN -----------
 function renderApp() {
-  console.log("renderApp appellee");
+  console.log("renderApp appelee - SYL Medical v2.1.0");
   
   try {
-    // Version simplifiée pour diagnostic
-    console.log("SYL Medical v2.1.0 - Demarrage");
-    
     // Vérifier si accès d'urgence
     const urlParams = new URLSearchParams(window.location.search);
     const patientId = urlParams.get('patient');
@@ -4299,37 +4256,6 @@ function renderApp() {
     showLogin();
   }
 }
-    
-    // Vérifier que Firebase est chargé
-    if (typeof firebase === 'undefined') {
-      console.error("Firebase n'est pas charge");
-      showLogin();
-      return;
-    }
-    
-    // Récupérer l'utilisateur local
-    const localUser = getUser();
-    
-    if (localUser) {
-      console.log("Utilisateur connecté, rôle:", localUser.role);
-      if (localUser.role === 'patient') {
-        renderPatientDashboard(localUser);
-      } else if (localUser.role === 'medecin') {
-        renderMedecinDashboard(localUser);
-      } else if (localUser.role === 'admin') {
-        renderAdminDashboard(localUser);
-      } else {
-        console.error("Rôle utilisateur inconnu:", localUser.role);
-        clearUser();
-        showLogin();
-      }
-    } else {
-      // Pas d'utilisateur connecté
-      console.log("Redirection vers login");
-      showLogin();
-    }
-  } catch (error) {
-    console.error("Erreur dans renderApp:", error);
     showLogin();
   }
 }
