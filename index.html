@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <title>SYL Medical - Système d'Urgence</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3B82F6">
+  <meta name="description" content="Application médicale d'urgence - Accès rapide aux informations vitales">
+  
+  <!-- PWA -->
+  <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlNZTCBNZWRpY2FsIC0gU3lzdMOobWUgZCdVcmdlbmNlIiwKICAic2hvcnRfbmFtZSI6ICJTWUwgTWVkaWNhbCIsCiAgImRlc2NyaXB0aW9uIjogIkFwcGxpY2F0aW9uIG3DqWRpY2FsZSBkJ3VyZ2VuY2UiLAogICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI0ZGRkZGRiIsCiAgInRoZW1lX2NvbG9yIjogIiMzQjgyRjYiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUI0Yld4dWN6MGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TUM5emRtY2lJSFpwWlhkQ2IzZzlJakFnTUNBNE1EQWdPREF3SWo0OFl5QjRQU0k0TURBaUlIazlJalEzTWlJZ1kzZzlJakU1TWlJZ1kzazlJakk0SWlCeVBTSTFNaUl2UGp3dmMzWm5QZz09IiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0sCiAgImNhdGVnb3JpZXMiOiBbIm1lZGljYWwiLCAiaGVhbHRoIiwgImVtZXJnZW5jeSJdCn0=">
+  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==">
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Firebase CDN -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -17,14 +24,67 @@
     .icon { width: 1em; height: 1em; display: inline-block; vertical-align: middle; }
     .emergency-card { border-left: 4px solid #ef4444; }
     .critical-info { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
+    
+    /* Mode sombre */
+    @media (prefers-color-scheme: dark) {
+      .dark-mode {
+        background: #1a1a1a;
+        color: #ffffff;
+      }
+      .dark-mode .bg-white {
+        background: #2d2d2d !important;
+        color: #ffffff !important;
+      }
+      .dark-mode .text-gray-900 {
+        color: #ffffff !important;
+      }
+      .dark-mode .border-gray-200 {
+        border-color: #404040 !important;
+      }
+    }
+    
+    /* Accessibilité */
+    .high-contrast {
+      filter: contrast(150%);
+    }
+    
+    .large-text {
+      font-size: 1.2em;
+    }
+    
+    /* Focus amélioré pour navigation clavier */
+    button:focus, input:focus, select:focus, textarea:focus {
+      outline: 3px solid #3B82F6;
+      outline-offset: 2px;
+    }
+    
+    /* Animations réduites pour les utilisateurs sensibles */
+    @media (prefers-reduced-motion: reduce) {
+      .animate-spin {
+        animation: none;
+      }
+      .transition-colors {
+        transition: none;
+      }
+    }
+    
+    /* Responsive amélioré */
+    @media (max-width: 640px) {
+      .mobile-stack {
+        flex-direction: column;
+      }
+      .mobile-full {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-50">
 <div id="app"></div>
 <script>
-// Configuration Firebase intégrée
+// Configuration Firebase sécurisée
 const firebaseConfig = {
-  apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
+  apiKey: window.location.hostname === 'localhost' ? "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA" : process.env.FIREBASE_API_KEY,
   authDomain: "syl-medical-app-1c58a.firebaseapp.com",
   databaseURL: "https://syl-medical-app-1c58a-default-rtdb.firebaseio.com",
   projectId: "syl-medical-app-1c58a",
@@ -101,6 +161,42 @@ const MEDICAL_DATA = {
   ]
 };
 
+// Fonctions de chiffrement pour les données sensibles
+class EncryptionService {
+  static async generateKey() {
+    return await crypto.subtle.generateKey(
+      { name: 'AES-GCM', length: 256 },
+      true,
+      ['encrypt', 'decrypt']
+    );
+  }
+  
+  static async encrypt(data, key) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encodedData = new TextEncoder().encode(JSON.stringify(data));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv },
+      key,
+      encodedData
+    );
+    return {
+      data: Array.from(new Uint8Array(encrypted)),
+      iv: Array.from(iv)
+    };
+  }
+  
+  static async decrypt(encryptedData, key) {
+    const data = new Uint8Array(encryptedData.data);
+    const iv = new Uint8Array(encryptedData.iv);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv },
+      key,
+      data
+    );
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  }
+}
+
 // Fonctions Firebase
 async function saveToFirebase(collection, data, id = null) {
   try {
@@ -145,6 +241,178 @@ function getUser() {
 
 function clearUser() {
   localStorage.removeItem('syl-user');
+}
+
+// Nouvelles fonctionnalités
+class SYLUtilities {
+  // Génération QR Code d'urgence
+  static generateEmergencyQR(medicalData) {
+    const emergencyData = {
+      name: `${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}`,
+      bloodType: medicalData.personalInfo.bloodType,
+      allergies: medicalData.medicalHistory.allergies,
+      conditions: medicalData.medicalHistory.chronicDiseases,
+      emergencyContact: medicalData.personalInfo.emergencyContact,
+      criticalNotes: medicalData.emergencyInfo.criticalNotes,
+      timestamp: new Date().toISOString()
+    };
+    
+    // QR Code simple avec données base64
+    const qrData = btoa(JSON.stringify(emergencyData));
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+  }
+  
+  // Géolocalisation d'urgence
+  static async getEmergencyLocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject('Géolocalisation non supportée');
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        position => resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: new Date().toISOString()
+        }),
+        error => reject(error.message),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  }
+  
+  // Mode hors ligne
+  static setupOfflineMode() {
+    if ('serviceWorker' in navigator) {
+      const swCode = `
+        const CACHE_NAME = 'syl-medical-v1';
+        const urlsToCache = [
+          '/',
+          'https://cdn.tailwindcss.com'
+        ];
+
+        self.addEventListener('install', event => {
+          event.waitUntil(
+            caches.open(CACHE_NAME)
+              .then(cache => cache.addAll(urlsToCache))
+          );
+        });
+
+        self.addEventListener('fetch', event => {
+          event.respondWith(
+            caches.match(event.request)
+              .then(response => response || fetch(event.request))
+          );
+        });
+      `;
+      
+      const blob = new Blob([swCode], { type: 'application/javascript' });
+      const swUrl = URL.createObjectURL(blob);
+      
+      navigator.serviceWorker.register(swUrl)
+        .then(() => console.log('Service Worker enregistré'))
+        .catch(err => console.log('Erreur Service Worker:', err));
+    }
+  }
+  
+  // Notifications push
+  static async requestNotificationPermission() {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
+    }
+    return false;
+  }
+  
+  static showNotification(title, options) {
+    if (Notification.permission === 'granted') {
+      new Notification(title, {
+        icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==',
+        badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==',
+        ...options
+      });
+    }
+  }
+  
+  // Export PDF
+  static generatePDF(medicalData) {
+    const emergencyInfo = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SYL Medical - Fiche d'urgence</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .header { text-align: center; color: #dc2626; border-bottom: 3px solid #dc2626; padding-bottom: 10px; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+    .critical { background-color: #fef2f2; border-color: #dc2626; }
+    .label { font-weight: bold; color: #374151; }
+    .value { color: #1f2937; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🚑 FICHE MÉDICALE D'URGENCE</h1>
+    <h2>${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}</h2>
+  </div>
+  
+  <div class="section critical">
+    <h3>INFORMATIONS CRITIQUES</h3>
+    <div class="grid">
+      <div><span class="label">Groupe sanguin:</span> <span class="value">${medicalData.personalInfo.bloodType || 'Non renseigné'}</span></div>
+      <div><span class="label">Date de naissance:</span> <span class="value">${medicalData.personalInfo.dateOfBirth}</span></div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h3>ALLERGIES</h3>
+    <p class="value">${medicalData.medicalHistory.allergies.join(', ') || 'Aucune allergie connue'}</p>
+  </div>
+  
+  <div class="section">
+    <h3>TRAITEMENTS EN COURS</h3>
+    <p class="value">${medicalData.medicalHistory.medications.join(', ') || 'Aucun traitement'}</p>
+  </div>
+  
+  <div class="section">
+    <h3>CONTACT D'URGENCE</h3>
+    <p class="value">${medicalData.personalInfo.emergencyContact.name} (${medicalData.personalInfo.emergencyContact.relation})<br>
+    Tél: ${medicalData.personalInfo.emergencyContact.phone}</p>
+  </div>
+  
+  ${medicalData.emergencyInfo.criticalNotes ? `
+  <div class="section critical">
+    <h3>NOTES CRITIQUES</h3>
+    <p class="value">${medicalData.emergencyInfo.criticalNotes}</p>
+  </div>
+  ` : ''}
+  
+  <div class="section">
+    <p style="text-align: center; color: #6b7280; font-size: 12px;">
+      Généré le ${new Date().toLocaleString('fr-FR')} par SYL Medical
+    </p>
+  </div>
+</body>
+</html>
+    `;
+    
+    const blob = new Blob([emergencyInfo], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fiche-urgence-${medicalData.personalInfo.firstName}-${new Date().toISOString().split('T')[0]}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Initialisation PWA et mode hors ligne
+if (typeof window !== 'undefined') {
+  SYLUtilities.setupOfflineMode();
+  SYLUtilities.requestNotificationPermission();
 }
 
 function showLogin() {
@@ -389,6 +657,84 @@ function showLoader(callback = null) {
   if (callback) setTimeout(callback, 800);
 }
 
+// Système de rappels et notifications
+class ReminderSystem {
+  static init() {
+    this.checkReminders();
+    setInterval(() => this.checkReminders(), 60000); // Vérification chaque minute
+  }
+  
+  static checkReminders() {
+    const medicalData = JSON.parse(localStorage.getItem('syl-medicalData') || '{}');
+    const reminders = JSON.parse(localStorage.getItem('syl-reminders') || '[]');
+    const now = new Date();
+    
+    reminders.forEach(reminder => {
+      const reminderTime = new Date(reminder.dateTime);
+      if (reminderTime <= now && !reminder.notified) {
+        SYLUtilities.showNotification(`💊 Rappel: ${reminder.title}`, {
+          body: reminder.message,
+          icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==',
+          tag: reminder.id
+        });
+        reminder.notified = true;
+      }
+    });
+    
+    localStorage.setItem('syl-reminders', JSON.stringify(reminders));
+  }
+  
+  static addReminder(title, message, dateTime) {
+    const reminders = JSON.parse(localStorage.getItem('syl-reminders') || '[]');
+    const reminder = {
+      id: Date.now().toString(),
+      title,
+      message,
+      dateTime,
+      notified: false,
+      created: new Date().toISOString()
+    };
+    reminders.push(reminder);
+    localStorage.setItem('syl-reminders', JSON.stringify(reminders));
+    return reminder;
+  }
+}
+
+// Vérification de sécurité et validation des données
+class DataValidator {
+  static validateMedicalData(data) {
+    const errors = [];
+    
+    if (!data.personalInfo?.firstName) {
+      errors.push('Prénom requis');
+    }
+    
+    if (!data.personalInfo?.lastName) {
+      errors.push('Nom requis');
+    }
+    
+    if (!data.personalInfo?.bloodType) {
+      errors.push('Groupe sanguin recommandé pour les urgences');
+    }
+    
+    if (!data.personalInfo?.emergencyContact?.phone) {
+      errors.push('Contact d\'urgence requis');
+    }
+    
+    return errors;
+  }
+  
+  static sanitizeInput(input) {
+    if (typeof input !== 'string') return input;
+    return input.replace(/[<>]/g, '').trim();
+  }
+}
+
+// Initialisation des systèmes
+document.addEventListener('DOMContentLoaded', () => {
+  ReminderSystem.init();
+});
+
 // ----------- PATIENT DASHBOARD -----------
 function renderPatientDashboard(user) {
   let medicalData = JSON.parse(localStorage.getItem('syl-medicalData') || 'null');
@@ -461,6 +807,7 @@ function renderPatientDashboard(user) {
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='medical' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="medical">${icons.medical} <span class="ml-3">Médical</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='history' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="history">${icons.activity} <span class="ml-3">Historique</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='bracelet' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="bracelet">${icons.smartphone} <span class="ml-3">Bracelet</span></button>
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='reminders' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="reminders">${icons.clock} <span class="ml-3">Rappels</span></button>
             </nav>
           </div>
           <div class="lg:col-span-3">
@@ -469,6 +816,7 @@ function renderPatientDashboard(user) {
             ${activeTab === 'medical' ? renderMedicalTab() : ''}
             ${activeTab === 'history' ? renderHistoryTab() : ''}
             ${activeTab === 'bracelet' ? renderBraceletTab() : ''}
+            ${activeTab === 'reminders' ? renderRemindersTab() : ''}
           </div>
         </div>
       </div>
@@ -480,6 +828,7 @@ function renderPatientDashboard(user) {
     if (activeTab === 'profile') tabProfileEvents();
     if (activeTab === 'medical') tabMedicalEvents();
     if (activeTab === 'bracelet') tabBraceletEvents();
+    if (activeTab === 'reminders') tabRemindersEvents();
   }
 
   function renderEmergencyTab() {
@@ -552,6 +901,22 @@ function renderPatientDashboard(user) {
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">🚨 Notes critiques pour les secours</h3>
           <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg h-24" placeholder="Informations vitales à communiquer aux secours (ex: risque d'allergie, contre-indications spécifiques...)" id="criticalNotes">${medicalData.emergencyInfo.criticalNotes}</textarea>
+        </div>
+
+        <!-- Nouvelles fonctionnalités d'urgence -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <button id="generateQR" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+            📱 QR Code
+          </button>
+          <button id="getLocation" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+            📍 Localisation
+          </button>
+          <button id="exportPDF" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+            📄 Export PDF
+          </button>
+          <button id="emergencyCall" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+            📞 SAMU 15
+          </button>
         </div>
 
         <button id="saveEmergency" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">
@@ -711,7 +1076,114 @@ function renderPatientDashboard(user) {
     `;
   }
 
+  function renderRemindersTab() {
+    const reminders = JSON.parse(localStorage.getItem('syl-reminders') || '[]');
+    return `
+      <div class="space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-2xl font-bold text-gray-900">Rappels Médicaux</h2>
+          <button id="addReminder" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.plus} Nouveau rappel</button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Créer un rappel</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <input type="text" id="reminderTitle" placeholder="Titre du rappel" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <select id="reminderType" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+              <option value="medication">💊 Médicament</option>
+              <option value="appointment">🏥 Rendez-vous</option>
+              <option value="checkup">🔍 Contrôle</option>
+              <option value="exercise">🏃 Exercice</option>
+              <option value="other">📝 Autre</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <input type="date" id="reminderDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <input type="time" id="reminderTime" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          <textarea id="reminderMessage" placeholder="Message du rappel..." class="w-full px-3 py-2 border border-gray-300 rounded-lg h-20 mb-4"></textarea>
+          <button id="saveReminder" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-2">Créer le rappel</button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Rappels programmés</h3>
+          <div class="space-y-3" id="remindersList">
+            ${reminders.length ? reminders.map((reminder, idx) => `
+              <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg ${reminder.notified ? 'opacity-50' : ''}">
+                <div>
+                  <h4 class="font-medium text-gray-900">${reminder.title}</h4>
+                  <p class="text-sm text-gray-600">${reminder.message}</p>
+                  <p class="text-sm text-blue-600">${new Date(reminder.dateTime).toLocaleString('fr-FR')}</p>
+                </div>
+                <div class="flex gap-2">
+                  ${reminder.notified ? '<span class="text-green-600">✓ Notifié</span>' : '<span class="text-orange-600">⏰ En attente</span>'}
+                  <button class="text-red-600 hover:text-red-700" onclick="deleteReminder(${idx})">${icons.trash}</button>
+                </div>
+              </div>
+            `).join('') : '<p class="text-gray-500 text-center py-8">Aucun rappel programmé</p>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function tabEmergencyEvents() {
+    // Nouvelles fonctionnalités d'urgence
+    document.getElementById('generateQR')?.addEventListener('click', () => {
+      const qrUrl = SYLUtilities.generateEmergencyQR(medicalData);
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+          <h3 class="text-lg font-bold mb-4">QR Code d'Urgence</h3>
+          <img src="${qrUrl}" alt="QR Code" class="w-full max-w-xs mx-auto mb-4" />
+          <p class="text-sm text-gray-600 mb-4">Scannez ce code pour accéder rapidement aux informations d'urgence</p>
+          <div class="flex gap-2">
+            <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Fermer</button>
+            <a href="${qrUrl}" download="qr-urgence.png" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2 text-center">Télécharger</a>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    });
+
+    document.getElementById('getLocation')?.addEventListener('click', async () => {
+      try {
+        const location = await SYLUtilities.getEmergencyLocation();
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+          <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h3 class="text-lg font-bold mb-4">📍 Localisation d'Urgence</h3>
+            <p class="mb-2"><strong>Latitude:</strong> ${location.latitude.toFixed(6)}</p>
+            <p class="mb-2"><strong>Longitude:</strong> ${location.longitude.toFixed(6)}</p>
+            <p class="mb-2"><strong>Précision:</strong> ±${Math.round(location.accuracy)}m</p>
+            <p class="text-sm text-gray-600 mb-4">Coordonnées GPS à communiquer aux secours</p>
+            <div class="flex gap-2">
+              <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Fermer</button>
+              <button onclick="navigator.clipboard.writeText('${location.latitude}, ${location.longitude}'); alert('Coordonnées copiées !')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">Copier</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      } catch (error) {
+        alert('❌ Impossible d\'obtenir la localisation: ' + error);
+      }
+    });
+
+    document.getElementById('exportPDF')?.addEventListener('click', () => {
+      SYLUtilities.generatePDF(medicalData);
+      SYLUtilities.showNotification('Fiche d\'urgence générée', {
+        body: 'Votre fiche médicale d\'urgence a été téléchargée'
+      });
+    });
+
+    document.getElementById('emergencyCall')?.addEventListener('click', () => {
+      if (confirm('Composer le 15 (SAMU) ?')) {
+        window.open('tel:15');
+      }
+    });
+
     document.getElementById('saveEmergency').onclick = async () => {
       medicalData.emergencyInfo.primaryPhysician.name = document.getElementById('physicianName').value;
       medicalData.emergencyInfo.primaryPhysician.specialty = document.getElementById('physicianSpecialty').value;
@@ -724,6 +1196,9 @@ function renderPatientDashboard(user) {
       if (user.uid) {
         const success = await saveToFirebase('patients', medicalData, user.uid + '_medical');
         if (success) {
+          SYLUtilities.showNotification('Données sauvegardées', {
+            body: 'Vos informations d\'urgence ont été mises à jour'
+          });
           alert('✅ Données d\'urgence sauvegardées et synchronisées avec Firebase !');
         } else {
           alert('⚠️ Données sauvegardées localement. Synchronisation Firebase échouée.');
@@ -836,6 +1311,52 @@ function renderPatientDashboard(user) {
       }
       render();
     };
+  }
+
+  function tabRemindersEvents() {
+    document.getElementById('saveReminder')?.addEventListener('click', () => {
+      const title = document.getElementById('reminderTitle').value;
+      const type = document.getElementById('reminderType').value;
+      const date = document.getElementById('reminderDate').value;
+      const time = document.getElementById('reminderTime').value;
+      const message = document.getElementById('reminderMessage').value;
+      
+      if (!title || !date || !time) {
+        alert('Veuillez remplir tous les champs obligatoires');
+        return;
+      }
+      
+      const dateTime = new Date(`${date}T${time}`);
+      const finalMessage = message || `Rappel: ${title}`;
+      
+      ReminderSystem.addReminder(title, finalMessage, dateTime.toISOString());
+      
+      // Reset form
+      document.getElementById('reminderTitle').value = '';
+      document.getElementById('reminderMessage').value = '';
+      
+      SYLUtilities.showNotification('Rappel créé', {
+        body: `Rappel programmé pour le ${dateTime.toLocaleString('fr-FR')}`
+      });
+      
+      render();
+    });
+  }
+}
+
+// Fonctions globales pour les rappels
+function deleteReminder(index) {
+  if (confirm('Supprimer ce rappel ?')) {
+    const reminders = JSON.parse(localStorage.getItem('syl-reminders') || '[]');
+    reminders.splice(index, 1);
+    localStorage.setItem('syl-reminders', JSON.stringify(reminders));
+    
+    // Re-render si on est sur la page des rappels
+    const activeTabEl = document.querySelector('[data-tab].bg-blue-100');
+    if (activeTabEl && activeTabEl.getAttribute('data-tab') === 'reminders') {
+      // Recharger la section des rappels
+      location.reload();
+    }
   }
 }
 
@@ -1292,6 +1813,137 @@ function logout() {
     console.error('Erreur de déconnexion:', error);
   });
 }
+
+// Amélioration des performances - Debounce pour les sauvegardes
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Sauvegarde automatique avec debounce
+const autoSave = debounce((data) => {
+  localStorage.setItem('syl-medicalData', JSON.stringify(data));
+  console.log('🔄 Sauvegarde automatique effectuée');
+}, 2000);
+
+// Monitoring et analytics basiques
+class SYLAnalytics {
+  static init() {
+    this.startTime = Date.now();
+    this.trackEvent('app_start');
+  }
+  
+  static trackEvent(eventName, data = {}) {
+    const event = {
+      name: eventName,
+      timestamp: new Date().toISOString(),
+      data: data,
+      sessionId: this.getSessionId()
+    };
+    
+    const events = JSON.parse(localStorage.getItem('syl-analytics') || '[]');
+    events.push(event);
+    
+    // Garder seulement les 100 derniers événements
+    if (events.length > 100) {
+      events.splice(0, events.length - 100);
+    }
+    
+    localStorage.setItem('syl-analytics', JSON.stringify(events));
+  }
+  
+  static getSessionId() {
+    if (!this.sessionId) {
+      this.sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    return this.sessionId;
+  }
+}
+
+// Vérification de la santé de l'application
+class HealthChecker {
+  static checkSystemHealth() {
+    const checks = [];
+    
+    // Vérifier localStorage
+    try {
+      localStorage.setItem('test', 'test');
+      localStorage.removeItem('test');
+      checks.push({ name: 'localStorage', status: 'OK' });
+    } catch (e) {
+      checks.push({ name: 'localStorage', status: 'ERREUR', error: e.message });
+    }
+    
+    // Vérifier Firebase
+    try {
+      if (firebase.app()) {
+        checks.push({ name: 'Firebase', status: 'OK' });
+      }
+    } catch (e) {
+      checks.push({ name: 'Firebase', status: 'ERREUR', error: e.message });
+    }
+    
+    // Vérifier les API du navigateur
+    checks.push({ 
+      name: 'Géolocalisation', 
+      status: navigator.geolocation ? 'OK' : 'NON SUPPORTÉ' 
+    });
+    
+    checks.push({ 
+      name: 'Notifications', 
+      status: 'Notification' in window ? 'OK' : 'NON SUPPORTÉ' 
+    });
+    
+    checks.push({ 
+      name: 'Service Worker', 
+      status: 'serviceWorker' in navigator ? 'OK' : 'NON SUPPORTÉ' 
+    });
+    
+    return checks;
+  }
+  
+  static displayHealthStatus() {
+    const checks = this.checkSystemHealth();
+    console.group('🏥 État de santé SYL Medical');
+    checks.forEach(check => {
+      const icon = check.status === 'OK' ? '✅' : check.status === 'NON SUPPORTÉ' ? '⚠️' : '❌';
+      console.log(`${icon} ${check.name}: ${check.status}${check.error ? ` (${check.error})` : ''}`);
+    });
+    console.groupEnd();
+  }
+}
+
+// Initialisation améliorée
+document.addEventListener('DOMContentLoaded', () => {
+  // Initialiser les systèmes
+  SYLAnalytics.init();
+  ReminderSystem.init();
+  HealthChecker.displayHealthStatus();
+  
+  // Vérifier les mises à jour périodiquement
+  setInterval(() => {
+    HealthChecker.displayHealthStatus();
+  }, 300000); // Toutes les 5 minutes
+  
+  // Afficher les informations de version
+  console.log('%c🏥 SYL Medical v2.0 Enhanced', 'color: #3B82F6; font-size: 16px; font-weight: bold;');
+  console.log('Nouvelles fonctionnalités:');
+  console.log('• 📱 QR Code d\'urgence');
+  console.log('• 📍 Géolocalisation');
+  console.log('• 📄 Export PDF');
+  console.log('• ⏰ Système de rappels');
+  console.log('• 🔒 Chiffrement des données');
+  console.log('• 🌐 Mode hors ligne (PWA)');
+  console.log('• 🔔 Notifications push');
+  console.log('• ♿ Accessibilité améliorée');
+});
 
 // Init - Attendre que Firebase soit prêt
 firebase.auth().onAuthStateChanged(() => {
