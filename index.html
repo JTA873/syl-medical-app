@@ -2248,19 +2248,55 @@ function renderAdminDashboard(user) {
         return;
       }
       
+      // Afficher un indicateur de progression
+      const syncModal = document.createElement('div');
+      syncModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      syncModal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+          <div class="w-16 h-16 bg-orange-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4 animate-pulse">
+            🔄
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-2">Synchronisation en cours...</h3>
+          <p class="text-gray-600 mb-4">Sauvegarde des données d'urgence dans Firebase</p>
+          <div class="bg-gray-200 rounded-full h-2 mb-4">
+            <div id="syncProgress" class="bg-orange-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="syncStatus" class="text-sm text-gray-500">0 / ${patients.length} patients</p>
+        </div>
+      `;
+      document.body.appendChild(syncModal);
+      
       let syncCount = 0;
-      for (const patient of patients) {
-        if (patient.nfcTagId) {
-          try {
-            await saveEmergencyData(patient);
-            syncCount++;
-          } catch (error) {
-            console.error('Erreur sync patient:', patient.id, error);
-          }
+      let errorCount = 0;
+      
+      for (let i = 0; i < patients.length; i++) {
+        const patient = patients[i];
+        try {
+          await saveEmergencyData(patient);
+          syncCount++;
+          console.log(`✅ Patient ${patient.personalInfo?.firstName} ${patient.personalInfo?.lastName} synchronisé`);
+        } catch (error) {
+          errorCount++;
+          console.error('❌ Erreur sync patient:', patient.id, error);
         }
+        
+        // Mettre à jour la progress bar
+        const progress = ((i + 1) / patients.length) * 100;
+        document.getElementById('syncProgress').style.width = progress + '%';
+        document.getElementById('syncStatus').textContent = `${syncCount} / ${patients.length} patients synchronisés`;
+        
+        // Petit délai pour éviter de surcharger Firebase
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
       
-      alert(`✅ ${syncCount} patients synchronisés pour l'accès d'urgence !\n\nLes fiches seront maintenant accessibles depuis n'importe quel appareil.`);
+      // Fermer le modal et afficher le résultat
+      syncModal.remove();
+      
+      if (errorCount === 0) {
+        alert(`✅ ${syncCount} patients synchronisés avec succès !\n\nLes fiches sont maintenant accessibles depuis n'importe quel appareil.`);
+      } else {
+        alert(`⚠️ Synchronisation terminée :\n• ${syncCount} patients synchronisés\n• ${errorCount} erreurs\n\nVérifiez la console pour plus de détails.`);
+      }
     });
 
     document.getElementById('clearAllData')?.addEventListener('click', () => {
@@ -2864,10 +2900,20 @@ async function saveEmergencyData(patient) {
   }
   
   try {
+    // S'assurer que l'utilisateur est authentifié
+    if (!firebase.auth().currentUser) {
+      console.log('⚠️ Pas d\'utilisateur authentifié, impossible de sauvegarder');
+      throw new Error('Authentification requise pour sauvegarder dans Firebase');
+    }
+    
     const db = firebase.firestore();
     const patientId = patient.id || patient.uid;
     
-    // Données minimales nécessaires pour l'urgence
+    if (!patientId) {
+      throw new Error('ID patient manquant');
+    }
+    
+    // Données COMPLÈTES nécessaires pour l'urgence
     const emergencyData = {
       personalInfo: {
         firstName: patient.personalInfo?.firstName || '',
@@ -2892,10 +2938,11 @@ async function saveEmergencyData(patient) {
     
     // Sauvegarder dans la collection emergency_access
     await db.collection('emergency_access').doc(patientId).set(emergencyData);
-    console.log('✅ Données d\'urgence sauvegardées pour accès public');
+    console.log('✅ Données d\'urgence sauvegardées pour accès public:', patientId, `${emergencyData.personalInfo.firstName} ${emergencyData.personalInfo.lastName}`);
     
   } catch (error) {
     console.error('❌ Erreur lors de la sauvegarde des données d\'urgence:', error);
+    throw error; // Propager l'erreur pour que la synchronisation puisse la capturer
   }
 }
 
@@ -3612,22 +3659,33 @@ function renderMedecinDashboard(user) {
 async function showPatientMedicalRecord(patientId) {
   // IMPORTANT: Pour permettre l'accès d'urgence depuis n'importe quel appareil,
   // les règles Firebase doivent autoriser la lecture anonyme des collections patients et users
-  // Exemple de règles Firestore recommandées :
+  // 
+  // RÈGLES FIRESTORE RECOMMANDÉES :
   /*
   rules_version = '2';
   service cloud.firestore {
     match /databases/{database}/documents {
-      // Autoriser la lecture anonyme pour les accès d'urgence
+      // Collection d'accès d'urgence - LECTURE PUBLIQUE
+      match /emergency_access/{patientId} {
+        allow read: if true;  // ⚠️ ACCÈS PUBLIC pour les urgences
+        allow write: if request.auth != null;
+      }
+      
+      // Collections principales - ACCÈS AUTHENTIFIÉ
       match /users/{userId} {
-        allow read: if request.auth != null || resource.data.role == 'patient';
+        allow read, write: if request.auth != null;
       }
       match /patients/{patientId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == patientId;
+        allow read, write: if request.auth != null;
       }
     }
   }
   */
+  //
+  // CONFIGURATION AUTHENTIFICATION :
+  // • Activer "Authentification anonyme" dans Firebase Console
+  // • Autoriser les domaines dans les "Domaines autorisés"
+  //
   
   // D'abord essayer de récupérer depuis localStorage
   let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
