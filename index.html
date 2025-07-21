@@ -2522,6 +2522,19 @@ function renderAdminDashboard(user) {
                   <option value="text">Texte (ID du tag)</option>
                   <option value="url">URL (accès d'urgence)</option>
                   <option value="contact">Contact d'urgence</option>
+                  <option value="patient">Lien fiche médicale patient</option>
+                </select>
+              </div>
+              <div id="patientSelection" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Sélectionner un patient</label>
+                <select id="nfcPatientSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <option value="">Choisir un patient...</option>
+                  ${patients.map(patient => `
+                    <option value="${patient.id || patient.uid}">
+                      ${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''} 
+                      ${patient.email ? `(${patient.email})` : ''}
+                    </option>
+                  `).join('')}
                 </select>
               </div>
             </div>
@@ -2535,6 +2548,16 @@ function renderAdminDashboard(user) {
           </div>
         `;
         document.body.appendChild(writeModal);
+
+        // Gérer l'affichage de la sélection de patient
+        document.getElementById('nfcDataType').onchange = (e) => {
+          const patientSelection = document.getElementById('patientSelection');
+          if (e.target.value === 'patient') {
+            patientSelection.classList.remove('hidden');
+          } else {
+            patientSelection.classList.add('hidden');
+          }
+        };
 
         document.getElementById('startNFCWrite').onclick = async () => {
           try {
@@ -2557,6 +2580,21 @@ TEL:15
 NOTE:Tag d'urgence médicale ID: ${tagId}
 END:VCARD`;
                 ndefMessage = { records: [{ recordType: 'mime', mediaType: 'text/vcard', data: vcard }] };
+                break;
+              case 'patient':
+                const selectedPatientId = document.getElementById('nfcPatientSelect').value;
+                if (!selectedPatientId) {
+                  alert('Veuillez sélectionner un patient');
+                  return;
+                }
+                const selectedPatient = patients.find(p => (p.id || p.uid) === selectedPatientId);
+                if (!selectedPatient) {
+                  alert('Patient non trouvé');
+                  return;
+                }
+                // Créer l'URL vers la fiche médicale du patient
+                const patientMedicalUrl = `${window.location.origin}${window.location.pathname}?patient=${selectedPatientId}&access=medical`;
+                ndefMessage = { records: [{ recordType: 'url', data: patientMedicalUrl }] };
                 break;
               default: // text
                 ndefMessage = { records: [{ recordType: 'text', data: tagId }] };
@@ -3500,6 +3538,197 @@ function renderMedecinDashboard(user) {
   }
 }
 
+// Fonction pour afficher la fiche médicale d'un patient via NFC
+function showPatientMedicalRecord(patientId) {
+  const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  const patient = patients.find(p => (p.id || p.uid) === patientId);
+  
+  if (!patient) {
+    document.getElementById('app').innerHTML = `
+      <div class="min-h-screen bg-red-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+          <div class="w-16 h-16 bg-red-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+            ❌
+          </div>
+          <h2 class="text-xl font-bold text-red-600 mb-2">Patient non trouvé</h2>
+          <p class="text-gray-600 mb-4">L'ID patient "${patientId}" n'existe pas dans la base de données.</p>
+          <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
+            Retour à l'application
+          </button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Afficher la fiche médicale complète
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <header class="bg-white shadow-sm border-b">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+          <div class="flex items-center">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mr-3">
+              🏥
+            </div>
+            <h1 class="text-xl font-bold text-gray-900">SYL Medical - Fiche Patient</h1>
+          </div>
+          <button onclick="location.href='${window.location.pathname}'" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">
+            Retour
+          </button>
+        </div>
+      </header>
+      
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- En-tête patient -->
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-2xl font-bold text-gray-900">
+                ${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}
+              </h2>
+              <p class="text-gray-600">${patient.email || 'Email non renseigné'}</p>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-gray-500">Accès via NFC</div>
+              <div class="text-xs text-gray-400">${new Date().toLocaleString('fr-FR')}</div>
+            </div>
+          </div>
+          
+          <!-- Informations vitales -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
+            <div class="text-center">
+              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.bloodType || 'N/A'}</div>
+              <div class="text-sm text-gray-600">Groupe sanguin</div>
+            </div>
+            <div class="text-center">
+              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.dateOfBirth || 'N/A'}</div>
+              <div class="text-sm text-gray-600">Date de naissance</div>
+            </div>
+            <div class="text-center">
+              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.height || 'N/A'} cm</div>
+              <div class="text-sm text-gray-600">Taille</div>
+            </div>
+            <div class="text-center">
+              <div class="text-lg font-bold text-blue-600">${patient.personalInfo?.weight || 'N/A'} kg</div>
+              <div class="text-sm text-gray-600">Poids</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Informations médicales critiques -->
+        ${patient.emergencyInfo?.criticalNotes ? `
+        <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-6 mb-6">
+          <h3 class="text-lg font-bold text-red-800 mb-2">⚠️ Notes Critiques d'Urgence</h3>
+          <p class="text-red-700">${patient.emergencyInfo.criticalNotes}</p>
+        </div>
+        ` : ''}
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Allergies -->
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+              <span class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center text-red-600 mr-3">⚠️</span>
+              Allergies
+            </h3>
+            <div class="space-y-2">
+              ${patient.medicalHistory?.allergies?.length ? 
+                patient.medicalHistory.allergies.map(allergy => `
+                  <div class="bg-red-50 border border-red-200 rounded px-3 py-2 text-red-800">
+                    ${allergy}
+                  </div>
+                `).join('') : 
+                '<div class="text-gray-500 italic">Aucune allergie connue</div>'
+              }
+            </div>
+          </div>
+          
+          <!-- Médicaments -->
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+              <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mr-3">💊</span>
+              Médicaments
+            </h3>
+            <div class="space-y-2">
+              ${patient.medicalHistory?.medications?.length ? 
+                patient.medicalHistory.medications.map(medication => `
+                  <div class="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-blue-800">
+                    ${medication}
+                  </div>
+                `).join('') : 
+                '<div class="text-gray-500 italic">Aucun médicament</div>'
+              }
+            </div>
+          </div>
+          
+          <!-- Maladies chroniques -->
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+              <span class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 mr-3">🏥</span>
+              Maladies chroniques
+            </h3>
+            <div class="space-y-2">
+              ${patient.medicalHistory?.chronicDiseases?.length ? 
+                patient.medicalHistory.chronicDiseases.map(disease => `
+                  <div class="bg-orange-50 border border-orange-200 rounded px-3 py-2 text-orange-800">
+                    ${disease}
+                  </div>
+                `).join('') : 
+                '<div class="text-gray-500 italic">Aucune maladie chronique</div>'
+              }
+            </div>
+          </div>
+          
+          <!-- Contact d'urgence -->
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+              <span class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600 mr-3">📞</span>
+              Contact d'urgence
+            </h3>
+            <div class="space-y-3">
+              ${patient.personalInfo?.emergencyContact?.name ? `
+                <div>
+                  <div class="font-medium text-gray-900">${patient.personalInfo.emergencyContact.name}</div>
+                  <div class="text-gray-600">${patient.personalInfo.emergencyContact.relationship || ''}</div>
+                </div>
+              ` : ''}
+              ${patient.personalInfo?.emergencyContact?.phone ? `
+                <div>
+                  <a href="tel:${patient.personalInfo.emergencyContact.phone}" 
+                     class="bg-green-600 hover:bg-green-700 text-white rounded px-4 py-2 inline-flex items-center">
+                    📞 ${patient.personalInfo.emergencyContact.phone}
+                  </a>
+                </div>
+              ` : '<div class="text-gray-500 italic">Aucun contact d\'urgence</div>'}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Actions d'urgence -->
+        <div class="mt-6 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-bold text-gray-900 mb-4">🚑 Actions d'urgence</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onclick="window.open('tel:15')" class="bg-red-600 hover:bg-red-700 text-white rounded-lg px-6 py-3 font-bold">
+              📞 SAMU (15)
+            </button>
+            <button onclick="window.open('tel:18')" class="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-6 py-3 font-bold">
+              🚒 Pompiers (18)
+            </button>
+            <button onclick="window.open('tel:112')" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 font-bold">
+              🆘 Urgences (112)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Enregistrer l'accès
+  SYLAnalytics.trackEvent('patient_medical_access', { 
+    patientId: patient.id || patient.uid, 
+    accessMethod: 'nfc_link' 
+  });
+}
+
 // ----------- MAIN -----------
 function renderApp() {
   console.log("renderApp appellee");
@@ -3679,12 +3908,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // Vérifier si on est en mode accès d'urgence (URL avec paramètre NFC)
   const urlParams = new URLSearchParams(window.location.search);
   const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+  const patientId = urlParams.get('patient');
+  const accessType = urlParams.get('access');
   
   if (nfcTagId) {
     console.log('🚑 Mode accès d\'urgence détecté pour tag:', nfcTagId);
     SYLUtilities.handleNFCAccess(nfcTagId).catch(error => {
       console.error('Erreur accès NFC:', error);
     });
+    return; // Ne pas initialiser l'interface normale
+  }
+  
+  if (patientId && accessType === 'medical') {
+    console.log('📋 Mode accès fiche médicale patient détecté:', patientId);
+    showPatientMedicalRecord(patientId);
     return; // Ne pas initialiser l'interface normale
   }
   
