@@ -1850,95 +1850,116 @@ function renderAdminDashboard(user) {
   let patients = [];
   let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
   let activeTab = 'patients';
+  let isLoading = true;
   
-  // Chargement automatique des données depuis Firebase au démarrage
+  // Afficher l'interface de chargement d'abord
+  render();
+  
+  // Puis charger les données depuis Firebase
   loadPatientsFromFirebaseAuto().then(() => {
     patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+    isLoading = false;
+    render();
+  }).catch(error => {
+    console.error('❌ Erreur chargement patients:', error);
+    isLoading = false;
+    patients = []; // Liste vide en cas d'erreur
     render();
   });
-  
-  render();
 
   async function loadPatientsFromFirebaseAuto() {
     try {
       console.log('🔄 Chargement automatique des patients depuis Firebase...');
       
-      if (!db || typeof db.collection !== 'function') {
-        throw new Error('Firebase non initialisé');
+      // Vérifier Firebase
+      if (typeof firebase === 'undefined' || !firebase.firestore) {
+        console.warn('⚠️ Firebase non disponible, utilisation de données vides');
+        localStorage.setItem('syl-patients', JSON.stringify([]));
+        return [];
       }
 
-      const currentUser = firebase.auth().currentUser;
-      if (!currentUser) {
-        throw new Error('Utilisateur non connecté');
+      if (!firebase.auth().currentUser) {
+        console.warn('⚠️ Utilisateur non connecté, utilisation de données vides');
+        localStorage.setItem('syl-patients', JSON.stringify([]));
+        return [];
       }
+
+      const db = firebase.firestore();
 
       // Vider les anciennes données locales
       localStorage.removeItem('syl-patients');
       
-      // Charger depuis Firebase
-      const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
-      const firebaseUsers = [];
+      // Charger depuis Firebase avec timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout Firebase')), 10000)
+      );
       
-      usersSnapshot.forEach(doc => {
-        const userData = doc.data();
-        firebaseUsers.push({
-          id: doc.id,
-          uid: userData.uid || doc.id,
-          email: userData.email,
-          role: userData.role,
-          ...userData
+      const loadPromise = (async () => {
+        const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+        const firebaseUsers = [];
+        
+        usersSnapshot.forEach(doc => {
+          const userData = doc.data();
+          firebaseUsers.push({
+            id: doc.id,
+            uid: userData.uid || doc.id,
+            email: userData.email,
+            role: userData.role,
+            ...userData
+          });
         });
-      });
+        
+        console.log(`📥 ${firebaseUsers.length} utilisateurs patients trouvés`);
+        
+        // Récupérer les données médicales
+        const patientsSnapshot = await db.collection('patients').get();
+        const medicalDataMap = {};
+        
+        patientsSnapshot.forEach(doc => {
+          const data = doc.data();
+          const userId = doc.id.replace('_medical', '');
+          medicalDataMap[userId] = data;
+        });
+        
+        console.log(`📥 ${Object.keys(medicalDataMap).length} dossiers médicaux trouvés`);
+        
+        // Fusionner les données
+        const completePatients = firebaseUsers.map(user => {
+          const medicalData = medicalDataMap[user.uid] || {};
+          return {
+            ...user,
+            personalInfo: medicalData.personalInfo || {
+              firstName: user.profile?.firstName || '',
+              lastName: user.profile?.lastName || '',
+              bloodType: 'N/A'
+            },
+            medicalHistory: medicalData.medicalHistory || {
+              allergies: [],
+              medications: [],
+              chronicDiseases: []
+            },
+            emergencyInfo: medicalData.emergencyInfo || {
+              criticalNotes: ''
+            },
+            isActive: medicalData.isActive !== undefined ? medicalData.isActive : true,
+            nfcTagId: medicalData.nfcTagId || null,
+            createdAt: user.createdAt || new Date().toISOString()
+          };
+        });
+        
+        return completePatients;
+      })();
       
-      console.log(`📥 ${firebaseUsers.length} utilisateurs patients trouvés`);
+      const completePatients = await Promise.race([loadPromise, timeoutPromise]);
       
-      // Récupérer les données médicales
-      const patientsSnapshot = await db.collection('patients').get();
-      const medicalDataMap = {};
-      
-      patientsSnapshot.forEach(doc => {
-        const data = doc.data();
-        const userId = doc.id.replace('_medical', '');
-        medicalDataMap[userId] = data;
-      });
-      
-      console.log(`📥 ${Object.keys(medicalDataMap).length} dossiers médicaux trouvés`);
-      
-      // Fusionner les données
-      const completePatients = firebaseUsers.map(user => {
-        const medicalData = medicalDataMap[user.uid] || {};
-        return {
-          ...user,
-          personalInfo: medicalData.personalInfo || {
-            firstName: user.profile?.firstName || '',
-            lastName: user.profile?.lastName || '',
-            bloodType: 'N/A'
-          },
-          medicalHistory: medicalData.medicalHistory || {
-            allergies: [],
-            medications: [],
-            chronicDiseases: []
-          },
-          emergencyInfo: medicalData.emergencyInfo || {
-            criticalNotes: ''
-          },
-          isActive: medicalData.isActive !== undefined ? medicalData.isActive : true,
-          nfcTagId: medicalData.nfcTagId || null,
-          createdAt: user.createdAt || new Date().toISOString()
-        };
-      });
-      
-      // Sauvegarder en local pour l'affichage
+      // Sauvegarder en local
       localStorage.setItem('syl-patients', JSON.stringify(completePatients));
-      patients = completePatients;
-      
       console.log(`✅ ${completePatients.length} patients synchronisés automatiquement`);
       return completePatients;
       
     } catch (error) {
       console.error('❌ Échec chargement automatique Firebase:', error);
       // En cas d'erreur, utiliser une liste vide - PAS de données de test
-      patients = [];
       localStorage.setItem('syl-patients', JSON.stringify([]));
       return [];
     }
@@ -2015,20 +2036,36 @@ function renderAdminDashboard(user) {
 
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">Liste des Patients (${patients.length}) - Synchronisation automatique avec Firebase</h3>
-          ${patients.length === 0 ? `
+          ${isLoading ? `
             <div class="text-center py-8">
-              <div class="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+              <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
                 🔄
               </div>
               <h4 class="text-lg font-medium text-blue-900 mb-2">Chargement depuis Firebase...</h4>
               <p class="text-blue-600 mb-4">Synchronisation automatique des données patients en cours</p>
               <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                <h5 class="font-medium text-blue-900 mb-2">📡 Système centralisé Firebase :</h5>
+                <h5 class="font-medium text-blue-900 mb-2">📡 Système centralisé Firebase v${SYL_CONFIG.VERSION} :</h5>
                 <ul class="text-sm text-blue-800 space-y-1">
                   <li>✅ Chargement automatique au démarrage</li>
                   <li>✅ Synchronisation temps réel entre appareils</li>
                   <li>✅ Aucune donnée de test - Que des vraies données</li>
                   <li>✅ Version unique de l'application</li>
+                </ul>
+              </div>
+            </div>
+          ` : patients.length === 0 ? `
+            <div class="text-center py-8">
+              <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                📂
+              </div>
+              <h4 class="text-lg font-medium text-gray-900 mb-2">Aucun patient dans Firebase</h4>
+              <p class="text-gray-600 mb-4">La base de données Firebase ne contient aucun patient.</p>
+              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
+                <h5 class="font-medium text-yellow-900 mb-2">🔧 Actions possibles :</h5>
+                <ul class="text-sm text-yellow-800 space-y-1">
+                  <li>1. Créer des utilisateurs avec role="patient" dans Firebase</li>
+                  <li>2. Vérifier les règles de sécurité Firestore</li>
+                  <li>3. Cliquer sur "🔧 Test Connexion" pour diagnostiquer</li>
                 </ul>
               </div>
             </div>
