@@ -1882,6 +1882,7 @@ function renderAdminDashboard(user) {
           <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
           <div class="flex gap-2">
             <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Firebase</button>
+            <button id="syncEmergencyData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🚑 Sync Urgence</button>
             <button id="clearAllData" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.trash} Vider cache</button>
             <button id="refreshPatients" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
           </div>
@@ -2240,6 +2241,26 @@ function renderAdminDashboard(user) {
           alert('❌ Erreur lors du chargement: ' + error.message);
         }
       }
+    });
+
+    document.getElementById('syncEmergencyData')?.addEventListener('click', async () => {
+      if (!confirm('Synchroniser toutes les données d\'urgence vers Firebase ?\n\nCela permettra l\'accès d\'urgence depuis tous les appareils.')) {
+        return;
+      }
+      
+      let syncCount = 0;
+      for (const patient of patients) {
+        if (patient.nfcTagId) {
+          try {
+            await saveEmergencyData(patient);
+            syncCount++;
+          } catch (error) {
+            console.error('Erreur sync patient:', patient.id, error);
+          }
+        }
+      }
+      
+      alert(`✅ ${syncCount} patients synchronisés pour l'accès d'urgence !\n\nLes fiches seront maintenant accessibles depuis n'importe quel appareil.`);
     });
 
     document.getElementById('clearAllData')?.addEventListener('click', () => {
@@ -2724,6 +2745,9 @@ END:VCARD`;
       const patient = patients.find(p => (p.id || p.uid) === patientId);
       if (patient) {
         patient.nfcTagId = tagId;
+        
+        // Sauvegarder les données d'urgence pour l'accès public
+        saveEmergencyData(patient);
       }
       
       localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
@@ -2819,6 +2843,9 @@ function confirmAssignNFC(patientId) {
   const patient = patients.find(p => (p.id || p.uid) === patientId);
   if (patient) {
     patient.nfcTagId = tagId;
+    
+    // Sauvegarder les données d'urgence dans Firebase pour l'accès public
+    saveEmergencyData(patient);
   }
   
   localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
@@ -2827,6 +2854,49 @@ function confirmAssignNFC(patientId) {
   document.querySelector('.fixed').remove();
   SYLUtilities.showNotification('Tag assigné', { body: `Tag ${tagId} assigné avec succès` });
   location.reload(); // Recharger pour mettre à jour l'affichage
+}
+
+// Fonction pour sauvegarder les données d'urgence dans une collection publique
+async function saveEmergencyData(patient) {
+  if (typeof firebase === 'undefined' || !firebase.firestore) {
+    console.log('⚠️ Firebase non disponible pour sauvegarder les données d\'urgence');
+    return;
+  }
+  
+  try {
+    const db = firebase.firestore();
+    const patientId = patient.id || patient.uid;
+    
+    // Données minimales nécessaires pour l'urgence
+    const emergencyData = {
+      personalInfo: {
+        firstName: patient.personalInfo?.firstName || '',
+        lastName: patient.personalInfo?.lastName || '',
+        dateOfBirth: patient.personalInfo?.dateOfBirth || '',
+        bloodType: patient.personalInfo?.bloodType || '',
+        height: patient.personalInfo?.height || '',
+        weight: patient.personalInfo?.weight || '',
+        emergencyContact: patient.personalInfo?.emergencyContact || {}
+      },
+      medicalHistory: {
+        allergies: patient.medicalHistory?.allergies || [],
+        medications: patient.medicalHistory?.medications || [],
+        chronicDiseases: patient.medicalHistory?.chronicDiseases || []
+      },
+      emergencyInfo: {
+        criticalNotes: patient.emergencyInfo?.criticalNotes || ''
+      },
+      lastUpdated: new Date().toISOString(),
+      nfcTagId: patient.nfcTagId || null
+    };
+    
+    // Sauvegarder dans la collection emergency_access
+    await db.collection('emergency_access').doc(patientId).set(emergencyData);
+    console.log('✅ Données d\'urgence sauvegardées pour accès public');
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la sauvegarde des données d\'urgence:', error);
+  }
 }
 
 function deleteNFCTag(tagId) {
@@ -3540,6 +3610,25 @@ function renderMedecinDashboard(user) {
 
 // Fonction pour afficher la fiche médicale d'un patient via NFC
 async function showPatientMedicalRecord(patientId) {
+  // IMPORTANT: Pour permettre l'accès d'urgence depuis n'importe quel appareil,
+  // les règles Firebase doivent autoriser la lecture anonyme des collections patients et users
+  // Exemple de règles Firestore recommandées :
+  /*
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      // Autoriser la lecture anonyme pour les accès d'urgence
+      match /users/{userId} {
+        allow read: if request.auth != null || resource.data.role == 'patient';
+      }
+      match /patients/{patientId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == patientId;
+      }
+    }
+  }
+  */
+  
   // D'abord essayer de récupérer depuis localStorage
   let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
   let patient = patients.find(p => (p.id || p.uid) === patientId);
@@ -3566,6 +3655,18 @@ async function showPatientMedicalRecord(patientId) {
     try {
       const db = firebase.firestore();
       
+      // Essayer d'abord une authentification anonyme pour les accès d'urgence
+      if (!firebase.auth().currentUser) {
+        console.log('🚑 Authentification anonyme pour accès d\'urgence...');
+        try {
+          await firebase.auth().signInAnonymously();
+          console.log('✅ Authentification anonyme réussie');
+        } catch (authError) {
+          console.log('⚠️ Échec authentification anonyme:', authError.message);
+          // Continuer quand même, peut-être que les règles permettent l'accès
+        }
+      }
+      
       // Chercher dans la collection users
       const userDoc = await db.collection('users').doc(patientId).get();
       if (userDoc.exists) {
@@ -3591,9 +3692,67 @@ async function showPatientMedicalRecord(patientId) {
         console.log('✅ Patient reconstitué depuis Firebase:', patient.personalInfo?.firstName, patient.personalInfo?.lastName);
       } else {
         console.log('❌ Patient non trouvé dans Firebase users');
+        
+        // Essayer directement dans la collection patients comme fallback
+        console.log('🔄 Tentative de recherche directe dans collection patients...');
+        const directPatientDoc = await db.collection('patients').doc(patientId).get();
+        if (directPatientDoc.exists) {
+          const patientData = directPatientDoc.data();
+          patient = {
+            id: patientId,
+            uid: patientId,
+            ...patientData
+          };
+          console.log('✅ Patient trouvé directement dans collection patients');
+        } else {
+          // Dernière tentative : chercher dans une collection publique d'urgence
+          console.log('🚑 Recherche dans collection emergency_access...');
+          try {
+            const emergencyDoc = await db.collection('emergency_access').doc(patientId).get();
+            if (emergencyDoc.exists) {
+              const emergencyData = emergencyDoc.data();
+              patient = {
+                id: patientId,
+                uid: patientId,
+                personalInfo: emergencyData.personalInfo || {},
+                medicalHistory: emergencyData.medicalHistory || {},
+                emergencyInfo: emergencyData.emergencyInfo || {},
+                isActive: true
+              };
+              console.log('✅ Patient trouvé dans collection emergency_access');
+            }
+          } catch (emergencyError) {
+            console.log('❌ Collection emergency_access non accessible:', emergencyError.message);
+          }
+        }
       }
     } catch (error) {
       console.error('Erreur Firebase lors de la recherche du patient:', error);
+      
+      // Afficher l'erreur spécifique pour le debug
+      document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-orange-50 flex items-center justify-center">
+          <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+            <div class="w-16 h-16 bg-orange-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+              ⚠️
+            </div>
+            <h2 class="text-xl font-bold text-orange-600 mb-2">Erreur d'accès Firebase</h2>
+            <p class="text-gray-600 mb-4">Impossible d'accéder à la base de données</p>
+            <div class="text-sm text-left bg-gray-100 rounded p-3 mb-4">
+              <strong>Erreur:</strong> ${error.message}<br>
+              <strong>Code:</strong> ${error.code || 'N/A'}<br>
+              <strong>ID Patient:</strong> ${patientId}
+            </div>
+            <div class="text-xs text-gray-500 mb-4">
+              Cette erreur indique probablement un problème de configuration Firebase ou de règles de sécurité.
+            </div>
+            <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
+              Retour à l'application
+            </button>
+          </div>
+        </div>
+      `;
+      return; // Arrêter ici pour afficher l'erreur
     }
   }
   
