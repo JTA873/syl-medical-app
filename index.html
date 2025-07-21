@@ -3751,6 +3751,17 @@ function renderApp() {
   console.log("renderApp appellee");
   
   try {
+    // PRIORITÉ 1: Vérifier d'abord si on est en mode accès d'urgence
+    const urlParams = new URLSearchParams(window.location.search);
+    const patientId = urlParams.get('patient');
+    const accessType = urlParams.get('access');
+    
+    if (patientId && accessType === 'medical') {
+      console.log('🚑 Mode accès fiche médicale prioritaire:', patientId);
+      showPatientMedicalRecord(patientId);
+      return; // Arrêter ici pour éviter d'écraser l'affichage
+    }
+    
     // Vérifier que Firebase est chargé
     if (typeof firebase === 'undefined') {
       console.error("Firebase n'est pas charge");
@@ -3987,12 +3998,35 @@ let authInitialized = false;
 firebase.auth().onAuthStateChanged((user) => {
   console.log("Auth state changed:", user ? "connecté" : "déconnecté");
   authInitialized = true;
+  
+  // Vérifier d'abord si on est en mode urgence avant de rendre l'app normale
+  const urlParams = new URLSearchParams(window.location.search);
+  const patientId = urlParams.get('patient');
+  const accessType = urlParams.get('access');
+  const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+  
+  if ((patientId && accessType === 'medical') || nfcTagId) {
+    console.log("🚑 Mode urgence détecté - éviter renderApp()");
+    return; // Ne pas appeler renderApp() en mode urgence
+  }
+  
   renderApp();
 });
 
 // Timeout de sécurité si Firebase ne répond pas
 setTimeout(() => {
   if (!authInitialized) {
+    // Vérifier d'abord si on est en mode urgence
+    const urlParams = new URLSearchParams(window.location.search);
+    const patientId = urlParams.get('patient');
+    const accessType = urlParams.get('access');
+    const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+    
+    if ((patientId && accessType === 'medical') || nfcTagId) {
+      console.log("🚑 Mode urgence détecté - pas de timeout");
+      return;
+    }
+    
     console.log("Timeout Firebase - Chargement forcé de l'interface");
     showLogin();
   }
@@ -4000,8 +4034,18 @@ setTimeout(() => {
 
 // Test immédiat si Firebase est déjà prêt
 if (firebase.auth().currentUser !== undefined) {
-  console.log("Firebase déjà prêt");
-  renderApp();
+  // Vérifier d'abord si on est en mode urgence
+  const urlParams = new URLSearchParams(window.location.search);
+  const patientId = urlParams.get('patient');
+  const accessType = urlParams.get('access');
+  const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+  
+  if ((patientId && accessType === 'medical') || nfcTagId) {
+    console.log("🚑 Mode urgence détecté - pas de renderApp() immédiat");
+  } else {
+    console.log("Firebase déjà prêt");
+    renderApp();
+  }
 }
 </script>
 </body>
