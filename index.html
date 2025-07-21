@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#3B82F6">
   <meta name="description" content="Application médicale d'urgence - Accès rapide aux informations vitales">
-   
+  
   <!-- PWA -->
   <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlNZTCBNZWRpY2FsIC0gU3lzdMOobWUgZCdVcmdlbmNlIiwKICAic2hvcnRfbmFtZSI6ICJTWUwgTWVkaWNhbCIsCiAgImRlc2NyaXB0aW9uIjogIkFwcGxpY2F0aW9uIG3DqWRpY2FsZSBkJ3VyZ2VuY2UiLAogICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI0ZGRkZGRiIsCiAgInRoZW1lX2NvbG9yIjogIiMzQjgyRjYiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUI0Yld4dWN6MGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TUM5emRtY2lJSFpwWlhkQ2IzZzlJakFnTUNBNE1EQWdPREF3SWo0OFl5QjRQU0k0TURBaUlIazlJalEzTWlJZ1kzZzlJakU1TWlJZ1kzazlJakk0SWlCeVBTSTFNaUl2UGp3dmMzWm5QZz09IiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0sCiAgImNhdGVnb3JpZXMiOiBbIm1lZGljYWwiLCAiaGVhbHRoIiwgImVtZXJnZW5jeSJdCn0=">
   <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==">
@@ -80,11 +80,36 @@
   </style>
 </head>
 <body class="bg-gray-50">
-<div id="app"></div>
+<div id="app">
+  <div class="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div class="text-center">
+      <div class="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-gray-600">Chargement de SYL Medical...</p>
+    </div>
+  </div>
+</div>
 <script>
+// Gestion d'erreur globale
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+  console.error('Erreur JavaScript:', msg, 'à la ligne', lineNo);
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+        <h2 class="text-xl font-bold text-red-600 mb-4">Erreur JavaScript</h2>
+        <p class="text-gray-700 mb-2"><strong>Message:</strong> ${msg}</p>
+        <p class="text-gray-700 mb-4"><strong>Ligne:</strong> ${lineNo}</p>
+        <button onclick="location.reload()" class="bg-blue-600 text-white px-4 py-2 rounded">Réessayer</button>
+      </div>
+    </div>
+  `;
+  return true;
+};
+
+console.log("SYL Medical - Début du chargement");
+
 // Configuration Firebase sécurisée
 const firebaseConfig = {
-  apiKey: window.location.hostname === 'localhost' ? "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA" : process.env.FIREBASE_API_KEY,
+  apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
   authDomain: "syl-medical-app-1c58a.firebaseapp.com",
   databaseURL: "https://syl-medical-app-1c58a-default-rtdb.firebaseio.com",
   projectId: "syl-medical-app-1c58a",
@@ -95,9 +120,23 @@ const firebaseConfig = {
 };
 
 // Initialiser Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
+try {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+  console.log("Firebase initialisé avec succès");
+} catch (error) {
+  console.error("Erreur Firebase:", error);
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+        <h2 class="text-xl font-bold text-red-600 mb-4">Erreur Firebase</h2>
+        <p class="text-gray-700">Impossible d'initialiser Firebase: ${error.message}</p>
+        <button onclick="location.reload()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Réessayer</button>
+      </div>
+    </div>
+  `;
+}
 
 // Configuration de l'authentification
 const googleProvider = new firebase.auth.GoogleAuthProvider();
