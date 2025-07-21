@@ -1636,78 +1636,109 @@ function deleteReminder(index) {
 // Fonction globale pour charger les patients depuis Firebase
 async function loadPatientsFromFirebase() {
   try {
-    if (db && typeof db.collection === 'function') {
-      console.log('Tentative de chargement des patients depuis Firebase...');
-      
-      const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
-      const firebaseUsers = [];
-      
-      usersSnapshot.forEach(doc => {
-        const userData = doc.data();
-        firebaseUsers.push({
-          id: doc.id,
-          uid: userData.uid || doc.id,
-          email: userData.email,
-          role: userData.role,
-          ...userData
-        });
+    if (!db || typeof db.collection !== 'function') {
+      throw new Error('Firebase non initialisé correctement');
+    }
+
+    // Vérifier l'authentification
+    const currentUser = firebase.auth().currentUser;
+    if (!currentUser) {
+      throw new Error('Vous devez être connecté pour accéder aux données Firebase');
+    }
+
+    console.log('Utilisateur connecté:', currentUser.email);
+    console.log('Tentative de chargement des patients depuis Firebase...');
+    
+    // Essayer d'abord avec une requête simple pour tester les permissions
+    try {
+      const testDoc = await db.collection('users').limit(1).get();
+      console.log('Test de permissions réussi, documents trouvés:', testDoc.size);
+    } catch (permError) {
+      console.error('Erreur de permissions:', permError);
+      throw new Error('Permissions insuffisantes. Vérifiez les règles Firestore ou contactez l\'administrateur.');
+    }
+    
+    // Charger les utilisateurs patients
+    const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+    const firebaseUsers = [];
+    
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data();
+      firebaseUsers.push({
+        id: doc.id,
+        uid: userData.uid || doc.id,
+        email: userData.email,
+        role: userData.role,
+        ...userData
       });
-      
-      console.log('Utilisateurs trouvés:', firebaseUsers);
-      
-      if (firebaseUsers.length > 0) {
-        // Récupérer les données médicales
-        const patientsSnapshot = await db.collection('patients').get();
-        const medicalDataMap = {};
-        
-        patientsSnapshot.forEach(doc => {
-          const data = doc.data();
-          const userId = doc.id.replace('_medical', '');
-          medicalDataMap[userId] = data;
-        });
-        
-        console.log('Données médicales trouvées:', medicalDataMap);
-        
-        // Fusionner les données
-        const completePatients = firebaseUsers.map(user => {
-          const medicalData = medicalDataMap[user.uid] || {};
-          return {
-            ...user,
-            personalInfo: medicalData.personalInfo || {
-              firstName: user.profile?.firstName || user.displayName?.split(' ')[0] || 'Prénom',
-              lastName: user.profile?.lastName || user.displayName?.split(' ').slice(1).join(' ') || 'Nom',
-              bloodType: 'N/A'
-            },
-            medicalHistory: medicalData.medicalHistory || {
-              allergies: [],
-              medications: [],
-              chronicDiseases: []
-            },
-            emergencyInfo: medicalData.emergencyInfo || {
-              criticalNotes: ''
-            },
-            isActive: medicalData.isActive !== undefined ? medicalData.isActive : true,
-            nfcTagId: medicalData.nfcTagId || null,
-            createdAt: user.createdAt || new Date().toISOString()
-          };
-        });
-        
-        localStorage.setItem('syl-patients', JSON.stringify(completePatients));
-        console.log(`✅ ${completePatients.length} patients chargés depuis Firebase`);
-        alert(`✅ ${completePatients.length} patients chargés depuis Firebase !`);
-        location.reload(); // Recharger pour afficher les nouvelles données
-        return true;
-      } else {
-        alert('ℹ️ Aucun patient trouvé dans Firebase.');
-        return false;
-      }
-    } else {
-      alert('❌ Firebase non disponible');
+    });
+    
+    console.log('Utilisateurs patients trouvés:', firebaseUsers.length);
+    
+    if (firebaseUsers.length === 0) {
+      alert('ℹ️ Aucun patient trouvé dans Firebase.\n\nAssurez-vous que:\n- Des utilisateurs avec role="patient" existent\n- Vos règles Firestore permettent la lecture\n- Vous êtes connecté avec les bonnes permissions');
       return false;
     }
+    
+    // Récupérer les données médicales
+    const patientsSnapshot = await db.collection('patients').get();
+    const medicalDataMap = {};
+    
+    patientsSnapshot.forEach(doc => {
+      const data = doc.data();
+      const userId = doc.id.replace('_medical', '');
+      medicalDataMap[userId] = data;
+    });
+    
+    console.log('Données médicales trouvées:', Object.keys(medicalDataMap).length);
+    
+    // Fusionner les données
+    const completePatients = firebaseUsers.map(user => {
+      const medicalData = medicalDataMap[user.uid] || {};
+      return {
+        ...user,
+        personalInfo: medicalData.personalInfo || {
+          firstName: user.profile?.firstName || user.displayName?.split(' ')[0] || 'Prénom',
+          lastName: user.profile?.lastName || user.displayName?.split(' ').slice(1).join(' ') || 'Nom',
+          bloodType: 'N/A'
+        },
+        medicalHistory: medicalData.medicalHistory || {
+          allergies: [],
+          medications: [],
+          chronicDiseases: []
+        },
+        emergencyInfo: medicalData.emergencyInfo || {
+          criticalNotes: ''
+        },
+        isActive: medicalData.isActive !== undefined ? medicalData.isActive : true,
+        nfcTagId: medicalData.nfcTagId || null,
+        createdAt: user.createdAt || new Date().toISOString()
+      };
+    });
+    
+    // Supprimer les anciennes données de test
+    localStorage.removeItem('syl-patients');
+    localStorage.removeItem('syl-nfc-tags');
+    
+    localStorage.setItem('syl-patients', JSON.stringify(completePatients));
+    console.log(`✅ ${completePatients.length} patients chargés depuis Firebase`);
+    alert(`✅ ${completePatients.length} patients chargés depuis Firebase !\n\nDonnées de test supprimées.`);
+    location.reload();
+    return true;
+    
   } catch (error) {
     console.error('Erreur chargement Firebase:', error);
-    alert('❌ Erreur: ' + error.message);
+    
+    let errorMessage = 'Erreur Firebase: ';
+    if (error.code === 'permission-denied') {
+      errorMessage += 'Permissions insuffisantes.\n\nSolutions possibles:\n1. Vérifiez vos règles Firestore\n2. Assurez-vous d\'être connecté\n3. Contactez l\'administrateur';
+    } else if (error.code === 'unavailable') {
+      errorMessage += 'Service Firebase indisponible.\nVérifiez votre connexion internet.';
+    } else {
+      errorMessage += error.message;
+    }
+    
+    alert('❌ ' + errorMessage);
     return false;
   }
 }
@@ -1718,140 +1749,10 @@ function renderAdminDashboard(user) {
   let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
   let activeTab = 'patients';
   
-  // Essayer de charger depuis Firebase d'abord, sinon utiliser les données de démonstration
-  if (patients.length === 0) {
-    // Charger les données de démonstration immédiatement
-    initDemoData();
-    
-    // Puis essayer de charger Firebase en arrière-plan
-    loadPatientsFromFirebase().catch(error => {
-      console.log('Impossible de charger Firebase, utilisation des données de démonstration');
-    });
-  }
-  
-  // Fonction pour initialiser les données de démonstration
-  function initDemoData() {
-    patients = [
-      {
-        id: 'patient_001',
-        uid: 'patient_001',
-        email: 'jean.martin@email.com',
-        personalInfo: {
-          firstName: 'Jean',
-          lastName: 'Martin',
-          dateOfBirth: '1975-05-15',
-          bloodType: 'O+',
-          height: '175',
-          weight: '80',
-          emergencyContact: {
-            name: 'Marie Martin',
-            phone: '06.12.34.56.78',
-            relation: 'Épouse'
-          }
-        },
-        medicalHistory: {
-          allergies: ['Pénicilline', 'Pollen'],
-          medications: ['Metformine 500mg'],
-          chronicDiseases: ['Diabète type 2', 'Hypertension']
-        },
-        emergencyInfo: {
-          criticalNotes: 'Risque hypoglycémie sévère'
-        },
-        isActive: true,
-        nfcTagId: null,
-        createdAt: '2024-01-15'
-      },
-      {
-        id: 'patient_002',
-        uid: 'patient_002',
-        email: 'marie.dubois@email.com',
-        personalInfo: {
-          firstName: 'Marie',
-          lastName: 'Dubois',
-          dateOfBirth: '1985-08-22',
-          bloodType: 'A+',
-          height: '165',
-          weight: '65',
-          emergencyContact: {
-            name: 'Pierre Dubois',
-            phone: '06.98.76.54.32',
-            relation: 'Époux'
-          }
-        },
-        medicalHistory: {
-          allergies: ['Aspirine'],
-          medications: ['Levothyrox 100mg'],
-          chronicDiseases: ['Hypothyroïdie']
-        },
-        emergencyInfo: {
-          criticalNotes: ''
-        },
-        isActive: true,
-        nfcTagId: null,
-        createdAt: '2024-01-14'
-      },
-      {
-        id: 'patient_003',
-        uid: 'patient_003',
-        email: 'paul.bernard@email.com',
-        personalInfo: {
-          firstName: 'Paul',
-          lastName: 'Bernard',
-          dateOfBirth: '1990-12-03',
-          bloodType: 'B-',
-          height: '180',
-          weight: '75',
-          emergencyContact: {
-            name: 'Lucie Bernard',
-            phone: '07.11.22.33.44',
-            relation: 'Sœur'
-          }
-        },
-        medicalHistory: {
-          allergies: ['Fruits à coque'],
-          medications: ['Ventolin'],
-          chronicDiseases: ['Asthme']
-        },
-        emergencyInfo: {
-          criticalNotes: 'Asthme sévère - Toujours avoir Ventolin'
-        },
-        isActive: true,
-        nfcTagId: null,
-        createdAt: '2024-01-10'
-      }
-    ];
-    localStorage.setItem('syl-patients', JSON.stringify(patients));
-    console.log('Patients de démonstration initialisés:', patients.length);
-    render(); // Re-render après l'initialisation
-  }
-  
-  // Initialiser avec des tags NFC de démonstration si la liste est vide
+  // Initialiser avec des tags NFC vides si nécessaire
   if (nfcTags.length === 0) {
-    nfcTags = [
-      {
-        id: 'NFC_SYL001',
-        description: 'Tag bracelet urgence',
-        createdAt: '2024-01-15T10:00:00.000Z',
-        assignedTo: null,
-        assignedAt: null
-      },
-      {
-        id: 'NFC_SYL002',
-        description: 'Tag carte médicale',
-        createdAt: '2024-01-15T11:00:00.000Z',
-        assignedTo: null,
-        assignedAt: null
-      },
-      {
-        id: 'NFC_SYL003',
-        description: 'Tag porte-clés',
-        createdAt: '2024-01-15T12:00:00.000Z',
-        assignedTo: null,
-        assignedAt: null
-      }
-    ];
+    nfcTags = [];
     localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
-    console.log('Tags NFC de démonstration initialisés:', nfcTags.length);
   }
   
   render();
@@ -1911,7 +1812,7 @@ function renderAdminDashboard(user) {
           <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
           <div class="flex gap-2">
             <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Firebase</button>
-            <button id="resetDemoData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.warning} Réinitialiser démo</button>
+            <button id="clearAllData" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.trash} Vider cache</button>
             <button id="refreshPatients" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
           </div>
         </div>
@@ -1926,6 +1827,23 @@ function renderAdminDashboard(user) {
 
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">Liste des Patients (${patients.length})</h3>
+          ${patients.length === 0 ? `
+            <div class="text-center py-8">
+              <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                ${icons.users}
+              </div>
+              <h4 class="text-lg font-medium text-gray-900 mb-2">Aucun patient trouvé</h4>
+              <p class="text-gray-600 mb-4">Cliquez sur "Charger Firebase" pour récupérer les patients depuis votre base de données.</p>
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                <h5 class="font-medium text-blue-900 mb-2">Pour résoudre l'erreur de permissions :</h5>
+                <ol class="text-sm text-blue-800 space-y-1">
+                  <li>1. Vérifiez que vous êtes connecté avec un compte admin</li>
+                  <li>2. Configurez les règles Firestore pour permettre la lecture</li>
+                  <li>3. Assurez-vous que des utilisateurs avec role="patient" existent</li>
+                </ol>
+              </div>
+            </div>
+          ` : `
           <div class="overflow-x-auto">
             <table class="w-full table-auto">
               <thead>
@@ -1968,6 +1886,7 @@ function renderAdminDashboard(user) {
               </tbody>
             </table>
           </div>
+          `}
         </div>
       </div>
     `;
@@ -2248,11 +2167,14 @@ function renderAdminDashboard(user) {
       }
     });
 
-    document.getElementById('resetDemoData')?.addEventListener('click', () => {
-      if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les données de démonstration ? Cette action supprimera tous les patients et tags NFC actuels.')) {
+    document.getElementById('clearAllData')?.addEventListener('click', () => {
+      if (confirm('Êtes-vous sûr de vouloir vider le cache local ? Cette action supprimera tous les patients et tags NFC en local. Vous devrez recharger depuis Firebase.')) {
         localStorage.removeItem('syl-patients');
         localStorage.removeItem('syl-nfc-tags');
-        alert('Données supprimées ! Rechargement de la page...');
+        localStorage.removeItem('syl-medicalData');
+        localStorage.removeItem('syl-analytics');
+        localStorage.removeItem('syl-reminders');
+        alert('Cache vidé ! Rechargement de la page...');
         location.reload();
       }
     });
