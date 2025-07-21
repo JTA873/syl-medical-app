@@ -288,21 +288,12 @@ function clearUser() {
   localStorage.removeItem('syl-user');
 }
 
-// Configuration système centralisé Firebase - SYL Medical v2.1.0
-const SYL_CONFIG = {
-  VERSION: "2.1.0",
-  FIREBASE_AUTO_LOAD: true,
-  NO_TEST_DATA: true,
-  FORCE_SYNC: true,
-  LAST_UPDATE: "2025-07-21",
-};
-
 // Nouvelles fonctionnalités
 class SYLUtilities {
   // Génération QR Code d'urgence
   static generateEmergencyQR(medicalData) {
     const emergencyData = {
-      name: medicalData.personalInfo.firstName + ' ' + medicalData.personalInfo.lastName,
+      name: `${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}`,
       bloodType: medicalData.personalInfo.bloodType,
       allergies: medicalData.medicalHistory.allergies,
       conditions: medicalData.medicalHistory.chronicDiseases,
@@ -313,7 +304,7 @@ class SYLUtilities {
     
     // QR Code simple avec données base64
     const qrData = btoa(JSON.stringify(emergencyData));
-    return 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(qrData);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
   }
   
   // Géolocalisation d'urgence
@@ -340,24 +331,27 @@ class SYLUtilities {
   // Mode hors ligne
   static setupOfflineMode() {
     if ('serviceWorker' in navigator) {
-      const swCode = 
-        'const CACHE_NAME = "syl-medical-v1";' +
-        'const urlsToCache = [' +
-          '"/",' +
-          '"https://cdn.tailwindcss.com"' +
-        '];' +
-        'self.addEventListener("install", event => {' +
-          'event.waitUntil(' +
-            'caches.open(CACHE_NAME)' +
-              '.then(cache => cache.addAll(urlsToCache))' +
-          ');' +
-        '});' +
-        'self.addEventListener("fetch", event => {' +
-          'event.respondWith(' +
-            'caches.match(event.request)' +
-              '.then(response => response || fetch(event.request))' +
-          ');' +
-        '});';
+      const swCode = `
+        const CACHE_NAME = 'syl-medical-v1';
+        const urlsToCache = [
+          '/',
+          'https://cdn.tailwindcss.com'
+        ];
+
+        self.addEventListener('install', event => {
+          event.waitUntil(
+            caches.open(CACHE_NAME)
+              .then(cache => cache.addAll(urlsToCache))
+          );
+        });
+
+        self.addEventListener('fetch', event => {
+          event.respondWith(
+            caches.match(event.request)
+              .then(response => response || fetch(event.request))
+          );
+        });
+      `;
       
       const blob = new Blob([swCode], { type: 'application/javascript' });
       const swUrl = URL.createObjectURL(blob);
@@ -389,64 +383,72 @@ class SYLUtilities {
   
   // Export PDF
   static generatePDF(medicalData) {
-    const emergencyInfo = 
-      '<!DOCTYPE html>' +
-      '<html>' +
-      '<head>' +
-        '<title>SYL Medical - Fiche d\'urgence</title>' +
-        '<style>' +
-          'body { font-family: Arial, sans-serif; margin: 20px; }' +
-          '.header { text-align: center; color: #dc2626; border-bottom: 3px solid #dc2626; padding-bottom: 10px; }' +
-          '.section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }' +
-          '.critical { background-color: #fef2f2; border-color: #dc2626; }' +
-          '.label { font-weight: bold; color: #374151; }' +
-          '.value { color: #1f2937; }' +
-          '.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }' +
-        '</style>' +
-      '</head>' +
-      '<body>' +
-        '<div class="header">' +
-          '<h1>FICHE MEDICALE D\'URGENCE</h1>' +
-          '<h2>' + medicalData.personalInfo.firstName + ' ' + medicalData.personalInfo.lastName + '</h2>' +
-        '</div>' +
-        '<div class="section critical">' +
-          '<h3>INFORMATIONS CRITIQUES</h3>' +
-          '<div class="grid">' +
-            '<div><span class="label">Groupe sanguin:</span> <span class="value">' + (medicalData.personalInfo.bloodType || 'Non renseigne') + '</span></div>' +
-            '<div><span class="label">Date de naissance:</span> <span class="value">' + medicalData.personalInfo.dateOfBirth + '</span></div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="section">' +
-          '<h3>ALLERGIES</h3>' +
-          '<p class="value">' + (medicalData.medicalHistory.allergies.join(', ') || 'Aucune allergie connue') + '</p>' +
-        '</div>' +
-        '<div class="section">' +
-          '<h3>TRAITEMENTS EN COURS</h3>' +
-          '<p class="value">' + (medicalData.medicalHistory.medications.join(', ') || 'Aucun traitement') + '</p>' +
-        '</div>' +
-        '<div class="section">' +
-          '<h3>CONTACT D\'URGENCE</h3>' +
-          '<p class="value">' + medicalData.personalInfo.emergencyContact.name + ' (' + medicalData.personalInfo.emergencyContact.relation + ')<br>' +
-          'Tel: ' + medicalData.personalInfo.emergencyContact.phone + '</p>' +
-        '</div>' +
-        (medicalData.emergencyInfo.criticalNotes ? 
-          '<div class="section critical">' +
-            '<h3>NOTES CRITIQUES</h3>' +
-            '<p class="value">' + medicalData.emergencyInfo.criticalNotes + '</p>' +
-          '</div>' : '') +
-        '<div class="section">' +
-          '<p style="text-align: center; color: #6b7280; font-size: 12px;">' +
-            'Genere le ' + new Date().toLocaleString('fr-FR') + ' par SYL Medical' +
-          '</p>' +
-        '</div>' +
-      '</body>' +
-      '</html>';
+    const emergencyInfo = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SYL Medical - Fiche d'urgence</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .header { text-align: center; color: #dc2626; border-bottom: 3px solid #dc2626; padding-bottom: 10px; }
+    .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+    .critical { background-color: #fef2f2; border-color: #dc2626; }
+    .label { font-weight: bold; color: #374151; }
+    .value { color: #1f2937; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🚑 FICHE MÉDICALE D'URGENCE</h1>
+    <h2>${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}</h2>
+  </div>
+  
+  <div class="section critical">
+    <h3>INFORMATIONS CRITIQUES</h3>
+    <div class="grid">
+      <div><span class="label">Groupe sanguin:</span> <span class="value">${medicalData.personalInfo.bloodType || 'Non renseigné'}</span></div>
+      <div><span class="label">Date de naissance:</span> <span class="value">${medicalData.personalInfo.dateOfBirth}</span></div>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h3>ALLERGIES</h3>
+    <p class="value">${medicalData.medicalHistory.allergies.join(', ') || 'Aucune allergie connue'}</p>
+  </div>
+  
+  <div class="section">
+    <h3>TRAITEMENTS EN COURS</h3>
+    <p class="value">${medicalData.medicalHistory.medications.join(', ') || 'Aucun traitement'}</p>
+  </div>
+  
+  <div class="section">
+    <h3>CONTACT D'URGENCE</h3>
+    <p class="value">${medicalData.personalInfo.emergencyContact.name} (${medicalData.personalInfo.emergencyContact.relation})<br>
+    Tél: ${medicalData.personalInfo.emergencyContact.phone}</p>
+  </div>
+  
+  ${medicalData.emergencyInfo.criticalNotes ? `
+  <div class="section critical">
+    <h3>NOTES CRITIQUES</h3>
+    <p class="value">${medicalData.emergencyInfo.criticalNotes}</p>
+  </div>
+  ` : ''}
+  
+  <div class="section">
+    <p style="text-align: center; color: #6b7280; font-size: 12px;">
+      Généré le ${new Date().toLocaleString('fr-FR')} par SYL Medical
+    </p>
+  </div>
+</body>
+</html>
+    `;
     
     const blob = new Blob([emergencyInfo], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'fiche-urgence-' + medicalData.personalInfo.firstName + '-' + new Date().toISOString().split('T')[0] + '.html';
+    a.download = `fiche-urgence-${medicalData.personalInfo.firstName}-${new Date().toISOString().split('T')[0]}.html`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -513,79 +515,89 @@ class SYLUtilities {
     // Créer une interface d'urgence en plein écran
     const emergencyInterface = document.createElement('div');
     emergencyInterface.className = 'fixed inset-0 bg-red-600 z-50 overflow-y-auto';
-    
-    const allergiesHtml = medicalData.medicalHistory.allergies?.length ? 
-      medicalData.medicalHistory.allergies.map(a => '<span class="bg-red-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">' + a + '</span>').join('') : 
-      '<p class="text-gray-500">Aucune allergie connue</p>';
-      
-    const medicationsHtml = medicalData.medicalHistory.medications?.length ? 
-      medicalData.medicalHistory.medications.map(m => '<span class="bg-blue-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">' + m + '</span>').join('') : 
-      '<p class="text-gray-500">Aucun traitement</p>';
-      
-    const diseasesHtml = medicalData.medicalHistory.chronicDiseases?.length ? 
-      medicalData.medicalHistory.chronicDiseases.map(c => '<span class="bg-purple-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">' + c + '</span>').join('') : 
-      '<p class="text-gray-500">Aucune pathologie chronique</p>';
-      
-    const criticalNotesHtml = medicalData.emergencyInfo?.criticalNotes ? 
-      '<div class="bg-red-100 border-2 border-red-300 p-4 rounded-lg">' +
-        '<h2 class="text-xl font-bold text-red-800 mb-4">NOTES CRITIQUES POUR LES SECOURS</h2>' +
-        '<p class="text-red-700 text-lg">' + medicalData.emergencyInfo.criticalNotes + '</p>' +
-      '</div>' : '';
-    
-    emergencyInterface.innerHTML = 
-      '<div class="min-h-screen p-4">' +
-        '<div class="max-w-4xl mx-auto">' +
-          '<div class="bg-white rounded-lg shadow-2xl overflow-hidden">' +
-            '<div class="bg-red-600 text-white p-6 text-center">' +
-              '<h1 class="text-3xl font-bold">ACCES D\'URGENCE MEDICALE</h1>' +
-              '<p class="text-xl mt-2">Tag NFC: ' + tagId + '</p>' +
-              '<p class="text-lg">Acces le ' + new Date().toLocaleString('fr-FR') + '</p>' +
-            '</div>' +
-            '<div class="p-6 space-y-6">' +
-              '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
-                '<div class="bg-red-50 border-l-4 border-red-500 p-4">' +
-                  '<h2 class="text-xl font-bold text-red-800 mb-4">IDENTITE PATIENT</h2>' +
-                  '<div class="space-y-2">' +
-                    '<p><strong>Nom:</strong> ' + medicalData.personalInfo.lastName + '</p>' +
-                    '<p><strong>Prenom:</strong> ' + medicalData.personalInfo.firstName + '</p>' +
-                    '<p><strong>Date de naissance:</strong> ' + medicalData.personalInfo.dateOfBirth + '</p>' +
-                    '<p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-3 py-1 rounded font-bold text-lg">' + (medicalData.personalInfo.bloodType || 'NON RENSEIGNE') + '</span></p>' +
-                  '</div>' +
-                '</div>' +
-                '<div class="bg-orange-50 border-l-4 border-orange-500 p-4">' +
-                  '<h2 class="text-xl font-bold text-orange-800 mb-4">CONTACT D\'URGENCE</h2>' +
-                  '<div class="space-y-2">' +
-                    '<p><strong>Nom:</strong> ' + medicalData.personalInfo.emergencyContact.name + '</p>' +
-                    '<p><strong>Relation:</strong> ' + medicalData.personalInfo.emergencyContact.relation + '</p>' +
-                    '<p><strong>Telephone:</strong> <a href="tel:' + medicalData.personalInfo.emergencyContact.phone + '" class="text-blue-600 underline text-lg font-bold">' + medicalData.personalInfo.emergencyContact.phone + '</a></p>' +
-                  '</div>' +
-                '</div>' +
-              '</div>' +
-              '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
-                '<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">' +
-                  '<h2 class="text-xl font-bold text-yellow-800 mb-4">ALLERGIES CRITIQUES</h2>' +
-                  '<div class="space-y-1">' + allergiesHtml + '</div>' +
-                '</div>' +
-                '<div class="bg-blue-50 border-l-4 border-blue-500 p-4">' +
-                  '<h2 class="text-xl font-bold text-blue-800 mb-4">TRAITEMENTS EN COURS</h2>' +
-                  '<div class="space-y-1">' + medicationsHtml + '</div>' +
-                '</div>' +
-              '</div>' +
-              '<div class="bg-purple-50 border-l-4 border-purple-500 p-4">' +
-                '<h2 class="text-xl font-bold text-purple-800 mb-4">PATHOLOGIES & CONDITIONS</h2>' +
-                '<div class="space-y-1">' + diseasesHtml + '</div>' +
-              '</div>' +
-              criticalNotesHtml +
-              '<div class="flex flex-wrap gap-4 justify-center">' +
-                '<a href="tel:15" class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">SAMU 15</a>' +
-                '<a href="tel:18" class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-6 py-3 text-lg">Pompiers 18</a>' +
-                '<a href="tel:112" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-3 text-lg">Urgences 112</a>' +
-                '<button onclick="this.closest(\'.fixed\').remove()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg px-6 py-3 text-lg">Fermer</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
+    emergencyInterface.innerHTML = `
+      <div class="min-h-screen p-4">
+        <div class="max-w-4xl mx-auto">
+          <div class="bg-white rounded-lg shadow-2xl overflow-hidden">
+            <div class="bg-red-600 text-white p-6 text-center">
+              <h1 class="text-3xl font-bold">🚑 ACCÈS D'URGENCE MÉDICALE</h1>
+              <p class="text-xl mt-2">Tag NFC: ${tagId}</p>
+              <p class="text-lg">Accès le ${new Date().toLocaleString('fr-FR')}</p>
+            </div>
+            
+            <div class="p-6 space-y-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-red-50 border-l-4 border-red-500 p-4">
+                  <h2 class="text-xl font-bold text-red-800 mb-4">IDENTITÉ PATIENT</h2>
+                  <div class="space-y-2">
+                    <p><strong>Nom:</strong> ${medicalData.personalInfo.lastName}</p>
+                    <p><strong>Prénom:</strong> ${medicalData.personalInfo.firstName}</p>
+                    <p><strong>Date de naissance:</strong> ${medicalData.personalInfo.dateOfBirth}</p>
+                    <p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-3 py-1 rounded font-bold text-lg">${medicalData.personalInfo.bloodType || 'NON RENSEIGNÉ'}</span></p>
+                  </div>
+                </div>
+                
+                <div class="bg-orange-50 border-l-4 border-orange-500 p-4">
+                  <h2 class="text-xl font-bold text-orange-800 mb-4">CONTACT D'URGENCE</h2>
+                  <div class="space-y-2">
+                    <p><strong>Nom:</strong> ${medicalData.personalInfo.emergencyContact.name}</p>
+                    <p><strong>Relation:</strong> ${medicalData.personalInfo.emergencyContact.relation}</p>
+                    <p><strong>Téléphone:</strong> <a href="tel:${medicalData.personalInfo.emergencyContact.phone}" class="text-blue-600 underline text-lg font-bold">${medicalData.personalInfo.emergencyContact.phone}</a></p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+                  <h2 class="text-xl font-bold text-yellow-800 mb-4">⚠️ ALLERGIES CRITIQUES</h2>
+                  <div class="space-y-1">
+                    ${medicalData.medicalHistory.allergies?.length ? 
+                      medicalData.medicalHistory.allergies.map(a => `<span class="bg-red-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">${a}</span>`).join('') : 
+                      '<p class="text-gray-500">Aucune allergie connue</p>'
+                    }
+                  </div>
+                </div>
+                
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4">
+                  <h2 class="text-xl font-bold text-blue-800 mb-4">💊 TRAITEMENTS EN COURS</h2>
+                  <div class="space-y-1">
+                    ${medicalData.medicalHistory.medications?.length ? 
+                      medicalData.medicalHistory.medications.map(m => `<span class="bg-blue-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">${m}</span>`).join('') : 
+                      '<p class="text-gray-500">Aucun traitement</p>'
+                    }
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-purple-50 border-l-4 border-purple-500 p-4">
+                <h2 class="text-xl font-bold text-purple-800 mb-4">🏥 PATHOLOGIES & CONDITIONS</h2>
+                <div class="space-y-1">
+                  ${medicalData.medicalHistory.chronicDiseases?.length ? 
+                    medicalData.medicalHistory.chronicDiseases.map(c => `<span class="bg-purple-500 text-white px-2 py-1 rounded mr-1 mb-1 inline-block">${c}</span>`).join('') : 
+                    '<p class="text-gray-500">Aucune pathologie chronique</p>'
+                  }
+                </div>
+              </div>
+              
+              ${medicalData.emergencyInfo?.criticalNotes ? `
+              <div class="bg-red-100 border-2 border-red-300 p-4 rounded-lg">
+                <h2 class="text-xl font-bold text-red-800 mb-4">🚨 NOTES CRITIQUES POUR LES SECOURS</h2>
+                <p class="text-red-700 text-lg">${medicalData.emergencyInfo.criticalNotes}</p>
+              </div>
+              ` : ''}
+              
+              <div class="flex flex-wrap gap-4 justify-center">
+                <a href="tel:15" class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">📞 SAMU 15</a>
+                <a href="tel:18" class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-6 py-3 text-lg">🚒 Pompiers 18</a>
+                <a href="tel:112" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-3 text-lg">🆘 Urgences 112</a>
+                <button onclick="SYLUtilities.generatePDF(${JSON.stringify(medicalData).replace(/"/g, '&quot;')})" class="bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg px-6 py-3 text-lg">📄 Export PDF</button>
+                <button onclick="this.closest('.fixed').remove()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg px-6 py-3 text-lg">❌ Fermer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
     
     document.body.appendChild(emergencyInterface);
     
@@ -1621,11 +1633,8 @@ function deleteReminder(index) {
   }
 }
 
-// ANCIENNE FONCTION SUPPRIMÉE : loadPatientsFromFirebase
-// Remplacée par loadPatientsFromFirebaseAuto() dans renderAdminDashboard
-// Système maintenant 100% automatique sans données de test
-
-// ----------- ADMIN DASHBOARD -----------
+// Fonction globale pour charger les patients depuis Firebase
+async function loadPatientsFromFirebase() {
   try {
     if (!db || typeof db.collection !== 'function') {
       throw new Error('Firebase non initialisé correctement');
@@ -1806,124 +1815,17 @@ service cloud.firestore {
 
 // ----------- ADMIN DASHBOARD -----------
 function renderAdminDashboard(user) {
-  // IMPORTANT: Chargement automatique depuis Firebase - PAS de données locales ou de test
-  let patients = [];
+  let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
   let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
   let activeTab = 'patients';
-  let isLoading = true;
   
-  // Afficher l'interface de chargement d'abord
-  render();
-  
-  // Puis charger les données depuis Firebase
-  loadPatientsFromFirebaseAuto().then(() => {
-    patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    isLoading = false;
-    render();
-  }).catch(error => {
-    console.error('❌ Erreur chargement patients:', error);
-    isLoading = false;
-    patients = []; // Liste vide en cas d'erreur
-    render();
-  });
-
-  async function loadPatientsFromFirebaseAuto() {
-    try {
-      console.log('🔄 Chargement automatique des patients depuis Firebase...');
-      
-      // Vérifier Firebase
-      if (typeof firebase === 'undefined' || !firebase.firestore) {
-        console.warn('⚠️ Firebase non disponible, utilisation de données vides');
-        localStorage.setItem('syl-patients', JSON.stringify([]));
-        return [];
-      }
-
-      if (!firebase.auth().currentUser) {
-        console.warn('⚠️ Utilisateur non connecté, utilisation de données vides');
-        localStorage.setItem('syl-patients', JSON.stringify([]));
-        return [];
-      }
-
-      const db = firebase.firestore();
-
-      // Vider les anciennes données locales
-      localStorage.removeItem('syl-patients');
-      
-      // Charger depuis Firebase avec timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout Firebase')), 10000)
-      );
-      
-      const loadPromise = (async () => {
-        const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
-        const firebaseUsers = [];
-        
-        usersSnapshot.forEach(doc => {
-          const userData = doc.data();
-          firebaseUsers.push({
-            id: doc.id,
-            uid: userData.uid || doc.id,
-            email: userData.email,
-            role: userData.role,
-            ...userData
-          });
-        });
-        
-        console.log("Utilisateurs patients trouves: " + firebaseUsers.length);
-        
-        // Récupérer les données médicales
-        const patientsSnapshot = await db.collection('patients').get();
-        const medicalDataMap = {};
-        
-        patientsSnapshot.forEach(doc => {
-          const data = doc.data();
-          const userId = doc.id.replace('_medical', '');
-          medicalDataMap[userId] = data;
-        });
-        
-        console.log("Dossiers medicaux trouves: " + Object.keys(medicalDataMap).length);
-        
-        // Fusionner les données
-        const completePatients = firebaseUsers.map(user => {
-          const medicalData = medicalDataMap[user.uid] || {};
-          return {
-            ...user,
-            personalInfo: medicalData.personalInfo || {
-              firstName: user.profile?.firstName || '',
-              lastName: user.profile?.lastName || '',
-              bloodType: 'N/A'
-            },
-            medicalHistory: medicalData.medicalHistory || {
-              allergies: [],
-              medications: [],
-              chronicDiseases: []
-            },
-            emergencyInfo: medicalData.emergencyInfo || {
-              criticalNotes: ''
-            },
-            isActive: medicalData.isActive !== undefined ? medicalData.isActive : true,
-            nfcTagId: medicalData.nfcTagId || null,
-            createdAt: user.createdAt || new Date().toISOString()
-          };
-        });
-        
-        return completePatients;
-      })();
-      
-      const completePatients = await Promise.race([loadPromise, timeoutPromise]);
-      
-      // Sauvegarder en local
-      localStorage.setItem('syl-patients', JSON.stringify(completePatients));
-      console.log("Patients synchronises automatiquement: " + completePatients.length);
-      return completePatients;
-      
-    } catch (error) {
-      console.error('❌ Échec chargement automatique Firebase:', error);
-      // En cas d'erreur, utiliser une liste vide - PAS de données de test
-      localStorage.setItem('syl-patients', JSON.stringify([]));
-      return [];
-    }
+  // Initialiser avec des tags NFC vides si nécessaire
+  if (nfcTags.length === 0) {
+    nfcTags = [];
+    localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
   }
+  
+  render();
 
   function render() {
     document.getElementById('app').innerHTML = `
@@ -1979,10 +1881,11 @@ function renderAdminDashboard(user) {
         <div class="flex justify-between items-center">
           <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
           <div class="flex gap-2">
-            <button id="forceRefresh" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🔄 Actualiser Firebase</button>
-            <button id="testFirebaseAccess" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🔧 Test Connexion</button>
+            <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Firebase</button>
+            <button id="testFirebaseAccess" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🔧 Test Firebase</button>
             <button id="syncEmergencyData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🚑 Sync Urgence</button>
-            <button id="clearLocalCache" class="bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.trash} Vider Cache</button>
+            <button id="clearAllData" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.trash} Vider cache</button>
+            <button id="refreshPatients" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
           </div>
         </div>
 
@@ -1995,38 +1898,21 @@ function renderAdminDashboard(user) {
         </div>
 
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Liste des Patients (${patients.length}) - Synchronisation automatique avec Firebase</h3>
-          ${isLoading ? `
-            <div class="text-center py-8">
-              <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                🔄
-              </div>
-              <h4 class="text-lg font-medium text-blue-900 mb-2">Chargement depuis Firebase...</h4>
-              <p class="text-blue-600 mb-4">Synchronisation automatique des données patients en cours</p>
-              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                <h5 class="font-medium text-blue-900 mb-2">📡 Système centralisé Firebase v${SYL_CONFIG.VERSION} :</h5>
-                <ul class="text-sm text-blue-800 space-y-1">
-                  <li>✅ Chargement automatique au démarrage</li>
-                  <li>✅ Synchronisation temps réel entre appareils</li>
-                  <li>✅ Aucune donnée de test - Que des vraies données</li>
-                  <li>✅ Version unique de l'application</li>
-                </ul>
-              </div>
-            </div>
-          ` : patients.length === 0 ? `
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Liste des Patients (${patients.length})</h3>
+          ${patients.length === 0 ? `
             <div class="text-center py-8">
               <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                📂
+                ${icons.users}
               </div>
-              <h4 class="text-lg font-medium text-gray-900 mb-2">Aucun patient dans Firebase</h4>
-              <p class="text-gray-600 mb-4">La base de données Firebase ne contient aucun patient.</p>
-              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
-                <h5 class="font-medium text-yellow-900 mb-2">🔧 Actions possibles :</h5>
-                <ul class="text-sm text-yellow-800 space-y-1">
-                  <li>1. Créer des utilisateurs avec role="patient" dans Firebase</li>
-                  <li>2. Vérifier les règles de sécurité Firestore</li>
-                  <li>3. Cliquer sur "🔧 Test Connexion" pour diagnostiquer</li>
-                </ul>
+              <h4 class="text-lg font-medium text-gray-900 mb-2">Aucun patient trouvé</h4>
+              <p class="text-gray-600 mb-4">Cliquez sur "Charger Firebase" pour récupérer les patients depuis votre base de données.</p>
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                <h5 class="font-medium text-blue-900 mb-2">Pour résoudre l'erreur de permissions :</h5>
+                <ol class="text-sm text-blue-800 space-y-1">
+                  <li>1. Vérifiez que vous êtes connecté avec un compte admin</li>
+                  <li>2. Configurez les règles Firestore pour permettre la lecture</li>
+                  <li>3. Assurez-vous que des utilisateurs avec role="patient" existent</li>
+                </ol>
               </div>
             </div>
           ` : `
@@ -2263,58 +2149,98 @@ function renderAdminDashboard(user) {
   }
 
   function setupPatientsEvents() {
-    document.getElementById('forceRefresh')?.addEventListener('click', async () => {
-      const refreshBtn = document.getElementById('forceRefresh');
-      const originalText = refreshBtn.innerHTML;
-      refreshBtn.innerHTML = '<div class="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>Synchronisation...';
-      refreshBtn.disabled = true;
-      
+    document.getElementById('refreshPatients')?.addEventListener('click', async () => {
+      // Recharger les patients depuis Firebase
       try {
-        await loadPatientsFromFirebaseAuto();
-        render();
+        if (db && typeof db.collection === 'function') {
+          console.log('Chargement des utilisateurs depuis Firebase...');
+          
+          // Récupérer tous les utilisateurs avec le rôle 'patient'
+          const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+          const firebaseUsers = [];
+          
+          usersSnapshot.forEach(doc => {
+            const userData = doc.data();
+            firebaseUsers.push({
+              id: doc.id,
+              uid: userData.uid || doc.id,
+              email: userData.email,
+              role: userData.role,
+              ...userData
+            });
+          });
+          
+          console.log('Utilisateurs trouvés:', firebaseUsers.length);
+          
+          // Récupérer aussi les données médicales associées
+          const patientsSnapshot = await db.collection('patients').get();
+          const medicalDataMap = {};
+          
+          patientsSnapshot.forEach(doc => {
+            const data = doc.data();
+            const userId = doc.id.replace('_medical', '');
+            medicalDataMap[userId] = data;
+          });
+          
+          console.log('Données médicales trouvées:', Object.keys(medicalDataMap).length);
+          
+          // Fusionner les données utilisateur et médicales
+          const completePatients = firebaseUsers.map(user => {
+            const medicalData = medicalDataMap[user.uid] || {};
+            return {
+              ...user,
+              personalInfo: medicalData.personalInfo || {
+                firstName: user.profile?.firstName || 'Prénom',
+                lastName: user.profile?.lastName || 'Nom',
+                bloodType: 'N/A'
+              },
+              medicalHistory: medicalData.medicalHistory || {
+                allergies: [],
+                medications: [],
+                chronicDiseases: []
+              },
+              emergencyInfo: medicalData.emergencyInfo || {
+                criticalNotes: ''
+              },
+              isActive: medicalData.isActive !== undefined ? medicalData.isActive : true,
+              nfcTagId: medicalData.nfcTagId || null,
+              createdAt: user.createdAt || new Date().toISOString()
+            };
+          });
+          
+          if (completePatients.length > 0) {
+            patients = completePatients;
+            localStorage.setItem('syl-patients', JSON.stringify(patients));
+            render();
+            alert(`✅ ${patients.length} patients chargés depuis Firebase !`);
+            return;
+          } else {
+            alert('ℹ️ Aucun patient trouvé dans Firebase. Utilisation des données de démonstration.');
+          }
+        }
         
-        // Afficher notification de succès
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-green-600 text-white rounded-lg shadow-lg p-4 z-50';
-        notification.innerHTML = `
-          <div class="flex items-center">
-            <span class="mr-2">✅</span>
-            <span>Données synchronisées avec Firebase !</span>
-          </div>
-        `;
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 3000);
+        // Fallback : réinitialiser avec des données de démonstration
+        if (confirm('Voulez-vous charger les données de démonstration ?')) {
+          localStorage.removeItem('syl-patients');
+          localStorage.removeItem('syl-nfc-tags');
+          location.reload();
+        }
         
       } catch (error) {
-        console.error('Erreur refresh:', error);
-        alert('❌ Erreur lors de la synchronisation: ' + error.message);
-      } finally {
-        refreshBtn.innerHTML = originalText;
-        refreshBtn.disabled = false;
+        console.error('Erreur refresh patients:', error);
+        alert('❌ Erreur Firebase: ' + error.message + '\n\nUtilisation des données de démonstration.');
       }
     });
 
-    document.getElementById('clearLocalCache')?.addEventListener('click', () => {
-      if (confirm('Vider le cache local ? Les données seront rechargées automatiquement depuis Firebase.')) {
-        localStorage.removeItem('syl-patients');
-        localStorage.removeItem('syl-nfc-tags');
-        
-        // Notification
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-blue-600 text-white rounded-lg shadow-lg p-4 z-50';
-        notification.innerHTML = `
-          <div class="flex items-center">
-            <span class="mr-2">🔄</span>
-            <span>Cache vidé ! Rechargement automatique...</span>
-          </div>
-        `;
-        document.body.appendChild(notification);
-        
-        // Recharger automatiquement
-        setTimeout(() => {
-          notification.remove();
-          loadPatientsFromFirebaseAuto().then(() => render());
-        }, 1500);
+    document.getElementById('loadFirebaseUsers')?.addEventListener('click', async () => {
+      if (confirm('Charger les utilisateurs depuis Firebase ? Cela remplacera les données actuelles.')) {
+        try {
+          // Utiliser la même logique que refreshPatients mais force le chargement
+          await loadPatientsFromFirebase();
+        } catch (error) {
+          console.error('Erreur:', error);
+          alert('❌ Erreur lors du chargement: ' + error.message);
+        }
       }
     });
 
@@ -2363,7 +2289,7 @@ function renderAdminDashboard(user) {
         try {
           await saveEmergencyData(patient);
           syncCount++;
-          console.log("Patient synchronise: " + (patient.personalInfo?.firstName || '') + " " + (patient.personalInfo?.lastName || ''));
+          console.log(`✅ Patient ${patient.personalInfo?.firstName} ${patient.personalInfo?.lastName} synchronisé`);
         } catch (error) {
           errorCount++;
           console.error('❌ Erreur sync patient:', patient.id, error);
@@ -4180,82 +4106,62 @@ async function showPatientMedicalRecord(patientId) {
         </div>
       </div>
     </div>
-  };
+  `;
   
-  // Enregistrer l'accès - Commenté temporairement pour éviter les erreurs
-  // SYLAnalytics.trackEvent('patient_medical_access', { 
-  //   patientId: patient.id || patient.uid, 
-  //   accessMethod: 'nfc_link',
-  //   accessTime: new Date().toISOString()
-  // });
-  
-  console.log('✅ Fiche médicale affichée pour:', patient.personalInfo?.firstName, patient.personalInfo?.lastName);
+  // Enregistrer l'accès
+  SYLAnalytics.trackEvent('patient_medical_access', { 
+    patientId: patient.id || patient.uid, 
+    accessMethod: 'nfc_link',
+    accessTime: new Date().toISOString()
+  });
 }
 
 // ----------- MAIN -----------
 function renderApp() {
-  console.log("renderApp appelee - SYL Medical v2.1.0");
+  console.log("renderApp appellee");
   
   try {
-    // Vérifier si accès d'urgence
+    // PRIORITÉ 1: Vérifier d'abord si on est en mode accès d'urgence
     const urlParams = new URLSearchParams(window.location.search);
     const patientId = urlParams.get('patient');
     const accessType = urlParams.get('access');
     
     if (patientId && accessType === 'medical') {
-      console.log('Mode acces urgence:', patientId);
+      console.log('🚑 Mode accès fiche médicale prioritaire:', patientId);
       showPatientMedicalRecord(patientId);
+      return; // Arrêter ici pour éviter d'écraser l'affichage
+    }
+    
+    // Vérifier que Firebase est chargé
+    if (typeof firebase === 'undefined') {
+      console.error("Firebase n'est pas charge");
+      showLogin();
       return;
     }
-
-    // Vérifier Firebase Auth
-    if (typeof firebase !== 'undefined' && firebase.auth) {
-      console.log('Firebase detecte, verification auth...');
-      firebase.auth().onAuthStateChanged((user) => {
-        if (user) {
-          console.log('Utilisateur connecte:', user.email);
-          // Récupérer le profil
-          if (firebase.firestore) {
-            const db = firebase.firestore();
-            db.collection('users').doc(user.uid).get().then((doc) => {
-              if (doc.exists) {
-                const userData = doc.data();
-                console.log('Profil charge, role:', userData.role);
-                
-                if (userData.role === 'admin') {
-                  renderAdminDashboard(userData);
-                } else if (userData.role === 'patient') {
-                  renderPatientDashboard(userData);
-                } else {
-                  console.log('Role non reconnu');
-                  showLogin();
-                }
-              } else {
-                console.log('Profil non trouve');
-                showLogin();
-              }
-            }).catch((error) => {
-              console.error('Erreur profil:', error);
-              showLogin();
-            });
-          } else {
-            console.log('Firestore non disponible');
-            showLogin();
-          }
-        } else {
-          console.log('Pas d\'utilisateur connecte');
-          showLogin();
-        }
-      });
+    
+    // Récupérer l'utilisateur local
+    const localUser = getUser();
+    
+    if (localUser) {
+      console.log("Utilisateur connecté, rôle:", localUser.role);
+      if (localUser.role === 'patient') {
+        renderPatientDashboard(localUser);
+      } else if (localUser.role === 'medecin') {
+        renderMedecinDashboard(localUser);
+      } else if (localUser.role === 'admin') {
+        renderAdminDashboard(localUser);
+      } else {
+        console.error("Rôle utilisateur inconnu:", localUser.role);
+        clearUser();
+        showLogin();
+      }
     } else {
-      console.log('Firebase non detecte');
+      // Pas d'utilisateur connecté
+      console.log("Redirection vers login");
       showLogin();
     }
   } catch (error) {
-    console.error('Erreur renderApp:', error);
-    showLogin();
-  }
-}
+    console.error("Erreur dans renderApp:", error);
     showLogin();
   }
 }
@@ -4381,10 +4287,10 @@ class HealthChecker {
   
   static displayHealthStatus() {
     const checks = this.checkSystemHealth();
-    console.group('Etat de sante SYL Medical');
+    console.group('🏥 État de santé SYL Medical');
     checks.forEach(check => {
-      const icon = check.status === 'OK' ? 'OK' : check.status === 'NON SUPPORTÉ' ? 'WARN' : 'ERR';
-      console.log(icon + " " + check.name + ": " + check.status + (check.error ? " (" + check.error + ")" : ""));
+      const icon = check.status === 'OK' ? '✅' : check.status === 'NON SUPPORTÉ' ? '⚠️' : '❌';
+      console.log(`${icon} ${check.name}: ${check.status}${check.error ? ` (${check.error})` : ''}`);
     });
     console.groupEnd();
   }
@@ -4521,19 +4427,6 @@ if (firebase.auth().currentUser !== undefined) {
     renderApp();
   }
 }
-
-// Initialisation automatique au chargement
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Initialisation SYL Medical...');
-  try {
-    // Version simplifiée
-    console.log("SYL Medical v2.1.0 initialise");
-    ReminderSystem.init();
-  } catch (e) {
-    console.error("Erreur initialisation:", e);
-  }
-});
-
 </script>
 </body>
 </html>
