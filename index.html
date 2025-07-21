@@ -2344,7 +2344,11 @@ function renderAdminDashboard(user) {
             tagId = 'NFC_' + tagId;
           }
 
-          document.getElementById('nfcTagId').value = tagId;
+          // Mettre à jour le champ seulement s'il existe (interface admin)
+          const nfcTagIdField = document.getElementById('nfcTagId');
+          if (nfcTagIdField) {
+            nfcTagIdField.value = tagId;
+          }
           
           // Afficher une confirmation
           showNFCSuccessModal(tagId);
@@ -2427,7 +2431,11 @@ function renderAdminDashboard(user) {
           }
         }
         
-        document.getElementById('nfcTagId').value = tagId;
+        // Mettre à jour le champ seulement s'il existe (interface admin)
+        const nfcTagIdField = document.getElementById('nfcTagId');
+        if (nfcTagIdField) {
+          nfcTagIdField.value = tagId;
+        }
         simModal.remove();
         showNFCSuccessModal(tagId, true);
       };
@@ -2462,8 +2470,16 @@ function renderAdminDashboard(user) {
 
     // Fonction pour écrire des données sur un tag NFC
     document.getElementById('writeNFC')?.addEventListener('click', async () => {
-      const tagId = document.getElementById('nfcTagId').value.trim();
-      const description = document.getElementById('nfcTagDescription').value.trim();
+      const nfcTagIdField = document.getElementById('nfcTagId');
+      const nfcTagDescriptionField = document.getElementById('nfcTagDescription');
+      
+      if (!nfcTagIdField || !nfcTagDescriptionField) {
+        console.error('Éléments NFC non trouvés dans le DOM');
+        return;
+      }
+      
+      const tagId = nfcTagIdField.value.trim();
+      const description = nfcTagDescriptionField.value.trim();
       
       if (!tagId) {
         alert('Veuillez d\'abord entrer un ID de tag ou scanner un tag');
@@ -2607,8 +2623,16 @@ END:VCARD`;
     });
 
     document.getElementById('registerNFC')?.addEventListener('click', () => {
-      const tagId = document.getElementById('nfcTagId').value.trim();
-      const description = document.getElementById('nfcTagDescription').value.trim();
+      const nfcTagIdField = document.getElementById('nfcTagId');
+      const nfcTagDescriptionField = document.getElementById('nfcTagDescription');
+      
+      if (!nfcTagIdField || !nfcTagDescriptionField) {
+        console.error('Éléments NFC non trouvés dans le DOM');
+        return;
+      }
+      
+      const tagId = nfcTagIdField.value.trim();
+      const description = nfcTagDescriptionField.value.trim();
       
       if (!tagId) {
         alert('Veuillez entrer un ID de tag NFC');
@@ -2632,8 +2656,8 @@ END:VCARD`;
       localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
       
       // Reset form
-      document.getElementById('nfcTagId').value = '';
-      document.getElementById('nfcTagDescription').value = '';
+      if (nfcTagIdField) nfcTagIdField.value = '';
+      if (nfcTagDescriptionField) nfcTagDescriptionField.value = '';
       
       SYLUtilities.showNotification('Tag NFC enregistré', { body: `Tag ${tagId} ajouté avec succès` });
       SYLAnalytics.trackEvent('nfc_tag_registered', { tagId });
@@ -2843,11 +2867,20 @@ function writeNFCTagData(tagId) {
   }
 
   // Remplir les champs et déclencher l'écriture
-  document.getElementById('nfcTagId').value = tagId;
-  document.getElementById('nfcTagDescription').value = tag.description || '';
+  const nfcTagIdField = document.getElementById('nfcTagId');
+  const nfcTagDescriptionField = document.getElementById('nfcTagDescription');
+  const writeNFCButton = document.getElementById('writeNFC');
+  
+  if (!nfcTagIdField || !nfcTagDescriptionField || !writeNFCButton) {
+    alert('Interface d\'écriture NFC non disponible dans ce contexte');
+    return;
+  }
+  
+  nfcTagIdField.value = tagId;
+  nfcTagDescriptionField.value = tag.description || '';
   
   // Déclencher l'événement d'écriture
-  document.getElementById('writeNFC').click();
+  writeNFCButton.click();
 }
 
 // Tester la lecture d'un tag NFC
