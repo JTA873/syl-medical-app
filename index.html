@@ -1639,6 +1639,130 @@ function renderAdminDashboard(user) {
   let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
   let activeTab = 'patients';
   
+  // Initialiser avec des patients de démonstration si la liste est vide
+  if (patients.length === 0) {
+    patients = [
+      {
+        id: 'patient_001',
+        uid: 'patient_001',
+        email: 'jean.martin@email.com',
+        personalInfo: {
+          firstName: 'Jean',
+          lastName: 'Martin',
+          dateOfBirth: '1975-05-15',
+          bloodType: 'O+',
+          height: '175',
+          weight: '80',
+          emergencyContact: {
+            name: 'Marie Martin',
+            phone: '06.12.34.56.78',
+            relation: 'Épouse'
+          }
+        },
+        medicalHistory: {
+          allergies: ['Pénicilline', 'Pollen'],
+          medications: ['Metformine 500mg'],
+          chronicDiseases: ['Diabète type 2', 'Hypertension']
+        },
+        emergencyInfo: {
+          criticalNotes: 'Risque hypoglycémie sévère'
+        },
+        isActive: true,
+        nfcTagId: null,
+        createdAt: '2024-01-15'
+      },
+      {
+        id: 'patient_002',
+        uid: 'patient_002',
+        email: 'marie.dubois@email.com',
+        personalInfo: {
+          firstName: 'Marie',
+          lastName: 'Dubois',
+          dateOfBirth: '1985-08-22',
+          bloodType: 'A+',
+          height: '165',
+          weight: '65',
+          emergencyContact: {
+            name: 'Pierre Dubois',
+            phone: '06.98.76.54.32',
+            relation: 'Époux'
+          }
+        },
+        medicalHistory: {
+          allergies: ['Aspirine'],
+          medications: ['Levothyrox 100mg'],
+          chronicDiseases: ['Hypothyroïdie']
+        },
+        emergencyInfo: {
+          criticalNotes: ''
+        },
+        isActive: true,
+        nfcTagId: null,
+        createdAt: '2024-01-14'
+      },
+      {
+        id: 'patient_003',
+        uid: 'patient_003',
+        email: 'paul.bernard@email.com',
+        personalInfo: {
+          firstName: 'Paul',
+          lastName: 'Bernard',
+          dateOfBirth: '1990-12-03',
+          bloodType: 'B-',
+          height: '180',
+          weight: '75',
+          emergencyContact: {
+            name: 'Lucie Bernard',
+            phone: '07.11.22.33.44',
+            relation: 'Sœur'
+          }
+        },
+        medicalHistory: {
+          allergies: ['Fruits à coque'],
+          medications: ['Ventolin'],
+          chronicDiseases: ['Asthme']
+        },
+        emergencyInfo: {
+          criticalNotes: 'Asthme sévère - Toujours avoir Ventolin'
+        },
+        isActive: true,
+        nfcTagId: null,
+        createdAt: '2024-01-10'
+      }
+    ];
+    localStorage.setItem('syl-patients', JSON.stringify(patients));
+    console.log('Patients de démonstration initialisés:', patients.length);
+  }
+  
+  // Initialiser avec des tags NFC de démonstration si la liste est vide
+  if (nfcTags.length === 0) {
+    nfcTags = [
+      {
+        id: 'NFC_SYL001',
+        description: 'Tag bracelet urgence',
+        createdAt: '2024-01-15T10:00:00.000Z',
+        assignedTo: null,
+        assignedAt: null
+      },
+      {
+        id: 'NFC_SYL002',
+        description: 'Tag carte médicale',
+        createdAt: '2024-01-15T11:00:00.000Z',
+        assignedTo: null,
+        assignedAt: null
+      },
+      {
+        id: 'NFC_SYL003',
+        description: 'Tag porte-clés',
+        createdAt: '2024-01-15T12:00:00.000Z',
+        assignedTo: null,
+        assignedAt: null
+      }
+    ];
+    localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
+    console.log('Tags NFC de démonstration initialisés:', nfcTags.length);
+  }
+  
   render();
 
   function render() {
@@ -1694,7 +1818,10 @@ function renderAdminDashboard(user) {
       <div class="space-y-6">
         <div class="flex justify-between items-center">
           <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
-          <button id="refreshPatients" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
+          <div class="flex gap-2">
+            <button id="resetDemoData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.warning} Réinitialiser démo</button>
+            <button id="refreshPatients" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
+          </div>
         </div>
 
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
@@ -1935,20 +2062,46 @@ function renderAdminDashboard(user) {
 
   function setupPatientsEvents() {
     document.getElementById('refreshPatients')?.addEventListener('click', async () => {
-      // Recharger les patients depuis Firebase
+      // Recharger les patients depuis Firebase ou réinitialiser les données de démonstration
       try {
-        const snapshot = await db.collection('users').where('role', '==', 'patient').get();
-        const firebasePatients = [];
-        snapshot.forEach(doc => {
-          firebasePatients.push({ id: doc.id, ...doc.data() });
-        });
-        patients = firebasePatients;
-        localStorage.setItem('syl-patients', JSON.stringify(patients));
-        render();
-        SYLUtilities.showNotification('Patients actualisés', { body: `${patients.length} patients chargés` });
+        if (db && typeof db.collection === 'function') {
+          const snapshot = await db.collection('users').where('role', '==', 'patient').get();
+          const firebasePatients = [];
+          snapshot.forEach(doc => {
+            firebasePatients.push({ id: doc.id, ...doc.data() });
+          });
+          if (firebasePatients.length > 0) {
+            patients = firebasePatients;
+            localStorage.setItem('syl-patients', JSON.stringify(patients));
+            render();
+            SYLUtilities.showNotification('Patients actualisés depuis Firebase', { body: `${patients.length} patients chargés` });
+            return;
+          }
+        }
+        
+        // Fallback : réinitialiser avec des données de démonstration
+        localStorage.removeItem('syl-patients');
+        localStorage.removeItem('syl-nfc-tags');
+        alert('Données de démonstration réinitialisées ! Rechargez la page.');
+        location.reload();
+        
       } catch (error) {
         console.error('Erreur refresh patients:', error);
-        alert('Erreur lors de l\'actualisation des patients');
+        // En cas d'erreur, proposer de réinitialiser les données
+        if (confirm('Erreur Firebase. Voulez-vous réinitialiser avec des données de démonstration ?')) {
+          localStorage.removeItem('syl-patients');
+          localStorage.removeItem('syl-nfc-tags');
+          location.reload();
+        }
+      }
+    });
+
+    document.getElementById('resetDemoData')?.addEventListener('click', () => {
+      if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les données de démonstration ? Cette action supprimera tous les patients et tags NFC actuels.')) {
+        localStorage.removeItem('syl-patients');
+        localStorage.removeItem('syl-nfc-tags');
+        alert('Données supprimées ! Rechargement de la page...');
+        location.reload();
       }
     });
 
