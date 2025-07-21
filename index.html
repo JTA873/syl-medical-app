@@ -124,11 +124,15 @@ const adminAccounts = {
   'jadetaraf@hotmail.fr': 'ADMINTARAF'
 };
 
+// Variables Firebase globales
+let db, auth, googleProvider;
+
 // Initialiser Firebase
 try {
   firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-  const auth = firebase.auth();
+  db = firebase.firestore();
+  auth = firebase.auth();
+  googleProvider = new firebase.auth.GoogleAuthProvider();
   console.log("Firebase initialisé avec succès");
 } catch (error) {
   console.error("Erreur Firebase:", error);
@@ -142,9 +146,6 @@ try {
     </div>
   `;
 }
-
-// Configuration de l'authentification
-const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 const icons = {
   heart: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 21C12 21 7.5 16.5 4 12.5C1.5 9.5 3.5 5 8 5C10 5 12 7 12 7C12 7 14 5 16 5C20.5 5 22.5 9.5 20 12.5C16.5 16.5 12 21 12 21Z" stroke-width="2"/></svg>',
@@ -2676,6 +2677,7 @@ function renderApp() {
         renderAdminDashboard(localUser);
       } else {
         console.error("Rôle utilisateur inconnu:", localUser.role);
+        clearUser();
         showLogin();
       }
     } else {
@@ -2691,12 +2693,26 @@ function renderApp() {
 
 // Fonction de déconnexion mise à jour
 function logout() {
-  auth.signOut().then(() => {
+  try {
+    if (auth && typeof auth.signOut === 'function') {
+      auth.signOut().then(() => {
+        clearUser();
+        renderApp();
+      }).catch((error) => {
+        console.error('Erreur de déconnexion Firebase:', error);
+        clearUser();
+        renderApp();
+      });
+    } else {
+      // Déconnexion locale seulement
+      clearUser();
+      renderApp();
+    }
+  } catch (error) {
+    console.error('Erreur de déconnexion:', error);
     clearUser();
     renderApp();
-  }).catch((error) => {
-    console.error('Erreur de déconnexion:', error);
-  });
+  }
 }
 
 // Amélioration des performances - Debounce pour les sauvegardes
