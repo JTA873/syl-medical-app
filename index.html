@@ -3539,9 +3539,63 @@ function renderMedecinDashboard(user) {
 }
 
 // Fonction pour afficher la fiche médicale d'un patient via NFC
-function showPatientMedicalRecord(patientId) {
-  const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-  const patient = patients.find(p => (p.id || p.uid) === patientId);
+async function showPatientMedicalRecord(patientId) {
+  // D'abord essayer de récupérer depuis localStorage
+  let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  let patient = patients.find(p => (p.id || p.uid) === patientId);
+  
+  // Si pas trouvé localement, essayer de récupérer depuis Firebase
+  if (!patient && typeof firebase !== 'undefined' && firebase.firestore) {
+    console.log('🔍 Patient non trouvé localement, recherche dans Firebase...');
+    
+    // Afficher un indicateur de chargement
+    document.getElementById('app').innerHTML = `
+      <div class="min-h-screen bg-blue-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+          <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4 animate-pulse">
+            🔍
+          </div>
+          <h2 class="text-xl font-bold text-blue-600 mb-2">Recherche du patient...</h2>
+          <p class="text-gray-600 mb-4">Récupération des données médicales depuis la base de données</p>
+          <div class="animate-pulse bg-gray-200 h-2 rounded mb-4"></div>
+          <p class="text-sm text-gray-500">ID: ${patientId}</p>
+        </div>
+      </div>
+    `;
+    
+    try {
+      const db = firebase.firestore();
+      
+      // Chercher dans la collection users
+      const userDoc = await db.collection('users').doc(patientId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        console.log('👤 Données utilisateur trouvées dans Firebase');
+        
+        // Chercher les données médicales associées
+        const medicalDoc = await db.collection('patients').doc(patientId).get();
+        const medicalData = medicalDoc.exists ? medicalDoc.data() : {};
+        
+        // Fusionner les données
+        patient = {
+          id: patientId,
+          uid: patientId,
+          email: userData.email,
+          role: userData.role,
+          personalInfo: medicalData.personalInfo || userData.personalInfo || {},
+          medicalHistory: medicalData.medicalHistory || {},
+          emergencyInfo: medicalData.emergencyInfo || {},
+          isActive: userData.isActive !== false
+        };
+        
+        console.log('✅ Patient reconstitué depuis Firebase:', patient.personalInfo?.firstName, patient.personalInfo?.lastName);
+      } else {
+        console.log('❌ Patient non trouvé dans Firebase users');
+      }
+    } catch (error) {
+      console.error('Erreur Firebase lors de la recherche du patient:', error);
+    }
+  }
   
   if (!patient) {
     document.getElementById('app').innerHTML = `
@@ -3552,6 +3606,14 @@ function showPatientMedicalRecord(patientId) {
           </div>
           <h2 class="text-xl font-bold text-red-600 mb-2">Patient non trouvé</h2>
           <p class="text-gray-600 mb-4">L'ID patient "${patientId}" n'existe pas dans la base de données.</p>
+          <div class="text-sm text-gray-500 mb-4">
+            <p>Causes possibles :</p>
+            <ul class="text-left mt-2 space-y-1">
+              <li>• Tag NFC non synchronisé</li>
+              <li>• Patient supprimé de la base</li>
+              <li>• Problème de connexion réseau</li>
+            </ul>
+          </div>
           <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
             Retour à l'application
           </button>
@@ -3928,30 +3990,40 @@ class HealthChecker {
 
 // Initialisation améliorée
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialiser les systèmes
-  SYLAnalytics.init();
-  ReminderSystem.init();
-  HealthChecker.displayHealthStatus();
-  
-  // Vérifier si on est en mode accès d'urgence (URL avec paramètre NFC)
+  // PRIORITÉ ABSOLUE: Vérifier d'abord les modes d'accès d'urgence
   const urlParams = new URLSearchParams(window.location.search);
   const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
   const patientId = urlParams.get('patient');
   const accessType = urlParams.get('access');
   
+  // Mode accès fiche médicale patient (priorité absolue)
+  if (patientId && accessType === 'medical') {
+    console.log('🚑 MODE URGENCE: Accès fiche médicale patient détecté:', patientId);
+    
+    // Essayer immédiatement, puis avec délai si Firebase n'est pas prêt
+    showPatientMedicalRecord(patientId).catch(() => {
+      console.log('⏳ Première tentative échouée, attente Firebase...');
+      setTimeout(() => {
+        showPatientMedicalRecord(patientId);
+      }, 2000);
+    });
+    
+    return; // Arrêt complet pour éviter toute interférence
+  }
+  
+  // Mode accès NFC d'urgence
   if (nfcTagId) {
-    console.log('🚑 Mode accès d\'urgence détecté pour tag:', nfcTagId);
+    console.log('🚑 MODE URGENCE: Accès d\'urgence détecté pour tag:', nfcTagId);
     SYLUtilities.handleNFCAccess(nfcTagId).catch(error => {
       console.error('Erreur accès NFC:', error);
     });
     return; // Ne pas initialiser l'interface normale
   }
   
-  if (patientId && accessType === 'medical') {
-    console.log('📋 Mode accès fiche médicale patient détecté:', patientId);
-    showPatientMedicalRecord(patientId);
-    return; // Ne pas initialiser l'interface normale
-  }
+  // Initialiser les systèmes normaux seulement si pas en mode urgence
+  SYLAnalytics.init();
+  ReminderSystem.init();
+  HealthChecker.displayHealthStatus();
   
   // Écouter les événements NFC si supporté
   if ('NDEFReader' in window) {
