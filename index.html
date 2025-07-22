@@ -728,6 +728,13 @@ function showLogin() {
           <p>🏥 Conforme RGPD & HDS</p>
           <p>⚡ Synchronisation temps réel</p>
         </div>
+        
+        <!-- Bouton de suppression pour le développement -->
+        <div class="mt-4 pt-4 border-t border-gray-200">
+          <button id="deleteAllUsers" class="w-full bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg px-3 py-2 transition-colors">
+            🗑️ Supprimer tous les utilisateurs (Dev)
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -804,6 +811,11 @@ function showLogin() {
       return;
     }
     
+    if (!email.includes('@')) {
+      alert('Veuillez entrer une adresse email valide');
+      return;
+    }
+    
     try {
       showLoader();
       
@@ -813,14 +825,14 @@ function showLogin() {
           uid: 'admin_' + email.replace(/[^a-zA-Z0-9]/g, '_'),
           email: email,
           role: 'admin',
-          profile: {
+          personalInfo: {
             firstName: 'Admin',
             lastName: 'Système',
             phone: ''
           },
           createdAt: new Date().toISOString()
         };
-        saveUser(adminData);
+        setUser(adminData);
         hideLoader();
         renderApp();
         return;
@@ -832,13 +844,29 @@ function showLogin() {
     } catch (error) {
       hideLoader();
       console.error('Erreur de connexion:', error);
-      alert('Erreur de connexion: ' + getErrorMessage(error.code || 'unknown'));
+      
+      // Message d'erreur plus détaillé
+      let errorMessage = getErrorMessage(error.code || 'unknown');
+      if (error.code === 'auth/invalid-login-credentials') {
+        errorMessage += '\n\n💡 Suggestions :\n• Vérifiez votre email et mot de passe\n• Le compte existe-t-il ? Essayez de vous inscrire\n• Attendez quelques minutes si vous venez de créer le compte';
+      }
+      alert('Erreur de connexion: ' + errorMessage);
     }
   };
 
   document.getElementById('registerEmail').onclick = async () => {
-    const email = document.getElementById('email').value;
+    const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+    
+    if (!email || !password) {
+      alert('Veuillez remplir tous les champs');
+      return;
+    }
+    
+    if (!email.includes('@')) {
+      alert('Veuillez entrer une adresse email valide');
+      return;
+    }
     
     if (password.length < 6) {
       alert('Le mot de passe doit contenir au moins 6 caractères');
@@ -868,6 +896,15 @@ function showLogin() {
   // Mot de passe oublié
   document.getElementById('forgotPasswordBtn').onclick = () => {
     showForgotPassword();
+  };
+  
+  // Bouton de suppression de tous les utilisateurs (développement)
+  document.getElementById('deleteAllUsers').onclick = async () => {
+    if (confirm('⚠️ ATTENTION !\n\nCette action va supprimer TOUS les utilisateurs de Firebase Authentication et Firestore.\n\nÊtes-vous sûr de vouloir continuer ?')) {
+      if (confirm('🚨 DERNIÈRE CHANCE !\n\nToutes les données utilisateurs seront définitivement perdues.\n\nConfirmer la suppression ?')) {
+        await deleteAllUsers();
+      }
+    }
   };
 }
 
@@ -935,12 +972,169 @@ function getErrorMessage(errorCode) {
       return 'Mot de passe trop faible';
     case 'auth/invalid-email':
       return 'Email invalide';
+    case 'auth/invalid-login-credentials':
+      return 'Identifiants de connexion invalides. Vérifiez votre email et mot de passe.';
     case 'auth/too-many-requests':
       return 'Trop de tentatives, réessayez plus tard';
     case 'unknown':
       return 'Erreur de connexion inconnue';
     default:
       return errorCode || 'Erreur de connexion';
+  }
+}
+
+// Fonction pour vérifier si Firestore est prêt
+async function checkFirestoreStatus() {
+  if (typeof firebase === 'undefined' || !firebase.firestore) {
+    console.log('❌ Firebase non disponible');
+    return false;
+  }
+  
+  try {
+    const db = firebase.firestore();
+    
+    // Test simple pour vérifier si Firestore répond
+    const testRef = db.collection('_test').doc('_ping');
+    await testRef.set({ timestamp: new Date(), test: true });
+    await testRef.delete();
+    
+    console.log('✅ Firestore opérationnel');
+    return true;
+  } catch (error) {
+    console.log('⚠️ Firestore non disponible:', error.message);
+    
+    // Messages spécifiques selon le type d'erreur
+    if (error.message?.includes('Database ID')) {
+      console.log('ℹ️ Database en cours de création - attendre quelques minutes');
+    } else if (error.message?.includes('PERMISSION_DENIED')) {
+      console.log('ℹ️ Database existe mais règles de sécurité à configurer');
+    }
+    
+    return false;
+  }
+}
+
+// Fonction pour attendre que Firestore soit prêt
+async function waitForFirestore(maxWaitTime = 30000) {
+  const startTime = Date.now();
+  let attempts = 0;
+  
+  console.log('⏳ Attente de Firestore...');
+  
+  while (Date.now() - startTime < maxWaitTime) {
+    attempts++;
+    
+    if (await checkFirestoreStatus()) {
+      console.log(`✅ Firestore prêt après ${attempts} tentatives (${Date.now() - startTime}ms)`);
+      return true;
+    }
+    
+    // Attendre 2 secondes avant la prochaine tentative
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  console.log(`❌ Timeout: Firestore non disponible après ${maxWaitTime}ms`);
+  return false;
+}
+
+// Fonction pour supprimer tous les utilisateurs (développement uniquement)
+async function deleteAllUsers() {
+  try {
+    showLoader();
+    
+    console.log('🗑️ Début de la suppression de tous les utilisateurs...');
+    
+    // Supprimer les données locales
+    localStorage.clear();
+    console.log('✅ Données locales supprimées');
+    
+    // Supprimer les collections Firestore si Firebase est disponible
+    if (typeof firebase !== 'undefined' && firebase.firestore) {
+      try {
+        const db = firebase.firestore();
+        
+        // ⚠️ ATTENTION: Ne supprime que les DOCUMENTS, pas la base entière
+        // Cela évite le délai de 274 secondes pour recréer Firestore
+        const collections = ['users', 'patients', 'emergency_access', 'nfc_tags', 'analytics'];
+        
+        for (const collectionName of collections) {
+          console.log(`🗑️ Suppression des documents de la collection ${collectionName}...`);
+          
+          try {
+            const snapshot = await db.collection(collectionName).get();
+            const batch = db.batch();
+            
+            snapshot.docs.forEach((doc) => {
+              batch.delete(doc.ref);
+            });
+            
+            if (snapshot.docs.length > 0) {
+              await batch.commit();
+              console.log(`✅ Documents supprimés de ${collectionName} (${snapshot.docs.length} documents)`);
+            } else {
+              console.log(`ℹ️ Collection ${collectionName} déjà vide`);
+            }
+          } catch (collectionError) {
+            console.log(`⚠️ Erreur sur collection ${collectionName}:`, collectionError.message);
+            // Continuer avec les autres collections
+          }
+        }
+        
+        console.log('✅ Toutes les collections Firestore vidées (structure conservée)');
+        
+      } catch (firestoreError) {
+        console.error('❌ Erreur lors de la suppression Firestore:', firestoreError);
+        
+        // Afficher un message spécifique si Firestore n'est pas encore prêt
+        if (firestoreError.message?.includes('Database ID') || firestoreError.message?.includes('not available')) {
+          console.log('⏳ Firestore en cours de recréation - Suppression locale uniquement');
+        }
+      }
+    } else {
+      console.log('ℹ️ Firebase non disponible - Suppression locale uniquement');
+    }
+    
+    // Déconnecter l'utilisateur actuel s'il y en a un
+    try {
+      if (firebase.auth().currentUser) {
+        await firebase.auth().signOut();
+        console.log('✅ Utilisateur déconnecté');
+      }
+    } catch (authError) {
+      console.log('ℹ️ Pas d\'utilisateur connecté ou erreur de déconnexion');
+    }
+    
+    hideLoader();
+    
+    // Afficher la confirmation
+    document.getElementById('app').innerHTML = `
+      <div class="min-h-screen bg-green-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl p-8 max-w-md w-full mx-4 text-center">
+          <div class="w-20 h-20 bg-green-600 rounded-full mx-auto flex items-center justify-center text-white text-3xl mb-6">
+            ✅
+          </div>
+          <h1 class="text-2xl font-bold text-gray-900 mb-4">Suppression terminée</h1>
+          <p class="text-gray-600 mb-6">
+            Toutes les données utilisateurs locales ont été supprimées.
+          </p>
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p class="text-sm text-blue-800">
+              💡 <strong>Note :</strong> Les collections Firestore ont été vidées mais la structure est conservée pour éviter les délais de recréation.
+            </p>
+          </div>
+          <button onclick="showLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3 transition-colors">
+            Retour à la connexion
+          </button>
+        </div>
+      </div>
+    `;
+    
+    console.log('🎉 Suppression complète terminée');
+    
+  } catch (error) {
+    hideLoader();
+    console.error('❌ Erreur lors de la suppression:', error);
+    alert('Erreur lors de la suppression: ' + error.message);
   }
 }
 
@@ -958,6 +1152,22 @@ function showDetailedRegistration(email, password, role) {
         </div>
         
         <form id="detailedRegistrationForm" class="space-y-6">
+          <!-- Informations de connexion -->
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 class="text-lg font-semibold text-gray-800 mb-3">Informations de connexion</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                <input type="email" id="regEmail" required value="${email}" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Mot de passe *</label>
+                <input type="password" id="regPassword" required value="${password}" readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Informations personnelles -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Prénom *</label>
@@ -1131,6 +1341,17 @@ function setupDetailedRegistrationEvents(email, password, role) {
 // Fonction pour sauvegarder l'utilisateur dans Firestore avec création automatique des collections
 async function saveUserToFirestore(userData) {
   try {
+    // Vérifier si Firestore est disponible
+    console.log('🔄 Vérification de la disponibilité de Firestore...');
+    
+    if (!await checkFirestoreStatus()) {
+      console.log('⏳ Firestore non disponible, tentative d\'attente...');
+      
+      if (!await waitForFirestore(10000)) {
+        throw new Error('Firestore non disponible. Votre compte a été créé localement. Essayez de vous reconnecter dans quelques minutes.');
+      }
+    }
+    
     const db = firebase.firestore();
     
     // Sauvegarder dans la collection users
@@ -1186,6 +1407,14 @@ async function saveUserToFirestore(userData) {
     
   } catch (error) {
     console.error('❌ Erreur lors de la sauvegarde Firestore:', error);
+    
+    // Messages d'erreur plus spécifiques
+    if (error.message?.includes('Database ID')) {
+      throw new Error('Base de données en cours de création. Veuillez patienter quelques minutes puis réessayer.');
+    } else if (error.message?.includes('PERMISSION_DENIED')) {
+      throw new Error('Problème de permissions. Veuillez contacter l\'administrateur.');
+    }
+    
     throw error;
   }
 }
