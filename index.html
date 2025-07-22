@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -122,13 +123,6 @@ const firebaseConfig = {
 // Comptes admin prédéfinis
 const adminAccounts = {
   'jadetaraf@hotmail.fr': 'ADMINTARAF'
-};
-
-// Types d'utilisateurs
-const USER_TYPES = {
-  ADMIN: 'admin',
-  PATIENT: 'patient',
-  ANONYMOUS: 'anonymous'
 };
 
 // Variables Firebase globales
@@ -460,156 +454,64 @@ class SYLUtilities {
     URL.revokeObjectURL(url);
   }
   
-  
   // API NFC pour l'accès d'urgence
   static async handleNFCAccess(tagId) {
     try {
       const nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
+      const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
       
       const tag = nfcTags.find(t => t.id === tagId);
-      if (!tag || !tag.patientId) {
+      if (!tag || !tag.assignedTo) {
         throw new Error('Tag NFC non reconnu ou non assigné');
       }
       
-      // Récupérer les données du patient depuis Firebase
-      const patientDoc = await db.collection('patients').doc(tag.patientId).get();
-      if (!patientDoc.exists) {
+      const patient = patients.find(p => (p.id || p.uid) === tag.assignedTo);
+      if (!patient) {
         throw new Error('Patient non trouvé pour ce tag');
       }
       
-      const patientData = patientDoc.data();
+      // Récupérer les données médicales complètes depuis Firebase si possible
+      let medicalData = null;
+      try {
+        const doc = await db.collection('patients').doc(tag.assignedTo + '_medical').get();
+        if (doc.exists) {
+          medicalData = doc.data();
+        }
+      } catch (error) {
+        console.warn('Impossible de récupérer les données Firebase, utilisation des données locales');
+      }
       
-      // Afficher l'interface d'urgence en mode anonyme
-      this.displayAnonymousEmergencyInterface(patientData, tagId);
+      // Fallback sur les données du patient si pas de données médicales
+      if (!medicalData && patient.medicalHistory) {
+        medicalData = {
+          personalInfo: patient.personalInfo,
+          medicalHistory: patient.medicalHistory,
+          emergencyInfo: patient.emergencyInfo
+        };
+      }
       
-      // Logger l'accès anonyme
-      await db.collection('emergency_access_logs').add({
-        patientId: tag.patientId,
-        tagId: tagId,
-        accessTime: new Date(),
-        accessType: 'nfc_anonymous'
+      if (!medicalData) {
+        throw new Error('Aucune donnée médicale disponible pour ce patient');
+      }
+      
+      // Afficher l'interface d'urgence
+      this.displayEmergencyInterface(medicalData, tagId);
+      
+      // Logger l'accès
+      SYLAnalytics.trackEvent('nfc_emergency_access', { 
+        tagId, 
+        patientId: tag.assignedTo,
+        timestamp: new Date().toISOString()
       });
       
-      return patientData;
-      
+      return medicalData;
     } catch (error) {
       console.error('Erreur accès NFC:', error);
+      this.displayErrorInterface(error.message);
       throw error;
     }
   }
   
-  // Interface d'urgence anonyme
-  static displayAnonymousEmergencyInterface(patientData, tagId) {
-    const emergencyHTML = `
-      <div class="min-h-screen bg-red-50 p-4">
-        <div class="max-w-4xl mx-auto">
-          <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div class="bg-red-600 text-white p-6 text-center">
-              <h1 class="text-3xl font-bold mb-2">${icons.emergency} FICHE MÉDICALE D'URGENCE</h1>
-              <p class="text-xl">${patientData.personalInfo.firstName} ${patientData.personalInfo.lastName}</p>
-              <p class="text-sm opacity-90">Accès via NFC • ${new Date().toLocaleString('fr-FR')}</p>
-            </div>
-            
-            <div class="p-6 space-y-6">
-              <!-- Informations critiques -->
-              <div class="emergency-card p-4 rounded-lg bg-red-50">
-                <h2 class="text-xl font-bold text-red-700 mb-3 flex items-center">
-                  ${icons.alert} INFORMATIONS CRITIQUES
-                </h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span class="font-semibold text-gray-700">Groupe sanguin:</span>
-                    <span class="ml-2 text-red-600 font-bold text-lg">${patientData.personalInfo.bloodType || 'Non renseigné'}</span>
-                  </div>
-                  <div>
-                    <span class="font-semibold text-gray-700">Âge:</span>
-                    <span class="ml-2 text-gray-900">${patientData.personalInfo.age || 'Non renseigné'} ans</span>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Allergies -->
-              <div class="border-l-4 border-orange-500 pl-4">
-                <h3 class="text-lg font-semibold text-orange-700 mb-2">${icons.warning} ALLERGIES</h3>
-                <div class="text-gray-700">
-                  ${patientData.medicalHistory.allergies.length > 0 ? 
-                    patientData.medicalHistory.allergies.map(allergy => 
-                      `<span class="inline-block bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm mr-2 mb-1">${allergy}</span>`
-                    ).join('') : 
-                    '<span class="text-green-600">Aucune allergie connue</span>'
-                  }
-                </div>
-              </div>
-              
-              <!-- Conditions médicales -->
-              <div class="border-l-4 border-blue-500 pl-4">
-                <h3 class="text-lg font-semibold text-blue-700 mb-2">${icons.medical} CONDITIONS MÉDICALES</h3>
-                <div class="text-gray-700">
-                  ${patientData.medicalHistory.chronicDiseases.length > 0 ? 
-                    patientData.medicalHistory.chronicDiseases.map(condition => 
-                      `<span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2 mb-1">${condition}</span>`
-                    ).join('') : 
-                    '<span class="text-green-600">Aucune condition chronique</span>'
-                  }
-                </div>
-              </div>
-              
-              <!-- Médicaments -->
-              <div class="border-l-4 border-purple-500 pl-4">
-                <h3 class="text-lg font-semibold text-purple-700 mb-2">${icons.cross} MÉDICAMENTS ACTUELS</h3>
-                <div class="text-gray-700">
-                  ${patientData.medicalHistory.medications.length > 0 ? 
-                    patientData.medicalHistory.medications.map(med => 
-                      `<span class="inline-block bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm mr-2 mb-1">${med}</span>`
-                    ).join('') : 
-                    '<span class="text-green-600">Aucun médicament</span>'
-                  }
-                </div>
-              </div>
-              
-              <!-- Contact d'urgence -->
-              <div class="border-l-4 border-green-500 pl-4">
-                <h3 class="text-lg font-semibold text-green-700 mb-2">${icons.phone} CONTACT D'URGENCE</h3>
-                <div class="text-gray-700">
-                  <p><strong>${patientData.personalInfo.emergencyContact.name}</strong> (${patientData.personalInfo.emergencyContact.relation})</p>
-                  <p class="text-lg font-semibold text-green-600">${patientData.personalInfo.emergencyContact.phone}</p>
-                </div>
-              </div>
-              
-              ${patientData.emergencyInfo && patientData.emergencyInfo.criticalNotes ? `
-              <div class="border-l-4 border-red-500 pl-4 bg-red-50 p-4 rounded">
-                <h3 class="text-lg font-semibold text-red-700 mb-2">${icons.fire} NOTES CRITIQUES</h3>
-                <p class="text-red-700 font-medium">${patientData.emergencyInfo.criticalNotes}</p>
-              </div>
-              ` : ''}
-              
-              <!-- Actions d'urgence -->
-              <div class="flex flex-col sm:flex-row gap-4 pt-4">
-                <button onclick="window.location.href='tel:15'" class="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors">
-                  ${icons.phone} Appeler le SAMU (15)
-                </button>
-                <button onclick="window.location.href='tel:18'" class="flex-1 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 transition-colors">
-                  ${icons.fire} Appeler Pompiers (18)
-                </button>
-                <button onclick="window.location.href='tel:112'" class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-                  ${icons.emergency} Urgences (112)
-                </button>
-              </div>
-            </div>
-            
-            <div class="bg-gray-100 px-6 py-4 text-center text-sm text-gray-600">
-              <p>Cette fiche a été générée automatiquement via NFC • SYL Medical</p>
-              <p class="mt-1">En cas d'urgence vitale, contactez immédiatement les services d'urgence</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    document.getElementById('app').innerHTML = emergencyHTML;
-  }
-  
-  // Interface d'urgence pour admin/médecin
   static displayEmergencyInterface(medicalData, tagId) {
     // Créer une interface d'urgence en plein écran
     const emergencyInterface = document.createElement('div');
@@ -741,1047 +643,6 @@ if (typeof window !== 'undefined') {
   SYLUtilities.requestNotificationPermission();
 }
 
-// Formulaire d'inscription patient détaillé
-function showPatientRegistration() {
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-4">
-      <div class="max-w-2xl mx-auto">
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-          <div class="text-center mb-8">
-            <div class="mx-auto w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center mb-4">
-              ${icons.userPlus}
-            </div>
-            <h1 class="text-2xl font-bold text-gray-900">Inscription Patient</h1>
-            <p class="text-gray-600 mt-2">Créez votre compte médical sécurisé</p>
-          </div>
-
-          <form id="patientRegistrationForm" class="space-y-6">
-            <!-- Informations de compte -->
-            <div class="bg-blue-50 p-4 rounded-lg">
-              <h3 class="text-lg font-semibold text-blue-800 mb-4">${icons.lock} Informations de connexion</h3>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input type="email" id="regEmail" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                    placeholder="votre@email.com"/>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe *</label>
-                  <input type="password" id="regPassword" required minlength="6"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                    placeholder="••••••••"/>
-                </div>
-              </div>
-            </div>
-
-            <!-- Informations personnelles -->
-            <div class="bg-green-50 p-4 rounded-lg">
-              <h3 class="text-lg font-semibold text-green-800 mb-4">${icons.user} Informations personnelles</h3>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Prénom *</label>
-                  <input type="text" id="regFirstName" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"/>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
-                  <input type="text" id="regLastName" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"/>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Date de naissance *</label>
-                  <input type="date" id="regDateOfBirth" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"/>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
-                  <input type="tel" id="regPhone" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    placeholder="06 12 34 56 78"/>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Groupe sanguin</label>
-                  <select id="regBloodType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-                    <option value="">Sélectionner</option>
-                    ${MEDICAL_DATA.bloodTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Sexe</label>
-                  <select id="regGender" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-                    <option value="">Sélectionner</option>
-                    <option value="M">Masculin</option>
-                    <option value="F">Féminin</option>
-                    <option value="O">Autre</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <!-- Contact d'urgence -->
-            <div class="bg-orange-50 p-4 rounded-lg">
-              <h3 class="text-lg font-semibold text-orange-800 mb-4">${icons.phone} Contact d'urgence</h3>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Nom complet *</label>
-                  <input type="text" id="regEmergencyName" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"/>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Relation *</label>
-                  <select id="regEmergencyRelation" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500">
-                    <option value="">Sélectionner</option>
-                    <option value="Conjoint(e)">Conjoint(e)</option>
-                    <option value="Parent">Parent</option>
-                    <option value="Enfant">Enfant</option>
-                    <option value="Frère/Sœur">Frère/Sœur</option>
-                    <option value="Ami(e)">Ami(e)</option>
-                    <option value="Autre">Autre</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
-                  <input type="tel" id="regEmergencyPhone" required 
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    placeholder="06 12 34 56 78"/>
-                </div>
-              </div>
-            </div>
-
-            <!-- Consentements -->
-            <div class="bg-purple-50 p-4 rounded-lg">
-              <h3 class="text-lg font-semibold text-purple-800 mb-4">${icons.shield} Consentements et confidentialité</h3>
-              <div class="space-y-3">
-                <label class="flex items-start space-x-3">
-                  <input type="checkbox" id="consentMedical" required 
-                    class="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"/>
-                  <span class="text-sm text-gray-700">
-                    <strong>J'accepte</strong> que mes données médicales soient stockées de manière sécurisée et chiffrée 
-                    pour permettre un accès d'urgence par les professionnels de santé. *
-                  </span>
-                </label>
-                <label class="flex items-start space-x-3">
-                  <input type="checkbox" id="consentEmergency" required 
-                    class="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"/>
-                  <span class="text-sm text-gray-700">
-                    <strong>J'autorise</strong> l'accès anonyme à mes informations médicales critiques 
-                    via tag NFC en cas d'urgence vitale. *
-                  </span>
-                </label>
-                <label class="flex items-start space-x-3">
-                  <input type="checkbox" id="consentRGPD" required 
-                    class="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"/>
-                  <span class="text-sm text-gray-700">
-                    <strong>J'ai lu et j'accepte</strong> les conditions d'utilisation et la politique de confidentialité 
-                    conforme au RGPD. *
-                  </span>
-                </label>
-                <label class="flex items-start space-x-3">
-                  <input type="checkbox" id="consentNotifications" 
-                    class="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"/>
-                  <span class="text-sm text-gray-700">
-                    J'accepte de recevoir des notifications pour la gestion de mon dossier médical.
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Boutons d'action -->
-            <div class="flex flex-col sm:flex-row gap-4">
-              <button type="button" onclick="showLogin()" 
-                class="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-                ${icons.arrow} Retour à la connexion
-              </button>
-              <button type="submit" 
-                class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                ${icons.userPlus} Créer mon compte patient
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Gestionnaire de soumission du formulaire
-  document.getElementById('patientRegistrationForm').onsubmit = async (e) => {
-    e.preventDefault();
-    
-    const formData = {
-      email: document.getElementById('regEmail').value.trim(),
-      password: document.getElementById('regPassword').value,
-      firstName: document.getElementById('regFirstName').value.trim(),
-      lastName: document.getElementById('regLastName').value.trim(),
-      dateOfBirth: document.getElementById('regDateOfBirth').value,
-      phone: document.getElementById('regPhone').value.trim(),
-      bloodType: document.getElementById('regBloodType').value,
-      gender: document.getElementById('regGender').value,
-      emergencyContact: {
-        name: document.getElementById('regEmergencyName').value.trim(),
-        relation: document.getElementById('regEmergencyRelation').value,
-        phone: document.getElementById('regEmergencyPhone').value.trim()
-      },
-      consents: {
-        medical: document.getElementById('consentMedical').checked,
-        emergency: document.getElementById('consentEmergency').checked,
-        rgpd: document.getElementById('consentRGPD').checked,
-        notifications: document.getElementById('consentNotifications').checked
-      }
-    };
-
-    // Validation
-    if (!formData.consents.medical || !formData.consents.emergency || !formData.consents.rgpd) {
-      alert('Veuillez accepter tous les consentements obligatoires (*)');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      alert('Le mot de passe doit contenir au moins 6 caractères');
-      return;
-    }
-
-    try {
-      showLoader();
-      
-      // Créer le compte Firebase
-      const userCredential = await auth.createUserWithEmailAndPassword(formData.email, formData.password);
-      const firebaseUser = userCredential.user;
-      
-      // Calculer l'âge
-      const birthDate = new Date(formData.dateOfBirth);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear() - 
-        (today < new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate()) ? 1 : 0);
-
-      // Créer le profil patient complet
-      const patientData = {
-        uid: firebaseUser.uid,
-        email: formData.email,
-        role: USER_TYPES.PATIENT,
-        personalInfo: {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          dateOfBirth: formData.dateOfBirth,
-          age: age,
-          phone: formData.phone,
-          bloodType: formData.bloodType,
-          gender: formData.gender,
-          emergencyContact: formData.emergencyContact
-        },
-        medicalHistory: {
-          allergies: [],
-          chronicDiseases: [],
-          medications: [],
-          surgeries: [],
-          vaccinations: []
-        },
-        emergencyInfo: {
-          criticalNotes: '',
-          medicalDevices: [],
-          disabilities: []
-        },
-        consents: formData.consents,
-        createdAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      };
-
-      // Sauvegarder dans Firebase
-      await db.collection('patients').doc(firebaseUser.uid).set(patientData);
-      
-      // Sauvegarder localement
-      saveUser(patientData);
-      
-      hideLoader();
-      
-      // Afficher message de succès et rediriger vers dashboard
-      alert('✅ Compte patient créé avec succès ! Vous allez être redirigé vers votre tableau de bord.');
-      showPatientDashboard();
-      
-    } catch (error) {
-      hideLoader();
-      console.error('Erreur inscription patient:', error);
-      
-      let errorMessage = 'Erreur lors de la création du compte';
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'Cette adresse email est déjà utilisée';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Le mot de passe est trop faible';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Adresse email invalide';
-      }
-      
-      alert('❌ ' + errorMessage);
-    }
-  };
-}
-
-// Dashboard patient
-function showPatientDashboard() {
-  const user = getUser();
-  if (!user || user.role !== USER_TYPES.PATIENT) {
-    showLogin();
-    return;
-  }
-
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gray-50">
-      <!-- Header -->
-      <header class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between items-center h-16">
-            <div class="flex items-center">
-              <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mr-3">
-                ${icons.heart}
-              </div>
-              <div>
-                <h1 class="text-xl font-semibold text-gray-900">SYL Medical</h1>
-                <p class="text-sm text-gray-500">Dashboard Patient</p>
-              </div>
-            </div>
-            <div class="flex items-center space-x-4">
-              <div class="text-right">
-                <p class="text-sm font-medium text-gray-900">${user.personalInfo.firstName} ${user.personalInfo.lastName}</p>
-                <p class="text-xs text-gray-500">${user.email}</p>
-              </div>
-              <button onclick="logout()" class="text-gray-500 hover:text-red-600">
-                ${icons.logout}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <!-- Navigation -->
-      <nav class="bg-white border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex space-x-8" id="patientTabs">
-            <button class="py-4 px-1 border-b-2 border-blue-500 text-blue-600 font-medium text-sm" data-tab="overview">
-              ${icons.activity} Vue d'ensemble
-            </button>
-            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="medical">
-              ${icons.medical} Données médicales
-            </button>
-            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="nfc">
-              ${icons.smartphone} Gestion NFC
-            </button>
-            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="emergency">
-              ${icons.emergency} Fiche d'urgence
-            </button>
-            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="profile">
-              ${icons.settings} Profil
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      <!-- Contenu principal -->
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div id="patientContent">
-          <!-- Le contenu sera chargé ici selon l'onglet sélectionné -->
-        </div>
-      </main>
-    </div>
-
-    <!-- Chat flottant d'assistance -->
-    <div id="chatBot" class="fixed bottom-6 right-6 z-50">
-      <button id="chatToggle" class="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition-all duration-200 transform hover:scale-105">
-        ${icons.medical}
-      </button>
-      <div id="chatWindow" class="hidden absolute bottom-16 right-0 w-80 h-96 bg-white rounded-lg shadow-xl border border-gray-200">
-        <div class="bg-blue-600 text-white p-4 rounded-t-lg">
-          <h3 class="font-semibold">Assistant SYL Medical</h3>
-          <p class="text-sm opacity-90">Je vous aide à compléter vos données</p>
-        </div>
-        <div id="chatMessages" class="p-4 h-64 overflow-y-auto">
-          <div class="text-sm text-gray-600 mb-4">
-            👋 Bonjour ! Je suis votre assistant virtuel. Je peux vous aider à :
-            <ul class="mt-2 space-y-1 text-xs">
-              <li>• Compléter vos informations médicales</li>
-              <li>• Configurer votre tag NFC</li>
-              <li>• Comprendre les fonctionnalités</li>
-              <li>• Répondre à vos questions</li>
-            </ul>
-          </div>
-        </div>
-        <div class="p-4 border-t">
-          <div class="flex space-x-2">
-            <input type="text" id="chatInput" placeholder="Posez votre question..." 
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"/>
-            <button id="chatSend" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-              ${icons.arrow}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Initialisation des onglets
-  initPatientTabs();
-  
-  // Initialisation du chat
-  initChatBot();
-  
-  // Charger la vue d'ensemble par défaut
-  showPatientOverview();
-}
-
-// Fonctions du dashboard patient
-function initPatientTabs() {
-  const tabs = document.querySelectorAll('#patientTabs button');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      // Reset tous les onglets
-      tabs.forEach(t => {
-        t.classList.remove('border-blue-500', 'text-blue-600');
-        t.classList.add('border-transparent', 'text-gray-500');
-      });
-      
-      // Activer l'onglet cliqué
-      tab.classList.remove('border-transparent', 'text-gray-500');
-      tab.classList.add('border-blue-500', 'text-blue-600');
-      
-      // Charger le contenu correspondant
-      const tabName = tab.getAttribute('data-tab');
-      switch(tabName) {
-        case 'overview':
-          showPatientOverview();
-          break;
-        case 'medical':
-          showPatientMedical();
-          break;
-        case 'nfc':
-          showPatientNFC();
-          break;
-        case 'emergency':
-          showPatientEmergency();
-          break;
-        case 'profile':
-          showPatientProfile();
-          break;
-      }
-    });
-  });
-}
-
-function showPatientOverview() {
-  const user = getUser();
-  const content = document.getElementById('patientContent');
-  
-  content.innerHTML = `
-    <div class="space-y-6">
-      <!-- Résumé rapide -->
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">👋 Bienvenue, ${user.personalInfo.firstName}</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="bg-blue-50 p-4 rounded-lg">
-            <div class="flex items-center">
-              <div class="text-blue-600 text-2xl mr-3">${icons.user}</div>
-              <div>
-                <p class="text-sm text-gray-600">Profil complété</p>
-                <p class="text-lg font-semibold">${calculateProfileCompletion(user)}%</p>
-              </div>
-            </div>
-          </div>
-          <div class="bg-green-50 p-4 rounded-lg">
-            <div class="flex items-center">
-              <div class="text-green-600 text-2xl mr-3">${icons.shield}</div>
-              <div>
-                <p class="text-sm text-gray-600">Tag NFC</p>
-                <p class="text-lg font-semibold">${user.nfcTags ? 'Configuré' : 'Non configuré'}</p>
-              </div>
-            </div>
-          </div>
-          <div class="bg-orange-50 p-4 rounded-lg">
-            <div class="flex items-center">
-              <div class="text-orange-600 text-2xl mr-3">${icons.emergency}</div>
-              <div>
-                <p class="text-sm text-gray-600">Fiche d'urgence</p>
-                <p class="text-lg font-semibold">${user.medicalHistory ? 'Prête' : 'À compléter'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Actions rapides -->
-      <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button onclick="document.querySelector('[data-tab=medical]').click()" 
-            class="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
-            <div class="text-blue-600 text-xl mb-2">${icons.medical}</div>
-            <p class="text-sm font-medium">Mes données médicales</p>
-          </button>
-          <button onclick="document.querySelector('[data-tab=nfc]').click()" 
-            class="p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors">
-            <div class="text-green-600 text-xl mb-2">${icons.smartphone}</div>
-            <p class="text-sm font-medium">Configurer NFC</p>
-          </button>
-          <button onclick="document.querySelector('[data-tab=emergency]').click()" 
-            class="p-4 border border-gray-200 rounded-lg hover:border-red-500 hover:bg-red-50 transition-colors">
-            <div class="text-red-600 text-xl mb-2">${icons.emergency}</div>
-            <p class="text-sm font-medium">Fiche d'urgence</p>
-          </button>
-          <button onclick="document.querySelector('[data-tab=profile]').click()" 
-            class="p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
-            <div class="text-purple-600 text-xl mb-2">${icons.settings}</div>
-            <p class="text-sm font-medium">Mon profil</p>
-          </button>
-        </div>
-      </div>
-
-      <!-- Informations importantes -->
-      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-        <div class="flex">
-          <div class="flex-shrink-0">
-            <div class="text-yellow-400 text-xl">${icons.warning}</div>
-          </div>
-          <div class="ml-3">
-            <h3 class="text-sm font-medium text-yellow-800">Important</h3>
-            <div class="mt-2 text-sm text-yellow-700">
-              <ul class="list-disc pl-5 space-y-1">
-                <li>Complétez vos données médicales pour une meilleure prise en charge d'urgence</li>
-                <li>Configurez votre tag NFC pour un accès rapide en cas d'urgence</li>
-                <li>Vérifiez régulièrement vos informations de contact d'urgence</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function showPatientMedical() {
-  const user = getUser();
-  const content = document.getElementById('patientContent');
-  
-  content.innerHTML = `
-    <div class="space-y-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-6">Mes données médicales</h2>
-        
-        <!-- Allergies -->
-        <div class="mb-8">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">${icons.warning} Allergies</h3>
-          <div class="space-y-3">
-            <div class="flex flex-wrap gap-2" id="allergiesList">
-              ${(user.medicalHistory?.allergies || []).map(allergy => 
-                `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm">
-                  ${allergy} 
-                  <button onclick="removeAllergy('${allergy}')" class="ml-2 text-red-600 hover:text-red-800">×</button>
-                </span>`
-              ).join('')}
-            </div>
-            <div class="flex space-x-2">
-              <select id="allergySelect" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg">
-                <option value="">Sélectionner une allergie</option>
-                ${MEDICAL_DATA.commonAllergies.map(allergy => 
-                  `<option value="${allergy}">${allergy}</option>`
-                ).join('')}
-              </select>
-              <button onclick="addAllergy()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                ${icons.plus} Ajouter
-              </button>
-            </div>
-            <input type="text" id="customAllergy" placeholder="Autre allergie..." 
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-          </div>
-        </div>
-
-        <!-- Conditions chroniques -->
-        <div class="mb-8">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">${icons.medical} Conditions chroniques</h3>
-          <div class="space-y-3">
-            <div class="flex flex-wrap gap-2" id="conditionsList">
-              ${(user.medicalHistory?.chronicDiseases || []).map(condition => 
-                `<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                  ${condition} 
-                  <button onclick="removeCondition('${condition}')" class="ml-2 text-blue-600 hover:text-blue-800">×</button>
-                </span>`
-              ).join('')}
-            </div>
-            <div class="flex space-x-2">
-              <select id="conditionSelect" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg">
-                <option value="">Sélectionner une condition</option>
-                ${MEDICAL_DATA.chronicConditions.map(condition => 
-                  `<option value="${condition}">${condition}</option>`
-                ).join('')}
-              </select>
-              <button onclick="addCondition()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                ${icons.plus} Ajouter
-              </button>
-            </div>
-            <input type="text" id="customCondition" placeholder="Autre condition..." 
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-          </div>
-        </div>
-
-        <!-- Médicaments -->
-        <div class="mb-8">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">${icons.cross} Médicaments actuels</h3>
-          <div class="space-y-3">
-            <div class="flex flex-wrap gap-2" id="medicationsList">
-              ${(user.medicalHistory?.medications || []).map(medication => 
-                `<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                  ${medication} 
-                  <button onclick="removeMedication('${medication}')" class="ml-2 text-green-600 hover:text-green-800">×</button>
-                </span>`
-              ).join('')}
-            </div>
-            <div class="flex space-x-2">
-              <input type="text" id="medicationInput" placeholder="Nom du médicament et dosage..." 
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg">
-              <button onclick="addMedication()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                ${icons.plus} Ajouter
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Notes critiques -->
-        <div class="mb-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">${icons.emergency} Notes critiques pour les secours</h3>
-          <textarea id="criticalNotes" rows="4" 
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            placeholder="Informations importantes pour les professionnels de santé en cas d'urgence...">${user.emergencyInfo?.criticalNotes || ''}</textarea>
-        </div>
-
-        <div class="flex space-x-4">
-          <button onclick="saveMedicalData()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
-            ${icons.check} Sauvegarder
-          </button>
-          <button onclick="exportMedicalPDF()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            ${icons.download} Exporter PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function showPatientNFC() {
-  const user = getUser();
-  const content = document.getElementById('patientContent');
-  
-  content.innerHTML = `
-    <div class="space-y-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-6">Gestion des tags NFC</h2>
-        
-        <!-- Statut actuel -->
-        <div class="mb-6">
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 class="text-lg font-medium text-blue-900 mb-2">État de votre tag NFC</h3>
-            <div id="nfcStatus">
-              ${user.nfcTags ? 
-                `<p class="text-green-600">✅ Tag NFC configuré et actif</p>
-                 <p class="text-sm text-gray-600">ID: ${user.nfcTags[0]?.id}</p>` :
-                `<p class="text-orange-600">⚠️ Aucun tag NFC configuré</p>`
-              }
-            </div>
-          </div>
-        </div>
-
-        <!-- Configuration d'un nouveau tag -->
-        <div class="mb-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">Configurer un nouveau tag NFC</h3>
-          <div class="space-y-4">
-            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <h4 class="font-medium text-yellow-800 mb-2">Instructions</h4>
-              <ol class="text-sm text-yellow-700 space-y-1">
-                <li>1. Procurez-vous un tag NFC vierge (recommandé: NTAG213/215/216)</li>
-                <li>2. Cliquez sur "Préparer le tag" ci-dessous</li>
-                <li>3. Approchez votre tag NFC de votre téléphone</li>
-                <li>4. Le lien d'urgence sera automatiquement écrit sur le tag</li>
-              </ol>
-            </div>
-            
-            <div class="flex space-x-4">
-              <button onclick="prepareNFCTag()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                ${icons.smartphone} Préparer le tag
-              </button>
-              <button onclick="testNFCTag()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                ${icons.check} Tester le tag
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Lien d'urgence -->
-        <div class="mb-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">Votre lien d'urgence</h3>
-          <div class="bg-gray-50 p-4 rounded-lg">
-            <p class="text-sm text-gray-600 mb-2">Ce lien permet l'accès anonyme à vos données d'urgence:</p>
-            <div class="flex space-x-2">
-              <input type="text" id="emergencyLink" readonly 
-                value="${window.location.origin}${window.location.pathname}?emergency=${user.uid}"
-                class="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm">
-              <button onclick="copyEmergencyLink()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                ${icons.copy} Copier
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- QR Code -->
-        <div class="mb-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">QR Code d'urgence</h3>
-          <div class="bg-gray-50 p-4 rounded-lg text-center">
-            <div id="qrCode" class="mb-4">
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?emergency=' + user.uid)}" 
-                alt="QR Code d'urgence" class="mx-auto">
-            </div>
-            <button onclick="downloadQR()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              ${icons.download} Télécharger QR Code
-            </button>
-          </div>
-        </div>
-
-        <!-- Accès anonyme -->
-        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h3 class="text-lg font-medium text-red-900 mb-2">Accès d'urgence anonyme</h3>
-          <p class="text-sm text-red-700 mb-3">
-            Toute personne ayant accès à votre tag NFC ou QR Code pourra consulter vos informations médicales d'urgence 
-            sans authentification. Gardez vos tags en sécurité.
-          </p>
-          <button onclick="showAnonymousPreview()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-            ${icons.eye} Aperçu de l'accès anonyme
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function showPatientEmergency() {
-  const user = getUser();
-  const content = document.getElementById('patientContent');
-  
-  content.innerHTML = `
-    <div class="space-y-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-6">Ma fiche d'urgence</h2>
-        
-        <!-- Aperçu de la fiche -->
-        <div class="border-2 border-red-200 rounded-lg p-6 bg-red-50">
-          <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold text-red-700">🚑 FICHE MÉDICALE D'URGENCE</h1>
-            <h2 class="text-xl font-semibold text-gray-900">${user.personalInfo.firstName} ${user.personalInfo.lastName}</h2>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-white p-4 rounded-lg border border-red-300">
-              <h3 class="font-semibold text-red-700 mb-3">INFORMATIONS CRITIQUES</h3>
-              <div class="space-y-2 text-sm">
-                <p><strong>Groupe sanguin:</strong> <span class="text-red-600 font-bold">${user.personalInfo.bloodType || 'Non renseigné'}</span></p>
-                <p><strong>Âge:</strong> ${user.personalInfo.age || 'Non renseigné'} ans</p>
-                <p><strong>Tél d'urgence:</strong> ${user.personalInfo.emergencyContact?.phone || 'Non renseigné'}</p>
-              </div>
-            </div>
-            
-            <div class="bg-white p-4 rounded-lg border border-orange-300">
-              <h3 class="font-semibold text-orange-700 mb-3">ALLERGIES</h3>
-              <div class="text-sm">
-                ${(user.medicalHistory?.allergies || []).length > 0 ? 
-                  user.medicalHistory.allergies.map(allergy => 
-                    `<span class="bg-red-500 text-white px-2 py-1 rounded text-xs mr-1">${allergy}</span>`
-                  ).join('') : 
-                  '<span class="text-gray-500">Aucune allergie connue</span>'
-                }
-              </div>
-            </div>
-            
-            <div class="bg-white p-4 rounded-lg border border-blue-300">
-              <h3 class="font-semibold text-blue-700 mb-3">CONDITIONS MÉDICALES</h3>
-              <div class="text-sm">
-                ${(user.medicalHistory?.chronicDiseases || []).length > 0 ? 
-                  user.medicalHistory.chronicDiseases.map(condition => 
-                    `<span class="bg-blue-500 text-white px-2 py-1 rounded text-xs mr-1 mb-1 inline-block">${condition}</span>`
-                  ).join('') : 
-                  '<span class="text-gray-500">Aucune condition chronique</span>'
-                }
-              </div>
-            </div>
-            
-            <div class="bg-white p-4 rounded-lg border border-green-300">
-              <h3 class="font-semibold text-green-700 mb-3">MÉDICAMENTS ACTUELS</h3>
-              <div class="text-sm">
-                ${(user.medicalHistory?.medications || []).length > 0 ? 
-                  user.medicalHistory.medications.map(med => 
-                    `<span class="bg-green-500 text-white px-2 py-1 rounded text-xs mr-1 mb-1 inline-block">${med}</span>`
-                  ).join('') : 
-                  '<span class="text-gray-500">Aucun médicament</span>'
-                }
-              </div>
-            </div>
-          </div>
-          
-          ${user.emergencyInfo?.criticalNotes ? `
-          <div class="mt-6 bg-white p-4 rounded-lg border-2 border-red-400">
-            <h3 class="font-semibold text-red-700 mb-3">NOTES CRITIQUES</h3>
-            <p class="text-red-700">${user.emergencyInfo.criticalNotes}</p>
-          </div>
-          ` : ''}
-        </div>
-
-        <!-- Actions -->
-        <div class="flex space-x-4 mt-6">
-          <button onclick="SYLUtilities.generatePDF(getUser())" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">
-            ${icons.download} Télécharger PDF
-          </button>
-          <button onclick="shareEmergencyInfo()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            ${icons.share} Partager
-          </button>
-          <button onclick="printEmergencyCard()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
-            ${icons.print} Imprimer carte
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function showPatientProfile() {
-  const user = getUser();
-  const content = document.getElementById('patientContent');
-  
-  content.innerHTML = `
-    <div class="space-y-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-semibold text-gray-900 mb-6">Mon profil</h2>
-        
-        <form id="profileForm" class="space-y-6">
-          <!-- Informations personnelles -->
-          <div class="bg-blue-50 p-4 rounded-lg">
-            <h3 class="text-lg font-semibold text-blue-800 mb-4">Informations personnelles</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
-                <input type="text" id="firstName" value="${user.personalInfo.firstName}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                <input type="text" id="lastName" value="${user.personalInfo.lastName}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" id="email" value="${user.email}" readonly 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                <input type="tel" id="phone" value="${user.personalInfo.phone || ''}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Date de naissance</label>
-                <input type="date" id="dateOfBirth" value="${user.personalInfo.dateOfBirth || ''}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Groupe sanguin</label>
-                <select id="bloodType" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                  <option value="">Sélectionner</option>
-                  ${MEDICAL_DATA.bloodTypes.map(type => 
-                    `<option value="${type}" ${user.personalInfo.bloodType === type ? 'selected' : ''}>${type}</option>`
-                  ).join('')}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Contact d'urgence -->
-          <div class="bg-orange-50 p-4 rounded-lg">
-            <h3 class="text-lg font-semibold text-orange-800 mb-4">Contact d'urgence</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Nom complet</label>
-                <input type="text" id="emergencyName" value="${user.personalInfo.emergencyContact?.name || ''}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Relation</label>
-                <input type="text" id="emergencyRelation" value="${user.personalInfo.emergencyContact?.relation || ''}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
-                <input type="tel" id="emergencyPhone" value="${user.personalInfo.emergencyContact?.phone || ''}" 
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-              </div>
-            </div>
-          </div>
-
-          <!-- Actions -->
-          <div class="flex space-x-4">
-            <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              ${icons.check} Sauvegarder
-            </button>
-            <button type="button" onclick="changePassword()" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-              ${icons.lock} Changer mot de passe
-            </button>
-            <button type="button" onclick="deleteAccount()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">
-              ${icons.trash} Supprimer compte
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  `;
-
-  // Gestionnaire de formulaire
-  document.getElementById('profileForm').onsubmit = async (e) => {
-    e.preventDefault();
-    await saveProfile();
-  };
-}
-
-// Fonctions utilitaires pour le dashboard patient
-function calculateProfileCompletion(user) {
-  let completed = 0;
-  let total = 10;
-  
-  if (user.personalInfo.firstName) completed++;
-  if (user.personalInfo.lastName) completed++;
-  if (user.personalInfo.dateOfBirth) completed++;
-  if (user.personalInfo.phone) completed++;
-  if (user.personalInfo.bloodType) completed++;
-  if (user.personalInfo.emergencyContact?.name) completed++;
-  if (user.personalInfo.emergencyContact?.phone) completed++;
-  if (user.medicalHistory?.allergies?.length > 0) completed++;
-  if (user.medicalHistory?.medications?.length > 0) completed++;
-  if (user.nfcTags?.length > 0) completed++;
-  
-  return Math.round((completed / total) * 100);
-}
-
-// Chat bot d'assistance
-function initChatBot() {
-  const chatToggle = document.getElementById('chatToggle');
-  const chatWindow = document.getElementById('chatWindow');
-  const chatInput = document.getElementById('chatInput');
-  const chatSend = document.getElementById('chatSend');
-  const chatMessages = document.getElementById('chatMessages');
-
-  chatToggle.addEventListener('click', () => {
-    chatWindow.classList.toggle('hidden');
-  });
-
-  const sendMessage = () => {
-    const message = chatInput.value.trim();
-    if (!message) return;
-
-    // Ajouter le message de l'utilisateur
-    addChatMessage(message, 'user');
-    chatInput.value = '';
-
-    // Générer une réponse automatique
-    setTimeout(() => {
-      const response = generateChatResponse(message);
-      addChatMessage(response, 'bot');
-    }, 1000);
-  };
-
-  chatSend.addEventListener('click', sendMessage);
-  chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
-  });
-}
-
-function addChatMessage(message, sender) {
-  const chatMessages = document.getElementById('chatMessages');
-  const messageDiv = document.createElement('div');
-  messageDiv.className = `mb-3 ${sender === 'user' ? 'text-right' : 'text-left'}`;
-  
-  messageDiv.innerHTML = `
-    <div class="${sender === 'user' ? 'bg-blue-600 text-white ml-8' : 'bg-gray-100 text-gray-800 mr-8'} 
-                rounded-lg px-3 py-2 text-sm inline-block">
-      ${message}
-    </div>
-  `;
-  
-  chatMessages.appendChild(messageDiv);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function generateChatResponse(message) {
-  const responses = {
-    'groupe sanguin': 'Pour renseigner votre groupe sanguin, allez dans "Données médicales" puis sélectionnez votre groupe dans la liste déroulante.',
-    'allergie': 'Pour ajouter une allergie, rendez-vous dans l\'onglet "Données médicales". Vous pouvez sélectionner dans la liste ou ajouter une allergie personnalisée.',
-    'nfc': 'Pour configurer votre tag NFC, allez dans l\'onglet "Gestion NFC" et suivez les instructions étape par étape.',
-    'urgence': 'Votre fiche d\'urgence est générée automatiquement avec vos données. Vous pouvez la consulter dans l\'onglet "Fiche d\'urgence".',
-    'contact': 'Pour modifier votre contact d\'urgence, allez dans "Mon profil" et renseignez les informations dans la section "Contact d\'urgence".',
-    'médic': 'Pour ajouter vos médicaments, utilisez l\'onglet "Données médicales" et ajoutez chaque traitement avec son dosage.',
-    'aide': 'Je peux vous aider avec : les données médicales, la configuration NFC, les contacts d\'urgence, et la navigation dans l\'application.'
-  };
-
-  for (const [keyword, response] of Object.entries(responses)) {
-    if (message.toLowerCase().includes(keyword)) {
-      return response;
-    }
-  }
-
-  return 'Je ne comprends pas votre question. Vous pouvez me demander de l\'aide sur : les groupes sanguins, les allergies, la configuration NFC, les contacts d\'urgence, ou les médicaments.';
-}
-
-// Fonctions NFC et accès anonyme
-function showNFCAccess() {
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-blue-50 flex items-center justify-center p-4">
-      <div class="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-        <div class="text-center mb-8">
-          <div class="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            ${icons.smartphone}
-          </div>
-          <h1 class="text-2xl font-bold text-gray-900">Accès NFC Anonyme</h1>
-          <p class="text-gray-600 mt-2">Consultez une fiche médicale d'urgence</p>
-        </div>
-
-        <div class="space-y-6">
-          <!-- Scan NFC -->
-          <div class="text-center">
-            <button onclick="scanNFC()" class="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-lg font-medium">
-              ${icons.smartphone} Scanner un tag NFC
-            </button>
-            <p class="text-sm text-gray-500 mt-2">Approchez votre téléphone du tag NFC</p>
-          </div>
-
-          <!-- QR Code -->
-          <div class="text-center">
-            <button onclick="scanQR()" class="w-full py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-medium">
-              ${icons.camera} Scanner un QR Code
-            </button>
-            <p class="text-sm text-gray-500 mt-2">Utilisez l'appareil photo pour scanner</p>
-          </div>
-
-          <!-- Saisie manuelle -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Code d'urgence</label>
-            <div class="flex space-x-2">
-              <input type="text" id="emergencyCode" placeholder="Saisissez le code..." 
-                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg">
-              <button onclick="accessEmergencyData()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                ${icons.emergency} Accéder
-              </button>
-            </div>
-          </div>
-
-          <!-- Retour -->
-          <button onclick="showLogin()" class="w-full py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-            ${icons.arrow} Retour à la connexion
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 function showLogin() {
   document.getElementById('app').innerHTML = `
 <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
@@ -1795,23 +656,20 @@ function showLogin() {
         <p class="text-gray-600 mt-2">Système d'Urgence Médicale</p>
       </div>
 
-      <!-- Sélection du rôle -->
-      <div class="grid grid-cols-3 gap-4 mb-6">
-        <button type="button" id="rolePatient" class="p-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700">
-          ${icons.user} <span class="text-sm font-medium">Patient</span>
-        </button>
-        <button type="button" id="roleAdmin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
-          ${icons.settings} <span class="text-sm font-medium">Admin</span>
-        </button>
-        <button type="button" id="roleAnonymous" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
-          ${icons.eye} <span class="text-sm font-medium">NFC Anonyme</span>
-        </button>
+      <!-- Interface simplifiée pour patients -->
+      <div class="mb-6">
+        <div class="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-600">
+          <div class="text-blue-600 text-3xl mb-2">${icons.user}</div>
+          <h3 class="text-lg font-semibold text-blue-800">Espace Patient</h3>
+          <p class="text-sm text-blue-600">Connectez-vous ou créez votre compte médical</p>
+        </div>
       </div>
 
       <!-- Onglets de connexion -->
       <div class="flex space-x-2 mb-4">
         <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-blue-600 text-white" id="tabEmail">Email</button>
         <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-200 text-gray-600" id="tabGoogle">Google</button>
+        <button class="flex-1 py-2 px-4 text-sm rounded-lg bg-gray-400 text-gray-500 cursor-not-allowed" disabled title="Nécessite la facturation Firebase">SMS (Bientôt)</button>
       </div>
 
       <!-- Formulaire Email -->
@@ -1833,8 +691,8 @@ function showLogin() {
           <button id="loginEmail" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-3">
             ${icons.lock} Se connecter
           </button>
-          <button id="registerPatient" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3">
-            ${icons.userPlus} Inscription Patient
+          <button id="registerEmail" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-3">
+            ${icons.user} S'inscrire
           </button>
         </div>
       </div>
@@ -1863,37 +721,10 @@ function showLogin() {
 </div>
   `;
 
-  let role = 'patient';
+  let role = 'patient'; // Toujours patient par défaut
   let activeTab = 'email';
 
-  // Gestion des rôles
-  document.getElementById('rolePatient').onclick = () => {
-    role = 'patient';
-    updateRoleSelection('rolePatient', 'blue');
-  };
-  document.getElementById('roleAdmin').onclick = () => {
-    role = 'admin';
-    updateRoleSelection('roleAdmin', 'purple');
-  };
-  document.getElementById('roleAnonymous').onclick = () => {
-    showNFCAccess();
-  };
-
-  function updateRoleSelection(selectedId, color) {
-    // Reset tous les boutons
-    ['rolePatient', 'roleAdmin', 'roleAnonymous'].forEach(id => {
-      const btn = document.getElementById(id);
-      btn.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-700');
-      btn.classList.remove('border-green-600', 'bg-green-50', 'text-green-700');
-      btn.classList.remove('border-purple-600', 'bg-purple-50', 'text-purple-700');
-      btn.classList.add('border-gray-300');
-    });
-    
-    // Activer le bouton sélectionné
-    const selectedBtn = document.getElementById(selectedId);
-    selectedBtn.classList.remove('border-gray-300');
-    selectedBtn.classList.add(`border-${color}-600`, `bg-${color}-50`, `text-${color}-700`);
-  }
+  // Plus besoin de gestion des rôles - automatiquement patient
 
   // Gestion des onglets
   function switchTab(tab) {
@@ -1964,12 +795,23 @@ function showLogin() {
     }
   };
 
-  document.getElementById('registerPatient').onclick = async () => {
-    if (role !== 'patient') {
-      alert('Veuillez sélectionner le rôle "Patient" pour vous inscrire');
+  document.getElementById('registerEmail').onclick = async () => {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    if (password.length < 6) {
+      alert('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
-    showPatientRegistration();
+    
+    try {
+      showLoader();
+      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      await handleAuthSuccess(userCredential.user, role);
+    } catch (error) {
+      hideLoader();
+      alert('Erreur d\'inscription: ' + getErrorMessage(error.code));
+    }
   };
 
   // Authentification par Google
@@ -5250,11 +4092,12 @@ function renderApp() {
   try {
     // PRIORITÉ 1: Vérifier d'abord si on est en mode accès d'urgence
     const urlParams = new URLSearchParams(window.location.search);
-    const emergencyId = urlParams.get('emergency');
+    const patientId = urlParams.get('patient');
+    const accessType = urlParams.get('access');
     
-    if (emergencyId) {
-      console.log('🚑 Mode accès d\'urgence anonyme:', emergencyId);
-      handleAnonymousEmergencyAccess(emergencyId);
+    if (patientId && accessType === 'medical') {
+      console.log('🚑 Mode accès fiche médicale prioritaire:', patientId);
+      showPatientMedicalRecord(patientId);
       return; // Arrêter ici pour éviter d'écraser l'affichage
     }
     
@@ -5270,8 +4113,10 @@ function renderApp() {
     
     if (localUser) {
       console.log("Utilisateur connecté, rôle:", localUser.role);
-      if (localUser.role === USER_TYPES.PATIENT) {
-        showPatientDashboard();
+      if (localUser.role === 'patient') {
+        renderPatientDashboard(localUser);
+      } else if (localUser.role === 'medecin') {
+        renderMedecinDashboard(localUser);
       } else if (localUser.role === 'admin') {
         renderAdminDashboard(localUser);
       } else {
@@ -5552,368 +4397,351 @@ if (firebase.auth().currentUser !== undefined) {
   }
 }
 
-// ========== NOUVELLES FONCTIONS POUR LE SYSTÈME PATIENT ==========
+// ========== NOUVELLES FONCTIONS SIMPLIFIÉES ==========
 
-// Gestion de l'accès anonyme d'urgence
-async function handleAnonymousEmergencyAccess(patientId) {
-  try {
-    showLoader();
-    
-    // Récupérer les données du patient depuis Firebase
-    const patientDoc = await db.collection('patients').doc(patientId).get();
-    
-    if (!patientDoc.exists) {
-      throw new Error('Patient non trouvé');
-    }
-    
-    const patientData = patientDoc.data();
-    
-    // Logger l'accès anonyme
-    await db.collection('emergency_access_logs').add({
-      patientId: patientId,
-      accessTime: new Date(),
-      accessType: 'anonymous_emergency',
-      userAgent: navigator.userAgent,
-      ip: 'unknown' // Il faudrait une API pour récupérer l'IP
-    });
-    
-    hideLoader();
-    
-    // Afficher l'interface d'urgence anonyme
-    SYLUtilities.displayAnonymousEmergencyInterface(patientData, patientId);
-    
-  } catch (error) {
-    hideLoader();
-    console.error('Erreur accès d\'urgence:', error);
-    
-    document.getElementById('app').innerHTML = `
-      <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
-          <div class="text-red-600 text-6xl mb-4">❌</div>
-          <h2 class="text-2xl font-bold text-gray-900 mb-4">Accès impossible</h2>
-          <p class="text-gray-700 mb-6">${error.message}</p>
-          <div class="space-y-4">
-            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h3 class="font-semibold text-red-800 mb-2">En cas d'urgence vitale</h3>
-              <div class="flex space-x-2">
-                <a href="tel:15" class="flex-1 bg-red-600 text-white px-4 py-2 rounded text-center">
-                  SAMU 15
-                </a>
-                <a href="tel:18" class="flex-1 bg-orange-600 text-white px-4 py-2 rounded text-center">
-                  Pompiers 18
-                </a>
-                <a href="tel:112" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded text-center">
-                  Urgences 112
-                </a>
+// Dashboard patient simplifié (sans NFC)
+function showPatientDashboard() {
+  const user = getUser();
+  if (!user || user.role !== USER_TYPES.PATIENT) {
+    showLogin();
+    return;
+  }
+
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-gray-50">
+      <!-- Header Patient -->
+      <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between items-center h-16">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mr-3">
+                ${icons.heart}
+              </div>
+              <div>
+                <h1 class="text-xl font-semibold text-gray-900">SYL Medical</h1>
+                <p class="text-sm text-gray-500">Mon espace patient</p>
               </div>
             </div>
-            <button onclick="showLogin()" class="w-full bg-gray-600 text-white px-6 py-3 rounded-lg">
-              Retour à l'accueil
+            <div class="flex items-center space-x-4">
+              <div class="text-right">
+                <p class="text-sm font-medium text-gray-900">${user.personalInfo.firstName} ${user.personalInfo.lastName}</p>
+                <p class="text-xs text-gray-500">${user.email}</p>
+              </div>
+              <button onclick="logout()" class="text-gray-500 hover:text-red-600">
+                ${icons.logout}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Navigation simplifiée -->
+      <nav class="bg-white border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex space-x-8" id="patientTabs">
+            <button class="py-4 px-1 border-b-2 border-blue-500 text-blue-600 font-medium text-sm" data-tab="overview">
+              ${icons.activity} Vue d'ensemble
+            </button>
+            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="medical">
+              ${icons.medical} Mes données médicales
+            </button>
+            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="emergency">
+              ${icons.emergency} Ma fiche d'urgence
+            </button>
+            <button class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="profile">
+              ${icons.settings} Mon profil
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Contenu principal -->
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div id="patientContent">
+          <!-- Le contenu sera chargé ici -->
+        </div>
+      </main>
+    </div>
+
+    <!-- Chat médical simplifié -->
+    <div id="medicalChatBot" class="fixed bottom-6 right-6 z-50">
+      <button id="chatToggle" class="bg-green-600 hover:bg-green-700 text-white rounded-full p-4 shadow-lg transition-all duration-200 transform hover:scale-105">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+        </svg>
+      </button>
+      <div id="chatWindow" class="hidden absolute bottom-16 right-0 w-80 h-96 bg-white rounded-lg shadow-xl border border-gray-200">
+        <div class="bg-green-600 text-white p-4 rounded-t-lg">
+          <h3 class="font-semibold">Assistant Médical SYL</h3>
+          <p class="text-sm opacity-90">Je vous aide à compléter votre fiche</p>
+        </div>
+        <div id="chatMessages" class="p-4 h-64 overflow-y-auto">
+          <div class="text-sm text-gray-600 mb-4">
+            👨‍⚕️ Bonjour ! Je vais vous aider à compléter votre fiche médicale. Je peux vous poser des questions sur :
+            <ul class="mt-2 space-y-1 text-xs">
+              <li>🩸 Votre groupe sanguin</li>
+              <li>💊 Vos médicaments actuels</li>
+              <li>🚫 Vos allergies</li>
+              <li>🏥 Vos antécédents médicaux</li>
+              <li>📞 Votre contact d'urgence</li>
+            </ul>
+            <p class="mt-3 text-xs text-green-600">Tapez "commencer" pour débuter l'évaluation médicale</p>
+          </div>
+        </div>
+        <div class="p-4 border-t">
+          <div class="flex space-x-2">
+            <input type="text" id="chatInput" placeholder="Tapez 'commencer' ou votre question..." 
+              class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"/>
+            <button id="chatSend" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+              ${icons.arrow}
             </button>
           </div>
         </div>
       </div>
-    `;
-  }
+    </div>
+  `;
+
+  // Initialisation des onglets
+  initSimplePatientTabs();
+  
+  // Initialisation du chat médical
+  initMedicalChatBot();
+  
+  // Charger la vue d'ensemble par défaut
+  showPatientOverview();
 }
 
-// Fonctions de gestion des données médicales
-function addAllergy() {
-  const select = document.getElementById('allergySelect');
-  const customInput = document.getElementById('customAllergy');
-  const allergy = select.value || customInput.value.trim();
-  
-  if (!allergy) {
-    alert('Veuillez sélectionner ou saisir une allergie');
-    return;
-  }
-  
-  const user = getUser();
-  if (!user.medicalHistory) user.medicalHistory = {};
-  if (!user.medicalHistory.allergies) user.medicalHistory.allergies = [];
-  
-  if (!user.medicalHistory.allergies.includes(allergy)) {
-    user.medicalHistory.allergies.push(allergy);
-    saveUser(user);
-    showPatientMedical(); // Rafraîchir l'affichage
-    
-    // Sauvegarder dans Firebase
-    db.collection('patients').doc(user.uid).update({
-      'medicalHistory.allergies': user.medicalHistory.allergies,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-  
-  select.value = '';
-  customInput.value = '';
-}
-
-function removeAllergy(allergy) {
-  const user = getUser();
-  if (user.medicalHistory?.allergies) {
-    user.medicalHistory.allergies = user.medicalHistory.allergies.filter(a => a !== allergy);
-    saveUser(user);
-    showPatientMedical();
-    
-    // Sauvegarder dans Firebase
-    db.collection('patients').doc(user.uid).update({
-      'medicalHistory.allergies': user.medicalHistory.allergies,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-}
-
-function addCondition() {
-  const select = document.getElementById('conditionSelect');
-  const customInput = document.getElementById('customCondition');
-  const condition = select.value || customInput.value.trim();
-  
-  if (!condition) {
-    alert('Veuillez sélectionner ou saisir une condition médicale');
-    return;
-  }
-  
-  const user = getUser();
-  if (!user.medicalHistory) user.medicalHistory = {};
-  if (!user.medicalHistory.chronicDiseases) user.medicalHistory.chronicDiseases = [];
-  
-  if (!user.medicalHistory.chronicDiseases.includes(condition)) {
-    user.medicalHistory.chronicDiseases.push(condition);
-    saveUser(user);
-    showPatientMedical();
-    
-    db.collection('patients').doc(user.uid).update({
-      'medicalHistory.chronicDiseases': user.medicalHistory.chronicDiseases,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-  
-  select.value = '';
-  customInput.value = '';
-}
-
-function removeCondition(condition) {
-  const user = getUser();
-  if (user.medicalHistory?.chronicDiseases) {
-    user.medicalHistory.chronicDiseases = user.medicalHistory.chronicDiseases.filter(c => c !== condition);
-    saveUser(user);
-    showPatientMedical();
-    
-    db.collection('patients').doc(user.uid).update({
-      'medicalHistory.chronicDiseases': user.medicalHistory.chronicDiseases,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-}
-
-function addMedication() {
-  const input = document.getElementById('medicationInput');
-  const medication = input.value.trim();
-  
-  if (!medication) {
-    alert('Veuillez saisir le nom du médicament');
-    return;
-  }
-  
-  const user = getUser();
-  if (!user.medicalHistory) user.medicalHistory = {};
-  if (!user.medicalHistory.medications) user.medicalHistory.medications = [];
-  
-  if (!user.medicalHistory.medications.includes(medication)) {
-    user.medicalHistory.medications.push(medication);
-    saveUser(user);
-    showPatientMedical();
-    
-    db.collection('patients').doc(user.uid).update({
-      'medicalHistory.medications': user.medicalHistory.medications,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-  
-  input.value = '';
-}
-
-function removeMedication(medication) {
-  const user = getUser();
-  if (user.medicalHistory?.medications) {
-    user.medicalHistory.medications = user.medicalHistory.medications.filter(m => m !== medication);
-    saveUser(user);
-    showPatientMedical();
-    
-    db.collection('patients').doc(user.uid).update({
-      'medicalHistory.medications': user.medicalHistory.medications,
-      lastUpdated: new Date().toISOString()
-    });
-  }
-}
-
-async function saveMedicalData() {
-  const user = getUser();
-  const criticalNotes = document.getElementById('criticalNotes').value.trim();
-  
-  if (!user.emergencyInfo) user.emergencyInfo = {};
-  user.emergencyInfo.criticalNotes = criticalNotes;
-  user.lastUpdated = new Date().toISOString();
-  
-  saveUser(user);
-  
-  try {
-    await db.collection('patients').doc(user.uid).update({
-      'emergencyInfo.criticalNotes': criticalNotes,
-      lastUpdated: user.lastUpdated
-    });
-    
-    alert('✅ Données médicales sauvegardées avec succès !');
-  } catch (error) {
-    console.error('Erreur sauvegarde:', error);
-    alert('❌ Erreur lors de la sauvegarde. Vos données sont sauvegardées localement.');
-  }
-}
-
-// Fonctions NFC
-async function prepareNFCTag() {
-  const user = getUser();
-  const emergencyUrl = `${window.location.origin}${window.location.pathname}?emergency=${user.uid}`;
-  
-  if ('NDEFWriter' in window) {
-    try {
-      const ndef = new NDEFWriter();
-      await ndef.write({
-        records: [
-          { recordType: "url", data: emergencyUrl }
-        ]
+// Gestion des onglets simplifiée
+function initSimplePatientTabs() {
+  const tabs = document.querySelectorAll('#patientTabs button');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Reset tous les onglets
+      tabs.forEach(t => {
+        t.classList.remove('border-blue-500', 'text-blue-600');
+        t.classList.add('border-transparent', 'text-gray-500');
       });
       
-      // Sauvegarder l'info du tag
-      if (!user.nfcTags) user.nfcTags = [];
-      const tagId = 'tag_' + Date.now();
-      user.nfcTags.push({
-        id: tagId,
-        url: emergencyUrl,
-        createdAt: new Date().toISOString()
-      });
+      // Activer l'onglet cliqué
+      tab.classList.remove('border-transparent', 'text-gray-500');
+      tab.classList.add('border-blue-500', 'text-blue-600');
       
-      saveUser(user);
-      await db.collection('patients').doc(user.uid).update({
-        nfcTags: user.nfcTags
-      });
-      
-      alert('✅ Tag NFC configuré avec succès !');
-      showPatientNFC();
-      
-    } catch (error) {
-      console.error('Erreur NFC:', error);
-      alert('❌ Erreur lors de la configuration du tag NFC. Vérifiez que votre appareil supporte le NFC et que la permission est accordée.');
-    }
-  } else {
-    alert('❌ Votre appareil ne supporte pas l\'écriture NFC ou vous devez utiliser HTTPS.');
-  }
-}
-
-function copyEmergencyLink() {
-  const input = document.getElementById('emergencyLink');
-  input.select();
-  document.execCommand('copy');
-  alert('✅ Lien d\'urgence copié dans le presse-papiers !');
-}
-
-function downloadQR() {
-  const user = getUser();
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(window.location.origin + window.location.pathname + '?emergency=' + user.uid)}`;
-  
-  const link = document.createElement('a');
-  link.href = qrUrl;
-  link.download = `qr-urgence-${user.personalInfo.firstName}-${user.personalInfo.lastName}.png`;
-  link.click();
-}
-
-function showAnonymousPreview() {
-  const user = getUser();
-  SYLUtilities.displayAnonymousEmergencyInterface(user, 'preview');
-}
-
-// Fonctions de profil
-async function saveProfile() {
-  const user = getUser();
-  
-  // Mettre à jour les données
-  user.personalInfo.firstName = document.getElementById('firstName').value.trim();
-  user.personalInfo.lastName = document.getElementById('lastName').value.trim();
-  user.personalInfo.phone = document.getElementById('phone').value.trim();
-  user.personalInfo.dateOfBirth = document.getElementById('dateOfBirth').value;
-  user.personalInfo.bloodType = document.getElementById('bloodType').value;
-  
-  user.personalInfo.emergencyContact = {
-    name: document.getElementById('emergencyName').value.trim(),
-    relation: document.getElementById('emergencyRelation').value.trim(),
-    phone: document.getElementById('emergencyPhone').value.trim()
-  };
-  
-  // Calculer l'âge
-  if (user.personalInfo.dateOfBirth) {
-    const birthDate = new Date(user.personalInfo.dateOfBirth);
-    const today = new Date();
-    user.personalInfo.age = today.getFullYear() - birthDate.getFullYear() - 
-      (today < new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate()) ? 1 : 0);
-  }
-  
-  user.lastUpdated = new Date().toISOString();
-  
-  saveUser(user);
-  
-  try {
-    await db.collection('patients').doc(user.uid).update({
-      personalInfo: user.personalInfo,
-      lastUpdated: user.lastUpdated
-    });
-    
-    alert('✅ Profil mis à jour avec succès !');
-  } catch (error) {
-    console.error('Erreur sauvegarde profil:', error);
-    alert('❌ Erreur lors de la sauvegarde. Vos données sont sauvegardées localement.');
-  }
-}
-
-// Fonctions NFC pour accès anonyme
-function scanNFC() {
-  if ('NDEFReader' in window) {
-    const ndef = new NDEFReader();
-    ndef.addEventListener('reading', ({ message }) => {
-      for (const record of message.records) {
-        if (record.recordType === 'url') {
-          const url = new TextDecoder().decode(record.data);
-          if (url.includes('emergency=')) {
-            window.location.href = url;
-          }
-        }
+      // Charger le contenu correspondant
+      const tabName = tab.getAttribute('data-tab');
+      switch(tabName) {
+        case 'overview':
+          showPatientOverview();
+          break;
+        case 'medical':
+          showSimpleMedicalForm();
+          break;
+        case 'emergency':
+          showEmergencyCard();
+          break;
+        case 'profile':
+          showProfileForm();
+          break;
       }
     });
-    
-    ndef.scan().then(() => {
-      alert('🔍 Approchez votre téléphone du tag NFC...');
-    }).catch(error => {
-      console.error('Erreur scan NFC:', error);
-      alert('❌ Erreur lors du scan NFC. Vérifiez que le NFC est activé sur votre appareil.');
-    });
-  } else {
-    alert('❌ Votre appareil ne supporte pas la lecture NFC.');
-  }
+  });
 }
 
-function accessEmergencyData() {
-  const code = document.getElementById('emergencyCode').value.trim();
-  if (code) {
-    if (code.startsWith('http')) {
-      window.location.href = code;
-    } else {
-      window.location.href = `${window.location.origin}${window.location.pathname}?emergency=${code}`;
+// Vue d'ensemble simplifiée
+function showPatientOverview() {
+  const user = getUser();
+  const content = document.getElementById('patientContent');
+  
+  const completedFields = calculateCompletionFields(user);
+  const completionPercentage = Math.round((completedFields.completed / completedFields.total) * 100);
+  
+  content.innerHTML = `
+    <div class="space-y-6">
+      <!-- Résumé de progression -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">👋 Bienvenue, ${user.personalInfo.firstName}</h2>
+        
+        <div class="bg-blue-50 p-4 rounded-lg mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-blue-700">Complétude de votre fiche médicale</span>
+            <span class="text-sm font-bold text-blue-700">${completionPercentage}%</span>
+          </div>
+          <div class="w-full bg-blue-200 rounded-full h-2">
+            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${completionPercentage}%"></div>
+          </div>
+          <p class="text-xs text-blue-600 mt-2">${completedFields.completed}/${completedFields.total} informations renseignées</p>
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onclick="document.querySelector('[data-tab=medical]').click()" 
+            class="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left">
+            <div class="text-blue-600 text-2xl mb-2">${icons.medical}</div>
+            <h3 class="font-medium text-gray-900">Compléter mes données</h3>
+            <p class="text-sm text-gray-600">Allergies, médicaments, antécédents</p>
+          </button>
+          
+          <button onclick="document.querySelector('[data-tab=emergency]').click()" 
+            class="p-4 border border-gray-200 rounded-lg hover:border-red-500 hover:bg-red-50 transition-colors text-left">
+            <div class="text-red-600 text-2xl mb-2">${icons.emergency}</div>
+            <h3 class="font-medium text-gray-900">Ma fiche d'urgence</h3>
+            <p class="text-sm text-gray-600">Visualiser et télécharger</p>
+          </button>
+          
+          <button onclick="document.querySelector('[data-tab=profile]').click()" 
+            class="p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left">
+            <div class="text-green-600 text-2xl mb-2">${icons.user}</div>
+            <h3 class="font-medium text-gray-900">Mon profil</h3>
+            <p class="text-sm text-gray-600">Informations personnelles</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Informations importantes -->
+      <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <div class="text-green-400 text-xl">${icons.check}</div>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-green-800">Vos données sont sécurisées</h3>
+            <div class="mt-2 text-sm text-green-700">
+              <ul class="list-disc pl-5 space-y-1">
+                <li>Chiffrement bout-à-bout de vos données médicales</li>
+                <li>Accès d'urgence possible via QR Code personnel</li>
+                <li>Conformité RGPD et respect de votre vie privée</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Chat médical spécialisé
+function initMedicalChatBot() {
+  const chatToggle = document.getElementById('chatToggle');
+  const chatWindow = document.getElementById('chatWindow');
+  const chatInput = document.getElementById('chatInput');
+  const chatSend = document.getElementById('chatSend');
+
+  chatToggle.addEventListener('click', () => {
+    chatWindow.classList.toggle('hidden');
+  });
+
+  const sendMessage = () => {
+    const message = chatInput.value.trim().toLowerCase();
+    if (!message) return;
+
+    // Ajouter le message de l'utilisateur
+    addMedicalChatMessage(chatInput.value, 'user');
+    chatInput.value = '';
+
+    // Générer une réponse médicale spécialisée
+    setTimeout(() => {
+      const response = generateMedicalResponse(message);
+      addMedicalChatMessage(response, 'bot');
+    }, 1000);
+  };
+
+  chatSend.addEventListener('click', sendMessage);
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+}
+
+function addMedicalChatMessage(message, sender) {
+  const chatMessages = document.getElementById('chatMessages');
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `mb-3 ${sender === 'user' ? 'text-right' : 'text-left'}`;
+  
+  messageDiv.innerHTML = `
+    <div class="${sender === 'user' ? 'bg-green-600 text-white ml-8' : 'bg-gray-100 text-gray-800 mr-8'} 
+                rounded-lg px-3 py-2 text-sm inline-block">
+      ${message}
+    </div>
+  `;
+  
+  chatMessages.appendChild(messageDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function generateMedicalResponse(message) {
+  const medicalQuestions = {
+    'commencer': `Parfait ! Commençons par quelques questions essentielles :
+
+🩸 **Connaissez-vous votre groupe sanguin ?** (A+, A-, B+, B-, AB+, AB-, O+, O-)
+
+Tapez votre groupe sanguin ou "je ne sais pas"`,
+
+    'groupe sanguin': 'Excellent ! Votre groupe sanguin est crucial en cas d\'urgence. Maintenant, **prenez-vous actuellement des médicaments ?** Si oui, listez-les avec leur dosage.',
+
+    'medicament': `Merci pour ces informations. Maintenant, **avez-vous des allergies ?** 
+
+Les allergies courantes incluent :
+• Pénicilline, Aspirine
+• Arachides, Fruits de mer
+• Latex, Iode
+• Autres médicaments
+
+Listez toutes vos allergies connues.`,
+
+    'allergie': `Important ! Vos allergies sont notées. **Avez-vous des antécédents médicaux ou conditions chroniques ?**
+
+Exemples : Diabète, Hypertension, Asthme, Épilepsie, etc.`,
+
+    'antecedent': `Très bien. **Qui dois-je contacter en cas d'urgence ?**
+
+Donnez-moi :
+• Nom complet
+• Relation (conjoint, parent, ami...)
+• Numéro de téléphone`,
+
+    'contact': `Excellent ! Vos informations sont maintenant plus complètes. **Y a-t-il des informations critiques que les secours devraient absolument connaître ?**
+
+Par exemple : pacemaker, dialyse, handicap, etc.`,
+
+    'aide': `Je peux vous aider avec :
+• 🩸 Groupe sanguin
+• 💊 Médicaments actuels  
+• 🚫 Allergies
+• 🏥 Antécédents médicaux
+• 📞 Contact d'urgence
+• ⚠️ Notes critiques
+
+Tapez le sujet qui vous intéresse !`
+  };
+
+  // Rechercher une réponse appropriée
+  for (const [keyword, response] of Object.entries(medicalQuestions)) {
+    if (message.includes(keyword)) {
+      return response;
     }
-  } else {
-    alert('Veuillez saisir un code d\'urgence');
   }
+
+  // Réponse par défaut
+  return `Je ne comprends pas cette question médicale. Tapez "aide" pour voir les sujets que je peux traiter, ou "commencer" pour l'évaluation complète.`;
 }
 
-// Fonction de déconnexion
+function calculateCompletionFields(user) {
+  let completed = 0;
+  const total = 10;
+  
+  if (user.personalInfo?.firstName) completed++;
+  if (user.personalInfo?.lastName) completed++;
+  if (user.personalInfo?.dateOfBirth) completed++;
+  if (user.personalInfo?.bloodType) completed++;
+  if (user.personalInfo?.emergencyContact?.name) completed++;
+  if (user.personalInfo?.emergencyContact?.phone) completed++;
+  if (user.medicalHistory?.allergies?.length > 0) completed++;
+  if (user.medicalHistory?.medications?.length > 0) completed++;
+  if (user.medicalHistory?.chronicDiseases?.length > 0) completed++;
+  if (user.emergencyInfo?.criticalNotes) completed++;
+  
+  return { completed, total };
+}
+
+// Fonction de déconnexion simplifiée
 function logout() {
   if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
     clearUser();
@@ -5925,13 +4753,9 @@ function logout() {
 }
 
 // Icônes manquantes
-icons.arrow = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>';
-icons.copy = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-icons.download = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
-icons.share = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
-icons.print = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><polyline points="6,9 6,2 18,2 18,9"/><path d="M6,18H4a2,2,0,0,1-2-2V11a2,2,0,0,1,2-2H20a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2H18"/><rect x="6" y="14" width="12" height="8"/></svg>';
-icons.camera = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-
+if (!icons.arrow) {
+  icons.arrow = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>';
+}
 </script>
 </body>
 </html>
