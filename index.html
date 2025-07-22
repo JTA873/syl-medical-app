@@ -660,16 +660,21 @@ function showLogin() {
       </div>
 
       <!-- Sélection du rôle -->
-      <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="grid grid-cols-2 gap-4 mb-6">
         <button type="button" id="rolePatient" class="p-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700">
           ${icons.user} <span class="text-sm font-medium">Patient</span>
-        </button>
-        <button type="button" id="roleMedecin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
-          ${icons.stethoscope} <span class="text-sm font-medium">Médecin</span>
         </button>
         <button type="button" id="roleAdmin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
           ${icons.settings} <span class="text-sm font-medium">Admin</span>
         </button>
+      </div>
+      
+      <!-- Info accès anonyme -->
+      <div class="mb-6 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+        <div class="flex items-center text-orange-800">
+          <span class="mr-2">🏷️</span>
+          <span class="text-sm font-medium">Accès d'urgence par tag NFC disponible sans inscription</span>
+        </div>
       </div>
 
       <!-- Onglets de connexion -->
@@ -749,10 +754,6 @@ function showLogin() {
     role = 'patient';
     updateRoleSelection('rolePatient', 'blue');
   };
-  document.getElementById('roleMedecin').onclick = () => {
-    role = 'medecin';
-    updateRoleSelection('roleMedecin', 'green');
-  };
   document.getElementById('roleAdmin').onclick = () => {
     role = 'admin';
     updateRoleSelection('roleAdmin', 'purple');
@@ -760,10 +761,9 @@ function showLogin() {
 
   function updateRoleSelection(selectedId, color) {
     // Reset tous les boutons
-    ['rolePatient', 'roleMedecin', 'roleAdmin'].forEach(id => {
+    ['rolePatient', 'roleAdmin'].forEach(id => {
       const btn = document.getElementById(id);
       btn.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-700');
-      btn.classList.remove('border-green-600', 'bg-green-50', 'text-green-700');
       btn.classList.remove('border-purple-600', 'bg-purple-50', 'text-purple-700');
       btn.classList.add('border-gray-300');
     });
@@ -933,7 +933,7 @@ async function handleAuthSuccess(firebaseUser, role) {
         email: firebaseUser.email,
         role: role,
         personalInfo: {
-          firstName: firebaseUser.displayName?.split(' ')[0] || (role === 'patient' ? 'Patient' : role === 'medecin' ? 'Dr.' : 'Admin'),
+          firstName: firebaseUser.displayName?.split(' ')[0] || (role === 'patient' ? 'Patient' : 'Admin'),
           lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
           phone: firebaseUser.phoneNumber || ''
         },
@@ -1148,7 +1148,7 @@ function showDetailedRegistration(email, password, role) {
             📝
           </div>
           <h1 class="text-3xl font-bold text-gray-900">Finaliser votre inscription</h1>
-          <p class="text-gray-600 mt-2">Créez votre profil ${role === 'patient' ? 'patient' : role === 'medecin' ? 'médecin' : 'administrateur'}</p>
+          <p class="text-gray-600 mt-2">Créez votre profil ${role === 'patient' ? 'patient' : 'administrateur'}</p>
         </div>
         
         <form id="detailedRegistrationForm" class="space-y-6">
@@ -1211,22 +1211,6 @@ function showDetailedRegistration(email, password, role) {
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Contact d'urgence</label>
                 <input type="tel" id="emergencyContact" placeholder="Téléphone contact urgence" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-              </div>
-            </div>
-          </div>
-          ` : ''}
-          
-          ${role === 'medecin' ? `
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-blue-800 mb-3">Informations professionnelles</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Spécialité</label>
-                <input type="text" id="specialty" placeholder="ex: Cardiologie" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">N° RPPS</label>
-                <input type="text" id="rppsNumber" placeholder="Numéro RPPS" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
               </div>
             </div>
           </div>
@@ -1314,10 +1298,10 @@ function setupDetailedRegistrationEvents(email, password, role) {
         userData.personalInfo.emergencyContact = {
           phone: document.getElementById('emergencyContact')?.value || ''
         };
-      } else if (role === 'medecin') {
-        userData.professionalInfo = {
-          specialty: document.getElementById('specialty')?.value || '',
-          rppsNumber: document.getElementById('rppsNumber')?.value || ''
+      } else if (role === 'admin') {
+        userData.adminInfo = {
+          permissions: ['manage_users', 'manage_nfc', 'view_analytics'],
+          accessLevel: 'full'
         };
       }
       
@@ -2521,16 +2505,37 @@ async function loadPatientsFromFirebase() {
                 <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto">rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Collection d'accès d'urgence - LECTURE PUBLIQUE
+    match /emergency_access/{patientId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Collection users - Accès sécurisé
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow read: if request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    
+    // Collection patients - Patients et admins
     match /patients/{patientId} {
       allow read, write: if request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'medecin'];
+        (request.auth.uid == patientId || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+    
+    // Collection NFC - Admin uniquement
+    match /nfc_tags/{tagId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Analytics - Lecture pour tous authentifiés
+    match /analytics/{docId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }</pre>
@@ -4142,795 +4147,8 @@ function testNFC(tagId) {
   SYLAnalytics.trackEvent('nfc_test', { tagId, patientId: patient.id });
 }
 
-// ----------- MEDECIN DASHBOARD -----------
-function renderMedecinDashboard(user) {
-  let patients = JSON.parse(localStorage.getItem('syl-patients') || 'null');
-  if (!patients) {
-    patients = [
-      {
-        id: '1',
-        personalInfo: { firstName: 'Jean', lastName: 'Martin', dateOfBirth: '1978-05-15', bloodType: 'O+', height: '175', weight: '80' },
-        medicalHistory: { allergies: ['Pénicilline', 'Pollen'], medications: ['Metformine 500mg'], conditions: ['Diabète type 2'], chronicDiseases: ['Diabète type 2', 'Hypertension'] },
-        emergencyInfo: { criticalNotes: 'Risque hypoglycémie', contraindications: ['Corticoïdes'] },
-        lastAccess: '2024-01-15',
-        isActive: true
-      },
-      {
-        id: '2',
-        personalInfo: { firstName: 'Marie', lastName: 'Dubois', dateOfBirth: '1985-08-22', bloodType: 'A+', height: '165', weight: '65' },
-        medicalHistory: { allergies: ['Aspirine'], medications: ['Levothyrox'], conditions: ['Hypothyroïdie'], chronicDiseases: ['Hypothyroïdie'] },
-        emergencyInfo: { criticalNotes: '', contraindications: [] },
-        lastAccess: '2024-01-14',
-        isActive: true
-      }
-    ];
-    localStorage.setItem('syl-patients', JSON.stringify(patients));
-  }
-  let searchTerm = '';
-  let selectedPatient = null;
-  let activeTab = 'patients';
-  render();
-
-  function render() {
-    const filteredPatients = patients.filter(patient =>
-      `${patient.personalInfo.firstName} ${patient.personalInfo.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    document.getElementById('app').innerHTML = `
-      <div class="min-h-screen bg-gray-50">
-        <header class="bg-white shadow-sm border-b">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-            <div class="flex items-center">
-              ${icons.stethoscope}
-              <div class="ml-3">
-                <h1 class="text-xl font-bold text-gray-900">SYL Medical Pro</h1>
-                <p class="text-xs text-gray-500">${user.profile.speciality||''} • ${user.profile.hospital||''}</p>
-              </div>
-            </div>
-            <div class="flex items-center space-x-4">
-              <div class="text-sm text-gray-600">Dr. ${user.profile.firstName} ${user.profile.lastName}</div>
-              <button id="logoutBtn" class="border-2 border-green-600 text-green-600 hover:bg-green-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
-            </div>
-          </div>
-        </header>
-        
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div class="mb-8">
-            <!-- Navigation tabs -->
-            <div class="flex space-x-4 mb-6">
-              <button class="px-4 py-2 rounded-lg ${activeTab==='patients' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="patients">Patients</button>
-              <button class="px-4 py-2 rounded-lg ${activeTab==='emergency' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700'}" data-tab="emergency">🚑 Accès Urgence</button>
-            </div>
-
-            ${activeTab === 'patients' ? renderPatientsTab(filteredPatients) : ''}
-            ${activeTab === 'emergency' ? renderEmergencyAccessTab() : ''}
-          </div>
-        </div>
-
-        ${selectedPatient ? renderPatientModal(selectedPatient) : ''}
-      </div>
-    `;
-    
-    document.getElementById('logoutBtn').onclick = () => { logout(); };
-    document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { activeTab = btn.getAttribute('data-tab'); render(); });
-    
-    if (activeTab === 'patients') patientsTabEvents(filteredPatients);
-    if (activeTab === 'emergency') emergencyTabEvents();
-    if (selectedPatient) modalEvents();
-  }
-
-  function renderPatientsTab(filteredPatients) {
-    return `
-      <h2 class="text-2xl font-bold text-gray-900 mb-4">Patients</h2>
-      
-      <!-- Barre de recherche -->
-      <div class="flex items-center space-x-4 mb-6">
-        <div class="flex-1 relative">
-          ${icons.search}
-          <input type="text" placeholder="Rechercher un patient..." value="${searchTerm}" id="searchPatient" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
-        </div>
-        <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2" id="addPatient">${icons.userPlus} Nouveau patient</button>
-      </div>
-
-      <!-- Stats rapides -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.users}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">${patients.length}</p><p class="text-sm text-gray-600">Patients totaux</p></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.activity}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">${patients.filter(p=>p.isActive).length}</p><p class="text-sm text-gray-600">Actifs</p></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.alert}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">${patients.filter(p=>p.emergencyInfo?.criticalNotes).length}</p><p class="text-sm text-gray-600">Alertes</p></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center">
-          ${icons.clock}<div class="ml-3"><p class="text-2xl font-bold text-gray-900">5</p><p class="text-sm text-gray-600">RDV aujourd'hui</p></div>
-        </div>
-      </div>
-
-      <!-- Liste des patients -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        ${filteredPatients.map(patient => `
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-4 hover:shadow-lg transition-shadow cursor-pointer ${patient.emergencyInfo?.criticalNotes ? 'border-l-4 border-red-500' : ''}" data-patient="${patient.id}">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center">${icons.user}</div>
-                <div>
-                  <h3 class="font-semibold text-gray-900">${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h3>
-                  <p class="text-sm text-gray-500">Groupe: ${patient.personalInfo.bloodType || 'Non renseigné'} • ${patient.lastAccess}</p>
-                  ${patient.emergencyInfo?.criticalNotes ? `<p class="text-xs text-red-600 font-bold">⚠️ Notes d'urgence</p>` : ''}
-                </div>
-              </div>
-              <div class="flex items-center space-x-2">
-                ${patient.isActive ? '<div class="w-3 h-3 bg-green-500 rounded-full"></div>' : ''}
-                <span class="text-xs text-gray-400">Actif</span>
-              </div>
-            </div>
-            
-            <div class="mt-3 flex flex-wrap gap-2">
-              ${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).slice(0, 2).map(condition => `<span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">${condition}</span>`).join('')}
-              ${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).length > 2 ? `<span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">+${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).length - 2} autres</span>` : ''}
-            </div>
-            
-            ${patient.medicalHistory.allergies?.length ? `
-            <div class="mt-2 p-2 bg-red-50 rounded">
-              <p class="text-xs text-red-700 font-bold">Allergies: ${patient.medicalHistory.allergies.slice(0,3).join(', ')}</p>
-            </div>
-            ` : ''}
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  function renderEmergencyAccessTab() {
-    return `
-      <div class="space-y-6">
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-          <h2 class="text-2xl font-bold text-red-800 flex items-center">
-            ${icons.emergency} <span class="ml-2">ACCÈS D'URGENCE MÉDICAL</span>
-          </h2>
-          <p class="text-red-700 mt-2">Recherche rapide par code d'urgence ou nom</p>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Recherche d'urgence</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Code d'urgence (bracelet)</label>
-              <input type="text" placeholder="SYL-XXXXXX" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-lg font-mono" id="emergencyCode">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Nom du patient</label>
-              <input type="text" placeholder="Nom ou prénom" class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="emergencyName">
-            </div>
-          </div>
-          <div class="mt-4 flex space-x-4">
-            <button class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 flex items-center gap-2" id="searchEmergency">
-              ${icons.search} RECHERCHE D'URGENCE
-            </button>
-            <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-6 py-3 flex items-center gap-2">
-              ${icons.phone} APPELER SAMU (15)
-            </button>
-          </div>
-        </div>
-
-        <!-- Patients avec alertes -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">⚠️ Patients avec alertes d'urgence</h3>
-          <div class="space-y-3">
-            ${patients.filter(p => p.emergencyInfo?.criticalNotes).map(patient => `
-              <div class="border-l-4 border-red-500 bg-red-50 p-4 rounded cursor-pointer hover:bg-red-100" data-patient="${patient.id}">
-                <div class="flex justify-between items-start">
-                  <div>
-                    <h4 class="font-bold text-red-800">${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h4>
-                    <p class="text-red-700">${patient.emergencyInfo.criticalNotes}</p>
-                    <p class="text-sm text-red-600">Groupe sanguin: ${patient.personalInfo.bloodType || 'Non renseigné'}</p>
-                  </div>
-                  <span class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">CRITIQUE</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderPatientModal(patient) {
-    return `
-      <div class="fixed inset-0 modal-bg flex items-center justify-center p-4 modal">
-        <div class="bg-white rounded-xl max-w-6xl w-full max-h-[95vh] overflow-y-auto shadow-lg">
-          <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-            <div>
-              <h2 class="text-2xl font-bold text-gray-900">${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h2>
-              <p class="text-gray-600">Dossier médical d'urgence complet</p>
-            </div>
-            <button class="bg-gray-200 text-gray-800 rounded-lg px-4 py-2" id="closeModal">✕</button>
-          </div>
-
-          <div class="p-6 space-y-6">
-            <!-- Informations d'urgence critiques -->
-            ${patient.emergencyInfo?.criticalNotes ? `
-            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-              <h3 class="font-bold text-red-800 mb-2">🚨 NOTES CRITIQUES D'URGENCE</h3>
-              <p class="text-red-700 font-medium">${patient.emergencyInfo.criticalNotes}</p>
-            </div>
-            ` : ''}
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <!-- Identité -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">👤 Identité</h3>
-                <div class="space-y-2 text-sm">
-                  <p><strong>Né(e) le:</strong> ${patient.personalInfo.dateOfBirth}</p>
-                  <p><strong>Groupe sanguin:</strong> <span class="bg-red-600 text-white px-2 py-1 rounded font-bold">${patient.personalInfo.bloodType || 'NON RENSEIGNÉ'}</span></p>
-                  <p><strong>Taille:</strong> ${patient.personalInfo.height} cm</p>
-                  <p><strong>Poids:</strong> ${patient.personalInfo.weight} kg</p>
-                </div>
-              </div>
-
-              <!-- Allergies -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">⚠️ Allergies</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.allergies || []).length ? patient.medicalHistory.allergies.map(allergy => `<span class="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full mr-2 mb-1">${allergy}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucune allergie connue</p>'}
-                </div>
-              </div>
-
-              <!-- Médicaments -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">💊 Traitements</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.medications || []).length ? patient.medicalHistory.medications.map(medication => `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full mr-2 mb-1">${medication}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucun traitement</p>'}
-                </div>
-              </div>
-
-              <!-- Pathologies -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">🏥 Pathologies</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions || []).length ? (patient.medicalHistory.chronicDiseases || patient.medicalHistory.conditions).map(condition => `<span class="inline-block px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full mr-2 mb-1">${condition}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucune pathologie</p>'}
-                </div>
-              </div>
-
-              <!-- Contre-indications -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">🚫 Contre-indications</h3>
-                <div class="space-y-1">
-                  ${(patient.emergencyInfo?.contraindications || []).length ? patient.emergencyInfo.contraindications.map(contra => `<span class="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full mr-2 mb-1">${contra}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucune contre-indication</p>'}
-                </div>
-              </div>
-
-              <!-- Dispositifs médicaux -->
-              <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <h3 class="font-semibold text-gray-900 mb-3">🔧 Dispositifs</h3>
-                <div class="space-y-1">
-                  ${(patient.medicalHistory.medicalDevices || []).length ? patient.medicalHistory.medicalDevices.map(device => `<span class="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full mr-2 mb-1">${device}</span>`).join('') : '<p class="text-gray-500 text-sm">Aucun dispositif</p>'}
-                </div>
-              </div>
-            </div>
-
-            <div class="flex justify-end space-x-4">
-              <button class="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2" id="editPatient">${icons.edit} Modifier</button>
-              <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Nouvelle consultation</button>
-              <button class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.emergency} Déclarer urgence</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function patientsTabEvents(filteredPatients) {
-    document.getElementById('searchPatient').oninput = (e) => { searchTerm = e.target.value; render(); };
-    document.getElementById('addPatient').onclick = () => showAddPatientModal();
-    document.querySelectorAll('[data-patient]').forEach(card => card.onclick = () => {
-      selectedPatient = patients.find(p=>p.id===card.getAttribute('data-patient'));
-      render();
-    });
-  }
-
-  function emergencyTabEvents() {
-    document.getElementById('searchEmergency').onclick = () => {
-      const code = document.getElementById('emergencyCode').value;
-      const name = document.getElementById('emergencyName').value;
-      
-      let foundPatient = null;
-      if (code) {
-        foundPatient = patients.find(p => p.braceletId === code);
-      } else if (name) {
-        foundPatient = patients.find(p => 
-          p.personalInfo.firstName.toLowerCase().includes(name.toLowerCase()) || 
-          p.personalInfo.lastName.toLowerCase().includes(name.toLowerCase())
-        );
-      }
-      
-      if (foundPatient) {
-        selectedPatient = foundPatient;
-        render();
-      } else {
-        alert('Patient non trouvé');
-      }
-    };
-    
-    document.querySelectorAll('[data-patient]').forEach(card => card.onclick = () => {
-      selectedPatient = patients.find(p=>p.id===card.getAttribute('data-patient'));
-      render();
-    });
-  }
-
-  function modalEvents() {
-    document.getElementById('closeModal').onclick = () => { selectedPatient = null; render(); };
-    if (document.getElementById('editPatient')) {
-      document.getElementById('editPatient').onclick = () => showEditPatientModal(selectedPatient);
-    }
-  }
-
-  function showEditPatientModal(patient) {
-    // Modal d'édition du patient
-    document.getElementById('app').querySelector('.modal').innerHTML = `
-      <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-lg">
-        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 class="text-2xl font-bold text-gray-900">Modifier ${patient.personalInfo.firstName} ${patient.personalInfo.lastName}</h2>
-          <button class="bg-gray-200 text-gray-800 rounded-lg px-4 py-2" id="closeEditModal">✕</button>
-        </div>
-        <div class="p-6 space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editFirstName" value="${patient.personalInfo.firstName}" placeholder="Prénom">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editLastName" value="${patient.personalInfo.lastName}" placeholder="Nom">
-            <input type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editBirth" value="${patient.personalInfo.dateOfBirth}">
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editBlood">
-              <option value="">Groupe sanguin</option>
-              ${MEDICAL_DATA.bloodTypes.map(type => `<option value="${type}" ${patient.personalInfo.bloodType===type?'selected':''}>${type}</option>`).join('')}
-            </select>
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editHeight" value="${patient.personalInfo.height}" placeholder="Taille (cm)">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="editWeight" value="${patient.personalInfo.weight}" placeholder="Poids (kg)">
-          </div>
-          <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg h-20" id="editCriticalNotes" placeholder="Notes critiques d'urgence">${patient.emergencyInfo?.criticalNotes || ''}</textarea>
-          <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2" id="saveEditPatient">Sauvegarder</button>
-        </div>
-      </div>
-    `;
-    document.getElementById('closeEditModal').onclick = () => render();
-    document.getElementById('saveEditPatient').onclick = async () => {
-      patient.personalInfo.firstName = document.getElementById('editFirstName').value;
-      patient.personalInfo.lastName = document.getElementById('editLastName').value;
-      patient.personalInfo.dateOfBirth = document.getElementById('editBirth').value;
-      patient.personalInfo.bloodType = document.getElementById('editBlood').value;
-      patient.personalInfo.height = document.getElementById('editHeight').value;
-      patient.personalInfo.weight = document.getElementById('editWeight').value;
-      if (!patient.emergencyInfo) patient.emergencyInfo = {};
-      patient.emergencyInfo.criticalNotes = document.getElementById('editCriticalNotes').value;
-      localStorage.setItem('syl-patients', JSON.stringify(patients));
-      
-      // Synchronisation Firebase automatique
-      await saveToFirebase('patients', patient, patient.id);
-      alert('✅ Patient modifié et synchronisé avec Firebase !');
-      render();
-    };
-  }
-
-  function showAddPatientModal() {
-    document.body.insertAdjacentHTML('beforeend', `
-      <div class="fixed inset-0 modal-bg flex items-center justify-center p-4 modal">
-        <div class="bg-white rounded-xl max-w-md w-full overflow-y-auto shadow-lg p-6">
-          <h2 class="text-2xl font-bold text-gray-900 mb-4">Nouveau patient</h2>
-          <div class="space-y-3">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newFirstName" placeholder="Prénom">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newLastName" placeholder="Nom">
-            <input type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newBirth">
-            <select class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newBlood">
-              <option value="">Groupe sanguin</option>
-              ${MEDICAL_DATA.bloodTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
-            </select>
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newHeight" placeholder="Taille (cm)">
-            <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" id="newWeight" placeholder="Poids (kg)">
-          </div>
-          <div class="flex space-x-2 mt-4">
-            <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-6 py-2" id="saveNewPatient">Ajouter</button>
-            <button class="bg-gray-200 text-gray-800 rounded-lg px-6 py-2" id="cancelNewPatient">Annuler</button>
-          </div>
-        </div>
-      </div>
-    `);
-    document.getElementById('cancelNewPatient').onclick = () => { document.querySelector('.modal').remove(); };
-    document.getElementById('saveNewPatient').onclick = async () => {
-      const patient = {
-        id: Math.random().toString(36).substr(2,9),
-        personalInfo: {
-          firstName: document.getElementById('newFirstName').value,
-          lastName: document.getElementById('newLastName').value,
-          dateOfBirth: document.getElementById('newBirth').value,
-          bloodType: document.getElementById('newBlood').value,
-          height: document.getElementById('newHeight').value,
-          weight: document.getElementById('newWeight').value
-        },
-        medicalHistory: { allergies: [], medications: [], conditions: [], chronicDiseases: [], medicalDevices: [] },
-        emergencyInfo: { criticalNotes: '', contraindications: [] },
-        lastAccess: new Date().toISOString().split('T')[0],
-        isActive: true
-      };
-      patients.push(patient);
-      localStorage.setItem('syl-patients', JSON.stringify(patients));
-      
-      // Synchronisation Firebase automatique
-      await saveToFirebase('patients', patient, patient.id);
-      alert('✅ Nouveau patient ajouté et synchronisé avec Firebase !');
-      document.querySelector('.modal').remove();
-      render();
-    };
-  }
-}
-
-// Fonction pour afficher la fiche médicale d'un patient via NFC
-async function showPatientMedicalRecord(patientId) {
-  // IMPORTANT: Pour permettre l'accès d'urgence depuis n'importe quel appareil,
-  // les règles Firebase doivent autoriser la lecture anonyme des collections patients et users
-  // 
-  // RÈGLES FIRESTORE RECOMMANDÉES :
-  /*
-  rules_version = '2';
-  service cloud.firestore {
-    match /databases/{database}/documents {
-      // Collection d'accès d'urgence - LECTURE PUBLIQUE
-      match /emergency_access/{patientId} {
-        allow read: if true;  // ⚠️ ACCÈS PUBLIC pour les urgences
-        allow write: if request.auth != null;
-      }
-      
-      // Collections principales - ACCÈS AUTHENTIFIÉ
-      match /users/{userId} {
-        allow read, write: if request.auth != null;
-      }
-      match /patients/{patientId} {
-        allow read, write: if request.auth != null;
-      }
-    }
-  }
-  */
-  //
-  // CONFIGURATION AUTHENTIFICATION :
-  // • Activer "Authentification anonyme" dans Firebase Console
-  // • Autoriser les domaines dans les "Domaines autorisés"
-  //
-  
-  // D'abord essayer de récupérer depuis localStorage
-  let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-  let patient = patients.find(p => (p.id || p.uid) === patientId);
-  
-  // Si pas trouvé localement, essayer de récupérer depuis Firebase
-  if (!patient && typeof firebase !== 'undefined' && firebase.firestore) {
-    console.log('🔍 Patient non trouvé localement, recherche dans Firebase...');
-    
-    // Afficher un indicateur de chargement
-    document.getElementById('app').innerHTML = `
-      <div class="min-h-screen bg-blue-50 flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
-          <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4 animate-pulse">
-            🔍
-          </div>
-          <h2 class="text-xl font-bold text-blue-600 mb-2">Recherche du patient...</h2>
-          <p class="text-gray-600 mb-4">Récupération des données médicales depuis la base de données</p>
-          <div class="animate-pulse bg-gray-200 h-2 rounded mb-4"></div>
-          <p class="text-sm text-gray-500">ID: ${patientId}</p>
-        </div>
-      </div>
-    `;
-    
-    try {
-      const db = firebase.firestore();
-      
-      // Essayer d'abord une authentification anonyme pour les accès d'urgence
-      if (!firebase.auth().currentUser) {
-        console.log('🚑 Authentification anonyme pour accès d\'urgence...');
-        try {
-          await firebase.auth().signInAnonymously();
-          console.log('✅ Authentification anonyme réussie');
-        } catch (authError) {
-          console.log('⚠️ Échec authentification anonyme:', authError.message);
-          // Continuer quand même, peut-être que les règles permettent l'accès
-        }
-      }
-      
-      // Chercher dans la collection users
-      const userDoc = await db.collection('users').doc(patientId).get();
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        console.log('👤 Données utilisateur trouvées dans Firebase');
-        
-        // Chercher les données médicales associées
-        const medicalDoc = await db.collection('patients').doc(patientId).get();
-        const medicalData = medicalDoc.exists ? medicalDoc.data() : {};
-        
-        // Fusionner les données
-        patient = {
-          id: patientId,
-          uid: patientId,
-          email: userData.email,
-          role: userData.role,
-          personalInfo: medicalData.personalInfo || userData.personalInfo || {},
-          medicalHistory: medicalData.medicalHistory || {},
-          emergencyInfo: medicalData.emergencyInfo || {},
-          isActive: userData.isActive !== false
-        };
-        
-        console.log('✅ Patient reconstitué depuis Firebase:', patient.personalInfo?.firstName, patient.personalInfo?.lastName);
-      } else {
-        console.log('❌ Patient non trouvé dans Firebase users');
-        
-        // Essayer directement dans la collection patients comme fallback
-        console.log('🔄 Tentative de recherche directe dans collection patients...');
-        const directPatientDoc = await db.collection('patients').doc(patientId).get();
-        if (directPatientDoc.exists) {
-          const patientData = directPatientDoc.data();
-          patient = {
-            id: patientId,
-            uid: patientId,
-            ...patientData
-          };
-          console.log('✅ Patient trouvé directement dans collection patients');
-        } else {
-          // Dernière tentative : chercher dans une collection publique d'urgence
-          console.log('🚑 Recherche dans collection emergency_access...');
-          try {
-            const emergencyDoc = await db.collection('emergency_access').doc(patientId).get();
-            if (emergencyDoc.exists) {
-              const emergencyData = emergencyDoc.data();
-              patient = {
-                id: patientId,
-                uid: patientId,
-                personalInfo: emergencyData.personalInfo || {},
-                medicalHistory: emergencyData.medicalHistory || {},
-                emergencyInfo: emergencyData.emergencyInfo || {},
-                isActive: true
-              };
-              console.log('✅ Patient trouvé dans collection emergency_access');
-            }
-          } catch (emergencyError) {
-            console.log('❌ Collection emergency_access non accessible:', emergencyError.message);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Erreur Firebase lors de la recherche du patient:', error);
-      
-      // Afficher l'erreur spécifique pour le debug
-      document.getElementById('app').innerHTML = `
-        <div class="min-h-screen bg-orange-50 flex items-center justify-center">
-          <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
-            <div class="w-16 h-16 bg-orange-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
-              ⚠️
-            </div>
-            <h2 class="text-xl font-bold text-orange-600 mb-2">Erreur d'accès Firebase</h2>
-            <p class="text-gray-600 mb-4">Impossible d'accéder à la base de données</p>
-            <div class="text-sm text-left bg-gray-100 rounded p-3 mb-4">
-              <strong>Erreur:</strong> ${error.message}<br>
-              <strong>Code:</strong> ${error.code || 'N/A'}<br>
-              <strong>ID Patient:</strong> ${patientId}
-            </div>
-            <div class="text-xs text-gray-500 mb-4">
-              Cette erreur indique probablement un problème de configuration Firebase ou de règles de sécurité.
-            </div>
-            <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
-              Retour à l'application
-            </button>
-          </div>
-        </div>
-      `;
-      return; // Arrêter ici pour afficher l'erreur
-    }
-  }
-  
-  if (!patient) {
-    document.getElementById('app').innerHTML = `
-      <div class="min-h-screen bg-red-50 flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
-          <div class="w-16 h-16 bg-red-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
-            ❌
-          </div>
-          <h2 class="text-xl font-bold text-red-600 mb-2">Patient non trouvé</h2>
-          <p class="text-gray-600 mb-4">L'ID patient "${patientId}" n'existe pas dans la base de données.</p>
-          <div class="text-sm text-gray-500 mb-4">
-            <p>Causes possibles :</p>
-            <ul class="text-left mt-2 space-y-1">
-              <li>• Tag NFC non synchronisé</li>
-              <li>• Patient supprimé de la base</li>
-              <li>• Problème de connexion réseau</li>
-            </ul>
-          </div>
-          <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
-            Retour à l'application
-          </button>
-        </div>
-      </div>
-    `;
-    return;
-  }
-  
-  // Calculer l'âge
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 'N/A';
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age + ' ans';
-  };
-  
-  // Afficher la fiche d'information médicale d'urgence (lecture seule)
-  document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gradient-to-br from-red-50 to-pink-100">
-      <!-- En-tête d'urgence -->
-      <div class="bg-red-600 text-white py-4">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center">
-              <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-red-600 font-bold mr-4">
-                🚑
-              </div>
-              <div>
-                <h1 class="text-2xl font-bold">FICHE MÉDICALE D'URGENCE</h1>
-                <p class="text-red-100">Informations vitales - Accès via NFC</p>
-              </div>
-            </div>
-            <button onclick="location.href='${window.location.pathname}'" class="bg-red-700 hover:bg-red-800 text-white rounded-lg px-4 py-2">
-              Fermer
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <!-- Identification du patient -->
-        <div class="bg-white rounded-xl shadow-xl border-2 border-red-200 p-6 mb-6">
-          <div class="text-center mb-6">
-            <h2 class="text-3xl font-bold text-gray-900 mb-2">
-              ${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}
-            </h2>
-            <div class="inline-flex items-center px-4 py-2 bg-blue-100 rounded-full">
-              <span class="text-blue-800 font-medium">Âge: ${calculateAge(patient.personalInfo?.dateOfBirth)}</span>
-            </div>
-          </div>
-          
-          <!-- Informations vitales en grand -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="text-center p-4 bg-red-50 rounded-xl border-2 border-red-200">
-              <div class="text-2xl font-bold text-red-600 mb-1">${patient.personalInfo?.bloodType || '?'}</div>
-              <div class="text-sm font-medium text-gray-700">Groupe sanguin</div>
-            </div>
-            <div class="text-center p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
-              <div class="text-2xl font-bold text-blue-600 mb-1">${patient.personalInfo?.height || '?'}</div>
-              <div class="text-sm font-medium text-gray-700">Taille (cm)</div>
-            </div>
-            <div class="text-center p-4 bg-green-50 rounded-xl border-2 border-green-200">
-              <div class="text-2xl font-bold text-green-600 mb-1">${patient.personalInfo?.weight || '?'}</div>
-              <div class="text-sm font-medium text-gray-700">Poids (kg)</div>
-            </div>
-            <div class="text-center p-4 bg-purple-50 rounded-xl border-2 border-purple-200">
-              <div class="text-2xl font-bold text-purple-600 mb-1">${patient.personalInfo?.dateOfBirth || '?'}</div>
-              <div class="text-sm font-medium text-gray-700">Naissance</div>
-            </div>
-          </div>
-        </div>
-        
-        ${patient.emergencyInfo?.criticalNotes ? `
-        <!-- ALERTE CRITIQUE -->
-        <div class="bg-red-600 text-white rounded-xl p-6 mb-6 border-4 border-red-700">
-          <div class="flex items-center mb-3">
-            <span class="text-3xl mr-3">⚠️</span>
-            <h3 class="text-xl font-bold">ALERTE MÉDICALE CRITIQUE</h3>
-          </div>
-          <p class="text-lg font-medium">${patient.emergencyInfo.criticalNotes}</p>
-        </div>
-        ` : ''}
-        
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- ALLERGIES -->
-          <div class="bg-white rounded-xl shadow-lg border-l-4 border-red-500 p-6">
-            <h3 class="text-xl font-bold text-red-600 mb-4 flex items-center">
-              <span class="text-2xl mr-2">⚠️</span> ALLERGIES
-            </h3>
-            ${patient.medicalHistory?.allergies?.length ? 
-              patient.medicalHistory.allergies.map(allergy => `
-                <div class="bg-red-100 border-2 border-red-300 rounded-lg px-4 py-3 mb-2">
-                  <span class="text-red-800 font-bold text-lg">${allergy}</span>
-                </div>
-              `).join('') : 
-              '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucune allergie connue</div>'
-            }
-          </div>
-          
-          <!-- MÉDICAMENTS -->
-          <div class="bg-white rounded-xl shadow-lg border-l-4 border-blue-500 p-6">
-            <h3 class="text-xl font-bold text-blue-600 mb-4 flex items-center">
-              <span class="text-2xl mr-2">💊</span> MÉDICAMENTS
-            </h3>
-            ${patient.medicalHistory?.medications?.length ? 
-              patient.medicalHistory.medications.map(medication => `
-                <div class="bg-blue-100 border-2 border-blue-300 rounded-lg px-4 py-3 mb-2">
-                  <span class="text-blue-800 font-medium">${medication}</span>
-                </div>
-              `).join('') : 
-              '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucun médicament</div>'
-            }
-          </div>
-          
-          <!-- PATHOLOGIES -->
-          <div class="bg-white rounded-xl shadow-lg border-l-4 border-orange-500 p-6">
-            <h3 class="text-xl font-bold text-orange-600 mb-4 flex items-center">
-              <span class="text-2xl mr-2">🏥</span> PATHOLOGIES
-            </h3>
-            ${patient.medicalHistory?.chronicDiseases?.length ? 
-              patient.medicalHistory.chronicDiseases.map(disease => `
-                <div class="bg-orange-100 border-2 border-orange-300 rounded-lg px-4 py-3 mb-2">
-                  <span class="text-orange-800 font-medium">${disease}</span>
-                </div>
-              `).join('') : 
-              '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucune pathologie connue</div>'
-            }
-          </div>
-          
-          <!-- CONTACT D'URGENCE -->
-          <div class="bg-white rounded-xl shadow-lg border-l-4 border-green-500 p-6">
-            <h3 class="text-xl font-bold text-green-600 mb-4 flex items-center">
-              <span class="text-2xl mr-2">📞</span> CONTACT D'URGENCE
-            </h3>
-            ${patient.personalInfo?.emergencyContact?.name ? `
-              <div class="bg-green-100 border-2 border-green-300 rounded-lg px-4 py-3 mb-3">
-                <div class="font-bold text-green-800 text-lg">${patient.personalInfo.emergencyContact.name}</div>
-                <div class="text-green-700">${patient.personalInfo.emergencyContact.relationship || ''}</div>
-              </div>
-            ` : ''}
-            ${patient.personalInfo?.emergencyContact?.phone ? `
-              <a href="tel:${patient.personalInfo.emergencyContact.phone}" 
-                 class="block w-full bg-green-600 hover:bg-green-700 text-white text-center rounded-lg px-4 py-3 font-bold text-lg">
-                📞 ${patient.personalInfo.emergencyContact.phone}
-              </a>
-            ` : '<div class="bg-gray-100 rounded-lg px-4 py-3 text-gray-600 font-medium">Aucun contact d\'urgence</div>'}
-          </div>
-        </div>
-        
-        <!-- ACTIONS D'URGENCE -->
-        <div class="mt-6 bg-white rounded-xl shadow-xl border-2 border-red-300 p-6">
-          <h3 class="text-2xl font-bold text-red-600 mb-4 text-center">🚨 NUMÉROS D'URGENCE</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a href="tel:15" class="block bg-red-600 hover:bg-red-700 text-white text-center rounded-xl px-6 py-4 font-bold text-lg transition-colors">
-              <div class="text-2xl mb-1">🚑</div>
-              <div>SAMU</div>
-              <div class="text-xl">15</div>
-            </a>
-            <a href="tel:18" class="block bg-orange-600 hover:bg-orange-700 text-white text-center rounded-xl px-6 py-4 font-bold text-lg transition-colors">
-              <div class="text-2xl mb-1">🚒</div>
-              <div>POMPIERS</div>
-              <div class="text-xl">18</div>
-            </a>
-            <a href="tel:112" class="block bg-blue-600 hover:bg-blue-700 text-white text-center rounded-xl px-6 py-4 font-bold text-lg transition-colors">
-              <div class="text-2xl mb-1">🆘</div>
-              <div>URGENCES</div>
-              <div class="text-xl">112</div>
-            </a>
-          </div>
-        </div>
-        
-        <!-- Footer informatif -->
-        <div class="mt-6 text-center text-gray-500 text-sm">
-          <p>📋 Fiche d'information médicale • Consultation seule • ${new Date().toLocaleString('fr-FR')}</p>
-          <p class="mt-1">🔒 Données sensibles - Usage strictement médical</p>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  // Enregistrer l'accès
-  SYLAnalytics.trackEvent('patient_medical_access', { 
-    patientId: patient.id || patient.uid, 
-    accessMethod: 'nfc_link',
-    accessTime: new Date().toISOString()
-  });
-}
+// ----------- FONCTION MÉDECIN SUPPRIMÉE -----------
+// La fonction renderMedecinDashboard a été supprimée car seuls les rôles 'patient', 'admin' et 'anonyme' sont supportés
 
 // ----------- MAIN -----------
 function renderApp() {
@@ -4962,8 +4180,6 @@ function renderApp() {
       console.log("Utilisateur connecté, rôle:", localUser.role);
       if (localUser.role === 'patient') {
         renderPatientDashboard(localUser);
-      } else if (localUser.role === 'medecin') {
-        renderMedecinDashboard(localUser);
       } else if (localUser.role === 'admin') {
         renderAdminDashboard(localUser);
       } else {
