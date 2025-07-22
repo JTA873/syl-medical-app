@@ -89,16 +89,45 @@
   </div>
 </div>
 <script>
-// Gestion d'erreur globale
+// Gestion d'erreur globale améliorée pour mobile
 window.onerror = function(msg, url, lineNo, columnNo, error) {
   console.error('Erreur JavaScript:', msg, 'à la ligne', lineNo);
+  
+  // Détection du type d'appareil
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const browserInfo = {
+    userAgent: navigator.userAgent,
+    isMobile: isMobile,
+    hasLocalStorage: typeof(Storage) !== "undefined",
+    hasGeolocation: "geolocation" in navigator,
+    hasServiceWorker: "serviceWorker" in navigator,
+    hasNFC: "NDEFReader" in window,
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight
+    }
+  };
+  
   document.getElementById('app').innerHTML = `
     <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
-        <h2 class="text-xl font-bold text-red-600 mb-4">Erreur JavaScript</h2>
-        <p class="text-gray-700 mb-2"><strong>Message:</strong> ${msg}</p>
-        <p class="text-gray-700 mb-4"><strong>Ligne:</strong> ${lineNo}</p>
-        <button onclick="location.reload()" class="bg-blue-600 text-white px-4 py-2 rounded">Réessayer</button>
+        <h2 class="text-xl font-bold text-red-600 mb-4">⚠️ Erreur ${isMobile ? 'Mobile' : 'Desktop'}</h2>
+        <div class="text-sm space-y-2 mb-4">
+          <p class="text-gray-700"><strong>Message:</strong> ${msg}</p>
+          <p class="text-gray-700"><strong>Ligne:</strong> ${lineNo}</p>
+          <p class="text-gray-700"><strong>Appareil:</strong> ${isMobile ? 'Mobile' : 'Ordinateur'}</p>
+          <p class="text-gray-700"><strong>Navigateur:</strong> ${navigator.userAgent.split(' ')[0]}</p>
+          ${!browserInfo.hasLocalStorage ? '<p class="text-red-600">❌ LocalStorage non supporté</p>' : ''}
+          ${isMobile && !browserInfo.hasNFC ? '<p class="text-orange-600">⚠️ NFC non disponible</p>' : ''}
+        </div>
+        <div class="space-y-2">
+          <button onclick="location.reload()" class="w-full bg-blue-600 text-white px-4 py-2 rounded">🔄 Réessayer</button>
+          <button onclick="localStorage.clear(); location.reload()" class="w-full bg-orange-600 text-white px-4 py-2 rounded">🧹 Vider cache et réessayer</button>
+        </div>
+        <details class="mt-4">
+          <summary class="text-sm text-gray-600 cursor-pointer">🔍 Détails techniques</summary>
+          <pre class="text-xs bg-gray-100 p-2 rounded mt-2 overflow-auto">${JSON.stringify(browserInfo, null, 2)}</pre>
+        </details>
       </div>
     </div>
   `;
@@ -106,6 +135,82 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 };
 
 console.log("SYL Medical - Début du chargement");
+
+// Diagnostic de compatibilité mobile
+function checkMobileCompatibility() {
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const checks = {
+    isMobile: isMobile,
+    localStorage: typeof(Storage) !== "undefined",
+    geolocation: "geolocation" in navigator,
+    serviceWorker: "serviceWorker" in navigator,
+    nfc: "NDEFReader" in window,
+    firebase: typeof firebase !== 'undefined',
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1
+    },
+    userAgent: navigator.userAgent,
+    online: navigator.onLine
+  };
+  
+  console.log('🔍 Diagnostic de compatibilité:', checks);
+  
+  // Afficher les warnings pour mobile
+  if (isMobile) {
+    if (!checks.localStorage) console.warn('⚠️ LocalStorage non supporté sur mobile');
+    if (!checks.nfc) console.log('ℹ️ NFC non disponible sur ce mobile');
+    if (!checks.online) console.warn('⚠️ Appareil hors ligne');
+  }
+  
+  return checks;
+}
+
+// Exécuter le diagnostic au chargement
+const compatibility = checkMobileCompatibility();
+
+// Fonction de diagnostic Firebase approfondi
+function diagnoseFirebaseIssues() {
+  console.log('🔥 Diagnostic Firebase approfondi...');
+  
+  const firebaseStatus = {
+    sdkLoaded: typeof firebase !== 'undefined',
+    appInitialized: false,
+    authReady: false,
+    firestoreReady: false,
+    currentUser: null,
+    authDomain: firebaseConfig.authDomain,
+    projectId: firebaseConfig.projectId,
+    errors: []
+  };
+  
+  try {
+    if (firebase.apps.length > 0) {
+      firebaseStatus.appInitialized = true;
+      
+      // Test authentification
+      try {
+        firebaseStatus.authReady = !!firebase.auth();
+        firebaseStatus.currentUser = firebase.auth().currentUser;
+      } catch (authError) {
+        firebaseStatus.errors.push(`Auth Error: ${authError.message}`);
+      }
+      
+      // Test Firestore
+      try {
+        firebaseStatus.firestoreReady = !!firebase.firestore();
+      } catch (firestoreError) {
+        firebaseStatus.errors.push(`Firestore Error: ${firestoreError.message}`);
+      }
+    }
+  } catch (error) {
+    firebaseStatus.errors.push(`General Error: ${error.message}`);
+  }
+  
+  console.log('🔥 Status Firebase:', firebaseStatus);
+  return firebaseStatus;
+}
 
 // Configuration Firebase sécurisée
 const firebaseConfig = {
@@ -127,21 +232,364 @@ const adminAccounts = {
 // Variables Firebase globales
 let db, auth, googleProvider;
 
-// Initialiser Firebase
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  auth = firebase.auth();
-  googleProvider = new firebase.auth.GoogleAuthProvider();
-  console.log("Firebase initialisé avec succès");
-} catch (error) {
-  console.error("Erreur Firebase:", error);
+// Initialiser Firebase avec gestion mobile améliorée
+async function initializeFirebase() {
+  try {
+    if (typeof firebase === 'undefined') {
+      throw new Error('Firebase SDK non chargé - Vérifiez votre connexion Internet');
+    }
+    
+    // Éviter la double initialisation
+    if (firebase.apps.length > 0) {
+      console.log('✅ Firebase déjà initialisé');
+      return true;
+    }
+    
+    firebase.initializeApp(firebaseConfig);
+    
+    // Obtenir les services Firebase
+    db = firebase.firestore();
+    auth = firebase.auth();
+    googleProvider = new firebase.auth.GoogleAuthProvider();
+    
+    // Configuration optimisée pour mobile
+    if (compatibility.isMobile) {
+      console.log('📱 Configuration mobile Firebase...');
+      
+      // Paramètres Firestore pour mobile
+      try {
+        await db.enableNetwork();
+        console.log('✅ Réseau Firestore activé');
+      } catch (networkError) {
+        console.warn('⚠️ Problème réseau Firestore:', networkError.message);
+      }
+      
+      // Paramètres Auth pour mobile
+      auth.useDeviceLanguage();
+    }
+    
+    // Test de connectivité Firebase
+    await testFirebaseConnectivity();
+    
+    console.log(`✅ Firebase initialisé avec succès ${compatibility.isMobile ? '(mode mobile)' : '(mode desktop)'}`);
+    return true;
+    
+  } catch (error) {
+    console.error("❌ Erreur Firebase:", error);
+    handleFirebaseError(error);
+    return false;
+  }
+}
+
+// Test de connectivité Firebase
+async function testFirebaseConnectivity() {
+  console.log('🔍 Test de connectivité Firebase...');
+  
+  try {
+    // Test Firestore - lecture simple
+    await db.collection('users').limit(1).get();
+    console.log('✅ Firestore accessible');
+  } catch (firestoreError) {
+    console.warn('⚠️ Firestore non accessible:', firestoreError.message);
+    
+    // Test avec authentification anonyme
+    try {
+      console.log('🔄 Tentative d\'authentification anonyme...');
+      await auth.signInAnonymously();
+      await db.collection('users').limit(1).get();
+      console.log('✅ Firestore accessible avec auth anonyme');
+    } catch (anonError) {
+      console.error('❌ Firestore inaccessible même avec auth anonyme:', anonError.message);
+      throw new Error(`Firestore inaccessible: ${firestoreError.message}`);
+    }
+  }
+  
+  // Test Auth
+  try {
+    const currentUser = auth.currentUser;
+    console.log('✅ Auth service accessible, utilisateur:', currentUser ? 'connecté' : 'déconnecté');
+  } catch (authError) {
+    console.warn('⚠️ Auth service inaccessible:', authError.message);
+  }
+}
+
+// Gestion d'erreur Firebase améliorée
+function handleFirebaseError(error) {
+  const errorDetails = {
+    message: error.message,
+    code: error.code || 'unknown',
+    isMobile: compatibility.isMobile,
+    online: navigator.onLine,
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent
+  };
+  
+  // Messages d'erreur spécifiques selon le code
+  let userMessage = error.message;
+  let suggestions = [];
+  
+  switch(error.code) {
+    case 'permission-denied':
+      userMessage = 'Accès refusé à la base de données';
+      suggestions = [
+        'Vérifiez que vous êtes connecté',
+        'Les règles Firestore peuvent être trop restrictives',
+        'Contactez l\'administrateur'
+      ];
+      break;
+    case 'unavailable':
+      userMessage = 'Service temporairement indisponible';
+      suggestions = [
+        'Vérifiez votre connexion Internet',
+        'Réessayez dans quelques minutes',
+        'Le service Firebase peut être en maintenance'
+      ];
+      break;
+    case 'unauthenticated':
+      userMessage = 'Authentification requise';
+      suggestions = [
+        'Connectez-vous à votre compte',
+        'Votre session a peut-être expiré'
+      ];
+      break;
+    default:
+      if (error.message.includes('network')) {
+        userMessage = 'Problème de connexion réseau';
+        suggestions = [
+          'Vérifiez votre connexion Internet',
+          'Essayez de recharger la page',
+          'Vérifiez les paramètres de votre navigateur'
+        ];
+      }
+  }
+  
   document.getElementById('app').innerHTML = `
     <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
-        <h2 class="text-xl font-bold text-red-600 mb-4">Erreur Firebase</h2>
-        <p class="text-gray-700">Impossible d'initialiser Firebase: ${error.message}</p>
-        <button onclick="location.reload()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Réessayer</button>
+        <h2 class="text-xl font-bold text-red-600 mb-4">
+          🔥 Problème Firebase ${compatibility.isMobile ? '(Mobile)' : '(Desktop)'}
+        </h2>
+        <div class="space-y-3 text-sm mb-4">
+          <div class="bg-red-50 border border-red-200 rounded p-3">
+            <p class="text-red-800 font-medium">${userMessage}</p>
+          </div>
+          <div><strong>Code d'erreur:</strong> ${error.code || 'Inconnu'}</div>
+          <div><strong>Connexion:</strong> ${navigator.onLine ? '✅ En ligne' : '❌ Hors ligne'}</div>
+          <div><strong>Appareil:</strong> ${compatibility.isMobile ? '📱 Mobile' : '🖥️ Desktop'}</div>
+        </div>
+        
+        ${suggestions.length > 0 ? `
+        <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+          <h4 class="text-blue-800 font-medium mb-2">💡 Solutions suggérées:</h4>
+          <ul class="text-blue-700 text-sm space-y-1">
+            ${suggestions.map(s => `<li>• ${s}</li>`).join('')}
+          </ul>
+        </div>
+        ` : ''}
+        
+        <div class="space-y-2">
+          <button onclick="location.reload()" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            🔄 Réessayer
+          </button>
+          <button onclick="testFirebaseManually()" class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            🧪 Test Firebase
+          </button>
+          ${compatibility.isMobile ? 
+            '<button onclick="showMobileFirebaseHelp()" class="w-full bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">📱 Aide mobile</button>' : 
+            '<button onclick="showDesktopFirebaseHelp()" class="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">🖥️ Aide ordinateur</button>'
+          }
+        </div>
+        
+        <details class="mt-4">
+          <summary class="text-sm text-gray-600 cursor-pointer">🔧 Détails techniques</summary>
+          <pre class="text-xs bg-gray-100 p-2 rounded mt-2 overflow-auto">${JSON.stringify(errorDetails, null, 2)}</pre>
+        </details>
+      </div>
+    </div>
+  `;
+}
+
+// Initialiser Firebase au chargement
+initializeFirebase();
+
+// Fonctions d'aide et de test Firebase
+async function testFirebaseManually() {
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-blue-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+        <h2 class="text-xl font-bold text-blue-600 mb-4">🧪 Test Firebase en cours...</h2>
+        <div id="testResults" class="space-y-2 text-sm">
+          <div class="flex items-center"><span class="animate-spin mr-2">⏳</span> Initialisation...</div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const resultsDiv = document.getElementById('testResults');
+  
+  try {
+    // Test 1: SDK Firebase
+    resultsDiv.innerHTML += '<div class="flex items-center text-green-600"><span class="mr-2">✅</span> SDK Firebase chargé</div>';
+    
+    // Test 2: Configuration
+    await new Promise(resolve => setTimeout(resolve, 500));
+    resultsDiv.innerHTML += '<div class="flex items-center text-green-600"><span class="mr-2">✅</span> Configuration Firebase valide</div>';
+    
+    // Test 3: Connexion réseau
+    const response = await fetch('https://www.google.com', { mode: 'no-cors' });
+    resultsDiv.innerHTML += '<div class="flex items-center text-green-600"><span class="mr-2">✅</span> Connexion Internet OK</div>';
+    
+    // Test 4: Firebase Auth
+    try {
+      await auth.signInAnonymously();
+      resultsDiv.innerHTML += '<div class="flex items-center text-green-600"><span class="mr-2">✅</span> Authentification Firebase OK</div>';
+    } catch (authError) {
+      resultsDiv.innerHTML += `<div class="flex items-center text-red-600"><span class="mr-2">❌</span> Auth Error: ${authError.message}</div>`;
+    }
+    
+    // Test 5: Firestore
+    try {
+      await db.collection('users').limit(1).get();
+      resultsDiv.innerHTML += '<div class="flex items-center text-green-600"><span class="mr-2">✅</span> Firestore accessible</div>';
+    } catch (firestoreError) {
+      resultsDiv.innerHTML += `<div class="flex items-center text-red-600"><span class="mr-2">❌</span> Firestore Error: ${firestoreError.message}</div>`;
+    }
+    
+    resultsDiv.innerHTML += `
+      <div class="mt-4 space-y-2">
+        <button onclick="location.reload()" class="w-full bg-green-600 text-white px-4 py-2 rounded">✅ Tests terminés - Recharger</button>
+        <button onclick="showDetailedDiagnostic()" class="w-full bg-blue-600 text-white px-4 py-2 rounded">🔍 Diagnostic détaillé</button>
+      </div>
+    `;
+    
+  } catch (error) {
+    resultsDiv.innerHTML += `<div class="flex items-center text-red-600"><span class="mr-2">❌</span> Erreur: ${error.message}</div>`;
+    resultsDiv.innerHTML += `
+      <div class="mt-4">
+        <button onclick="location.reload()" class="w-full bg-red-600 text-white px-4 py-2 rounded">🔄 Réessayer</button>
+      </div>
+    `;
+  }
+}
+
+function showMobileFirebaseHelp() {
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-orange-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+        <h2 class="text-xl font-bold text-orange-600 mb-4">📱 Aide Firebase Mobile</h2>
+        <div class="space-y-4 text-sm">
+          <div class="bg-blue-50 border border-blue-200 rounded p-3">
+            <h4 class="font-medium text-blue-800 mb-2">🔧 Solutions courantes:</h4>
+            <ul class="text-blue-700 space-y-1">
+              <li>• Videz le cache de votre navigateur</li>
+              <li>• Essayez en mode navigation privée</li>
+              <li>• Vérifiez que JavaScript est activé</li>
+              <li>• Utilisez Chrome ou Safari récent</li>
+              <li>• Vérifiez votre connexion 4G/WiFi</li>
+            </ul>
+          </div>
+          
+          <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
+            <h4 class="font-medium text-yellow-800 mb-2">⚠️ Limitations mobiles:</h4>
+            <ul class="text-yellow-700 space-y-1">
+              <li>• Certains navigateurs bloquent Firebase</li>
+              <li>• Mode économie d'énergie peut poser problème</li>
+              <li>• Connexion instable = erreurs temporaires</li>
+            </ul>
+          </div>
+          
+          <div class="space-y-2">
+            <button onclick="testFirebaseManually()" class="w-full bg-blue-600 text-white px-4 py-2 rounded">🧪 Tester Firebase</button>
+            <button onclick="localStorage.clear(); location.reload()" class="w-full bg-orange-600 text-white px-4 py-2 rounded">🧹 Reset complet</button>
+            <button onclick="location.reload()" class="w-full bg-gray-600 text-white px-4 py-2 rounded">🔄 Retour</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showDesktopFirebaseHelp() {
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-purple-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+        <h2 class="text-xl font-bold text-purple-600 mb-4">🖥️ Aide Firebase Desktop</h2>
+        <div class="space-y-4 text-sm">
+          <div class="bg-blue-50 border border-blue-200 rounded p-3">
+            <h4 class="font-medium text-blue-800 mb-2">🔧 Vérifications:</h4>
+            <ul class="text-blue-700 space-y-1">
+              <li>• Pare-feu/antivirus bloquant Firebase</li>
+              <li>• Proxy d'entreprise/école</li>
+              <li>• Extensions de navigateur</li>
+              <li>• Bloqueurs de publicité</li>
+            </ul>
+          </div>
+          
+          <div class="bg-green-50 border border-green-200 rounded p-3">
+            <h4 class="font-medium text-green-800 mb-2">✅ Tests conseillés:</h4>
+            <ul class="text-green-700 space-y-1">
+              <li>• Ouvrir dans un autre navigateur</li>
+              <li>• Désactiver temporairement extensions</li>
+              <li>• Test en mode navigation privée</li>
+            </ul>
+          </div>
+          
+          <div class="space-y-2">
+            <button onclick="testFirebaseManually()" class="w-full bg-blue-600 text-white px-4 py-2 rounded">🧪 Tester Firebase</button>
+            <button onclick="window.open('https://console.firebase.google.com/', '_blank')" class="w-full bg-orange-600 text-white px-4 py-2 rounded">🔗 Console Firebase</button>
+            <button onclick="location.reload()" class="w-full bg-gray-600 text-white px-4 py-2 rounded">🔄 Retour</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showDetailedDiagnostic() {
+  const diagnostic = diagnoseFirebaseIssues();
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-2xl max-h-96 overflow-y-auto">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">🔍 Diagnostic Firebase Détaillé</h2>
+        <div class="space-y-4 text-sm">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <div><strong>SDK Firebase:</strong> ${diagnostic.sdkLoaded ? '✅' : '❌'}</div>
+              <div><strong>App initialisée:</strong> ${diagnostic.appInitialized ? '✅' : '❌'}</div>
+              <div><strong>Auth prêt:</strong> ${diagnostic.authReady ? '✅' : '❌'}</div>
+              <div><strong>Firestore prêt:</strong> ${diagnostic.firestoreReady ? '✅' : '❌'}</div>
+            </div>
+            <div class="space-y-2">
+              <div><strong>Utilisateur:</strong> ${diagnostic.currentUser ? 'Connecté' : 'Déconnecté'}</div>
+              <div><strong>Projet:</strong> ${diagnostic.projectId}</div>
+              <div><strong>Domaine:</strong> ${diagnostic.authDomain}</div>
+              <div><strong>Mobile:</strong> ${compatibility.isMobile ? 'Oui' : 'Non'}</div>
+            </div>
+          </div>
+          
+          ${diagnostic.errors.length > 0 ? `
+          <div class="bg-red-50 border border-red-200 rounded p-3">
+            <h4 class="font-medium text-red-800 mb-2">❌ Erreurs détectées:</h4>
+            <ul class="text-red-700 space-y-1">
+              ${diagnostic.errors.map(error => `<li>• ${error}</li>`).join('')}
+            </ul>
+          </div>
+          ` : '<div class="bg-green-50 border border-green-200 rounded p-3 text-green-700">✅ Aucune erreur détectée</div>'}
+          
+          <details>
+            <summary class="cursor-pointer text-gray-600">📋 Configuration complète</summary>
+            <pre class="text-xs bg-gray-100 p-3 rounded mt-2 overflow-auto">${JSON.stringify({
+              firebase: diagnostic,
+              compatibility: compatibility,
+              config: {
+                projectId: firebaseConfig.projectId,
+                authDomain: firebaseConfig.authDomain
+              }
+            }, null, 2)}</pre>
+          </details>
+          
+          <button onclick="location.reload()" class="w-full bg-blue-600 text-white px-4 py-2 rounded">🔄 Retour à l'application</button>
+        </div>
       </div>
     </div>
   `;
@@ -814,7 +1262,50 @@ function showLogin() {
     } catch (error) {
       hideLoader();
       console.error('Erreur de connexion:', error);
-      alert('Erreur de connexion: ' + getErrorMessage(error.code || 'unknown'));
+      
+      // Gestion d'erreur spécifique pour mobile
+      let errorMessage = getErrorMessage(error.code || 'unknown');
+      
+      // Erreurs spécifiques Firebase sur mobile
+      if (compatibility.isMobile) {
+        if (error.code === 'auth/network-request-failed') {
+          errorMessage = '📱 Problème de connexion mobile. Vérifiez votre réseau 4G/WiFi';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = '📱 Connexion trop lente. Réessayez dans quelques instants';
+        } else if (error.code === 'auth/popup-blocked') {
+          errorMessage = '📱 Popup bloqué. Utilisez la connexion par email';
+        }
+      }
+      
+      // Afficher l'erreur avec suggestion de test
+      document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
+          <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+            <h2 class="text-xl font-bold text-red-600 mb-4">❌ Erreur de connexion</h2>
+            <div class="bg-red-50 border border-red-200 rounded p-3 mb-4">
+              <p class="text-red-800">${errorMessage}</p>
+            </div>
+            <div class="space-y-2">
+              <button onclick="location.reload()" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">🔄 Réessayer</button>
+              <button onclick="testFirebaseManually()" class="w-full bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">🧪 Tester Firebase</button>
+              ${compatibility.isMobile ? 
+                '<button onclick="showMobileFirebaseHelp()" class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">📱 Aide mobile</button>' : 
+                ''
+              }
+            </div>
+            <details class="mt-4">
+              <summary class="text-sm text-gray-600 cursor-pointer">🔍 Détails de l'erreur</summary>
+              <pre class="text-xs bg-gray-100 p-2 rounded mt-2 overflow-auto">${JSON.stringify({
+                code: error.code,
+                message: error.message,
+                mobile: compatibility.isMobile,
+                online: navigator.onLine,
+                userAgent: navigator.userAgent
+              }, null, 2)}</pre>
+            </details>
+          </div>
+        </div>
+      `;
     }
   };
 
@@ -885,6 +1376,8 @@ async function handleAuthSuccess(firebaseUser, role) {
 }
 
 function getErrorMessage(errorCode) {
+  const isMobile = compatibility?.isMobile || false;
+  
   switch (errorCode) {
     case 'auth/user-not-found':
       return 'Aucun compte trouvé avec cet email';
@@ -893,15 +1386,43 @@ function getErrorMessage(errorCode) {
     case 'auth/email-already-in-use':
       return 'Cet email est déjà utilisé';
     case 'auth/weak-password':
-      return 'Mot de passe trop faible';
+      return 'Mot de passe trop faible (min. 6 caractères)';
     case 'auth/invalid-email':
-      return 'Email invalide';
+      return 'Format d\'email invalide';
     case 'auth/too-many-requests':
-      return 'Trop de tentatives, réessayez plus tard';
+      return 'Trop de tentatives. Attendez quelques minutes';
+    case 'auth/network-request-failed':
+      return isMobile ? 
+        '📱 Problème de réseau mobile. Vérifiez votre connexion 4G/WiFi' : 
+        'Problème de connexion réseau';
+    case 'auth/timeout':
+      return isMobile ? 
+        '📱 Connexion trop lente sur mobile. Réessayez' : 
+        'Délai d\'attente dépassé';
+    case 'auth/popup-blocked':
+      return isMobile ? 
+        '📱 Popup bloqué sur mobile. Utilisez la connexion email' : 
+        'Popup bloqué par le navigateur';
+    case 'auth/operation-not-allowed':
+      return 'Méthode de connexion non autorisée';
+    case 'auth/invalid-credential':
+      return 'Identifiants invalides';
+    case 'permission-denied':
+      return 'Accès refusé à la base de données';
+    case 'unavailable':
+      return isMobile ? 
+        '📱 Service temporairement indisponible. Vérifiez votre connexion mobile' : 
+        'Service Firebase temporairement indisponible';
+    case 'unauthenticated':
+      return 'Authentification requise';
     case 'unknown':
-      return 'Erreur de connexion inconnue';
+      return isMobile ? 
+        '📱 Erreur mobile inconnue. Essayez de recharger l\'application' : 
+        'Erreur de connexion inconnue';
     default:
-      return errorCode || 'Erreur de connexion';
+      return isMobile ? 
+        `📱 Erreur mobile: ${errorCode || 'Inconnue'}` : 
+        (errorCode || 'Erreur de connexion');
   }
 }
 
@@ -4364,30 +4885,108 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('• 🔍 Recherche et filtrage patients');
 });
 
-// Init - Attendre que Firebase soit prêt avec timeout
+// Init - Attendre que Firebase soit prêt avec timeout et mode dégradé
 let authInitialized = false;
+let firebaseConnectionFailed = false;
 
-firebase.auth().onAuthStateChanged((user) => {
-  console.log("Auth state changed:", user ? "connecté" : "déconnecté");
-  authInitialized = true;
+// Gestionnaire d'état d'authentification avec gestion d'erreur
+try {
+  firebase.auth().onAuthStateChanged((user) => {
+    console.log("✅ Auth state changed:", user ? "connecté" : "déconnecté");
+    authInitialized = true;
+    
+    // Vérifier d'abord si on est en mode urgence avant de rendre l'app normale
+    const urlParams = new URLSearchParams(window.location.search);
+    const patientId = urlParams.get('patient');
+    const accessType = urlParams.get('access');
+    const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+    
+    if ((patientId && accessType === 'medical') || nfcTagId) {
+      console.log("🚑 Mode urgence détecté - éviter renderApp()");
+      return; // Ne pas appeler renderApp() en mode urgence
+    }
+    
+    renderApp();
+  });
+} catch (authError) {
+  console.error("❌ Erreur lors de l'initialisation de l'auth Firebase:", authError);
+  firebaseConnectionFailed = true;
   
-  // Vérifier d'abord si on est en mode urgence avant de rendre l'app normale
-  const urlParams = new URLSearchParams(window.location.search);
-  const patientId = urlParams.get('patient');
-  const accessType = urlParams.get('access');
-  const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
-  
-  if ((patientId && accessType === 'medical') || nfcTagId) {
-    console.log("🚑 Mode urgence détecté - éviter renderApp()");
-    return; // Ne pas appeler renderApp() en mode urgence
+  // Mode dégradé pour mobile
+  if (compatibility.isMobile) {
+    console.log("📱 Activation du mode dégradé mobile");
+    setTimeout(() => {
+      if (!authInitialized) {
+        showDegradedModeForMobile();
+      }
+    }, 2000);
   }
-  
-  renderApp();
-});
+}
 
-// Timeout de sécurité si Firebase ne répond pas
+// Mode dégradé pour mobile quand Firebase ne fonctionne pas
+function showDegradedModeForMobile() {
+  document.getElementById('app').innerHTML = `
+    <div class="min-h-screen bg-yellow-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
+        <h2 class="text-xl font-bold text-yellow-600 mb-4">📱 Mode Dégradé Mobile</h2>
+        <div class="space-y-4 text-sm">
+          <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
+            <p class="text-yellow-800">Firebase n'est pas accessible depuis votre appareil mobile. Vous pouvez utiliser l'application en mode local.</p>
+          </div>
+          
+          <div class="bg-blue-50 border border-blue-200 rounded p-3">
+            <h4 class="font-medium text-blue-800 mb-2">🔧 Fonctionnalités disponibles:</h4>
+            <ul class="text-blue-700 space-y-1">
+              <li>• Stockage local des données</li>
+              <li>• Fiche médicale d'urgence</li>
+              <li>• Rappels de médicaments</li>
+              <li>• Export des données</li>
+            </ul>
+          </div>
+          
+          <div class="bg-orange-50 border border-orange-200 rounded p-3">
+            <h4 class="font-medium text-orange-800 mb-2">⚠️ Limitations:</h4>
+            <ul class="text-orange-700 space-y-1">
+              <li>• Pas de synchronisation cloud</li>
+              <li>• Données stockées localement uniquement</li>
+              <li>• Accès admin limité</li>
+            </ul>
+          </div>
+          
+          <div class="space-y-2">
+            <button onclick="startDegradedMode()" class="w-full bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700">📱 Utiliser en mode local</button>
+            <button onclick="testFirebaseManually()" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">🧪 Retester Firebase</button>
+            <button onclick="showMobileFirebaseHelp()" class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">📱 Aide dépannage</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Démarrer l'application en mode dégradé
+function startDegradedMode() {
+  console.log("🔄 Démarrage en mode dégradé");
+  
+  // Créer un utilisateur local factice
+  const localUser = {
+    uid: 'local-' + Date.now(),
+    email: 'local@mobile.user',
+    role: 'patient',
+    firstName: 'Utilisateur',
+    lastName: 'Mobile',
+    isLocal: true,
+    degradedMode: true,
+    createdAt: new Date().toISOString()
+  };
+  
+  saveUser(localUser);
+  renderApp();
+}
+
+// Timeout de sécurité si Firebase ne répond pas - différent pour mobile
 setTimeout(() => {
-  if (!authInitialized) {
+  if (!authInitialized && !firebaseConnectionFailed) {
     // Vérifier d'abord si on est en mode urgence
     const urlParams = new URLSearchParams(window.location.search);
     const patientId = urlParams.get('patient');
@@ -4399,24 +4998,40 @@ setTimeout(() => {
       return;
     }
     
-    console.log("Timeout Firebase - Chargement forcé de l'interface");
-    showLogin();
+    console.log("⏰ Timeout Firebase - Comportement adapté selon l'appareil");
+    
+    if (compatibility.isMobile) {
+      console.log("📱 Mobile détecté - Proposition du mode dégradé");
+      showDegradedModeForMobile();
+    } else {
+      console.log("🖥️ Desktop détecté - Interface de connexion normale");
+      showLogin();
+    }
   }
-}, 5000); // 5 secondes
+}, compatibility.isMobile ? 8000 : 5000); // Plus de temps pour mobile
 
-// Test immédiat si Firebase est déjà prêt
-if (firebase.auth().currentUser !== undefined) {
-  // Vérifier d'abord si on est en mode urgence
-  const urlParams = new URLSearchParams(window.location.search);
-  const patientId = urlParams.get('patient');
-  const accessType = urlParams.get('access');
-  const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+// Test immédiat si Firebase est déjà prêt - avec gestion d'erreur
+try {
+  if (firebase.auth().currentUser !== undefined) {
+    // Vérifier d'abord si on est en mode urgence
+    const urlParams = new URLSearchParams(window.location.search);
+    const patientId = urlParams.get('patient');
+    const accessType = urlParams.get('access');
+    const nfcTagId = urlParams.get('nfc') || urlParams.get('tag');
+    
+    if ((patientId && accessType === 'medical') || nfcTagId) {
+      console.log("🚑 Mode urgence détecté - pas de renderApp() immédiat");
+    } else {
+      console.log("✅ Firebase déjà prêt");
+      renderApp();
+    }
+  }
+} catch (immediateError) {
+  console.error("❌ Erreur lors du test immédiat Firebase:", immediateError);
+  firebaseConnectionFailed = true;
   
-  if ((patientId && accessType === 'medical') || nfcTagId) {
-    console.log("🚑 Mode urgence détecté - pas de renderApp() immédiat");
-  } else {
-    console.log("Firebase déjà prêt");
-    renderApp();
+  if (compatibility.isMobile) {
+    setTimeout(() => showDegradedModeForMobile(), 1000);
   }
 }
 </script>
