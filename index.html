@@ -660,9 +660,6 @@ function showLogin() {
         <button type="button" id="rolePatient" class="p-3 rounded-lg border-2 border-blue-600 bg-blue-50 text-blue-700">
           ${icons.user} <span class="text-sm font-medium">Patient</span>
         </button>
-        <button type="button" id="roleMedecin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
-          ${icons.stethoscope} <span class="text-sm font-medium">Médecin</span>
-        </button>
         <button type="button" id="roleAdmin" class="p-3 rounded-lg border-2 border-gray-300 hover:border-gray-400">
           ${icons.settings} <span class="text-sm font-medium">Admin</span>
         </button>
@@ -732,10 +729,6 @@ function showLogin() {
     role = 'patient';
     updateRoleSelection('rolePatient', 'blue');
   };
-  document.getElementById('roleMedecin').onclick = () => {
-    role = 'medecin';
-    updateRoleSelection('roleMedecin', 'green');
-  };
   document.getElementById('roleAdmin').onclick = () => {
     role = 'admin';
     updateRoleSelection('roleAdmin', 'purple');
@@ -743,7 +736,7 @@ function showLogin() {
 
   function updateRoleSelection(selectedId, color) {
     // Reset tous les boutons
-    ['rolePatient', 'roleMedecin', 'roleAdmin'].forEach(id => {
+    ['rolePatient', 'roleAdmin'].forEach(id => {
       const btn = document.getElementById(id);
       btn.classList.remove('border-blue-600', 'bg-blue-50', 'text-blue-700');
       btn.classList.remove('border-green-600', 'bg-green-50', 'text-green-700');
@@ -874,10 +867,6 @@ async function handleAuthSuccess(firebaseUser, role) {
         firstName: role === 'patient' ? (firebaseUser.displayName?.split(' ')[0] || 'Patient') : 'Dr. ' + (firebaseUser.displayName?.split(' ')[0] || 'Médecin'),
         lastName: firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
         phone: firebaseUser.phoneNumber || '',
-        ...(role === 'medecin' && { 
-          speciality: 'Médecine générale', 
-          hospital: 'Établissement de santé' 
-        })
       },
       createdAt: new Date().toISOString()
     };
@@ -1714,7 +1703,7 @@ service cloud.firestore {
     match /patients/{patientId} {
       allow read, write: if request.auth != null && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'medecin'];
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }</pre>
@@ -3326,53 +3315,47 @@ function testNFC(tagId) {
   SYLAnalytics.trackEvent('nfc_test', { tagId, patientId: patient.id });
 }
 
-// ----------- MEDECIN DASHBOARD -----------
-function renderMedecinDashboard(user) {
-  let patients = JSON.parse(localStorage.getItem('syl-patients') || 'null');
-  if (!patients) {
-    patients = [
-      {
-        id: '1',
-        personalInfo: { firstName: 'Jean', lastName: 'Martin', dateOfBirth: '1978-05-15', bloodType: 'O+', height: '175', weight: '80' },
-        medicalHistory: { allergies: ['Pénicilline', 'Pollen'], medications: ['Metformine 500mg'], conditions: ['Diabète type 2'], chronicDiseases: ['Diabète type 2', 'Hypertension'] },
-        emergencyInfo: { criticalNotes: 'Risque hypoglycémie', contraindications: ['Corticoïdes'] },
-        lastAccess: '2024-01-15',
-        isActive: true
-      },
-      {
-        id: '2',
-        personalInfo: { firstName: 'Marie', lastName: 'Dubois', dateOfBirth: '1985-08-22', bloodType: 'A+', height: '165', weight: '65' },
-        medicalHistory: { allergies: ['Aspirine'], medications: ['Levothyrox'], conditions: ['Hypothyroïdie'], chronicDiseases: ['Hypothyroïdie'] },
-        emergencyInfo: { criticalNotes: '', contraindications: [] },
-        lastAccess: '2024-01-14',
-        isActive: true
+// Fonction pour afficher la fiche médicale d'un patient via NFC
+async function showPatientMedicalRecord(patientId) {
+  // IMPORTANT: Pour permettre l'accès d'urgence depuis n'importe quel appareil,
+  // les règles Firebase doivent autoriser la lecture anonyme des collections patients et users
+  // 
+  // RÈGLES FIRESTORE RECOMMANDÉES :
+  /*
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      // Collection d'accès d'urgence - LECTURE PUBLIQUE
+      match /emergency_access/{patientId} {
+        allow read: if true;  // ⚠️ ACCÈS PUBLIC pour les urgences
+        allow write: if request.auth != null;
       }
-    ];
-    localStorage.setItem('syl-patients', JSON.stringify(patients));
+      
+      // Collections principales - ACCÈS AUTHENTIFIÉ
+      match /users/{userId} {
+        allow read, write: if request.auth != null;
+      }
+      match /patients/{patientId} {
+        allow read, write: if request.auth != null;
+      }
+    }
   }
-  let searchTerm = '';
-  let selectedPatient = null;
-  let activeTab = 'patients';
-  render();
-
-  function render() {
-    const filteredPatients = patients.filter(patient =>
-      `${patient.personalInfo.firstName} ${patient.personalInfo.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    document.getElementById('app').innerHTML = `
-      <div class="min-h-screen bg-gray-50">
-        <header class="bg-white shadow-sm border-b">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-            <div class="flex items-center">
-              ${icons.stethoscope}
-              <div class="ml-3">
-                <h1 class="text-xl font-bold text-gray-900">SYL Medical Pro</h1>
-                <p class="text-xs text-gray-500">${user.profile.speciality||''} • ${user.profile.hospital||''}</p>
-              </div>
-            </div>
-            <div class="flex items-center space-x-4">
-              <div class="text-sm text-gray-600">Dr. ${user.profile.firstName} ${user.profile.lastName}</div>
-              <button id="logoutBtn" class="border-2 border-green-600 text-green-600 hover:bg-green-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
+  */
+  //
+  // CONFIGURATION AUTHENTIFICATION :
+  // • Activer "Authentification anonyme" dans Firebase Console
+  // • Autoriser les domaines dans les "Domaines autorisés"
+  //
+  
+  // D'abord essayer de récupérer depuis localStorage
+  let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  let patient = patients.find(p => (p.id || p.uid) === patientId);
+  
+  // Si pas trouvé localement, essayer de récupérer depuis Firebase
+  if (!patient && typeof firebase !== 'undefined' && firebase.firestore) {
+    console.log('🔍 Patient non trouvé localement, recherche dans Firebase...');
+    
+    // Afficher un indicateur de chargement
             </div>
           </div>
         </header>
@@ -4146,8 +4129,6 @@ function renderApp() {
       console.log("Utilisateur connecté, rôle:", localUser.role);
       if (localUser.role === 'patient') {
         renderPatientDashboard(localUser);
-      } else if (localUser.role === 'medecin') {
-        renderMedecinDashboard(localUser);
       } else if (localUser.role === 'admin') {
         renderAdminDashboard(localUser);
       } else {
