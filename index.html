@@ -279,17 +279,43 @@ function saveUser(user) {
   }
 }
 
-function setUser(user) {
-  localStorage.setItem('syl-user', JSON.stringify(user));
-}
+// ========== GESTION UTILISATEUR FIREBASE (sans localStorage) ==========
 
-function getUser() {
-  const u = localStorage.getItem('syl-user');
-  return u ? JSON.parse(u) : null;
+async function getCurrentUser() {
+  return new Promise((resolve) => {
+    const unsubscribe = firebase.auth().onAuthStateChanged(async (firebaseUser) => {
+      unsubscribe(); // Se désabonner immédiatement
+      
+      if (firebaseUser) {
+        try {
+          // Récupérer les données utilisateur depuis Firestore
+          const db = firebase.firestore();
+          const userDoc = await db.collection('users').doc(firebaseUser.uid).get();
+          
+          if (userDoc.exists) {
+            const userData = userDoc.data();
+            resolve({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              ...userData
+            });
+          } else {
+            console.error("Document utilisateur non trouvé dans Firestore");
+            resolve(null);
+          }
+        } catch (error) {
+          console.error("Erreur récupération utilisateur:", error);
+          resolve(null);
+        }
+      } else {
+        resolve(null);
+      }
+    });
+  });
 }
 
 function clearUser() {
-  localStorage.removeItem('syl-user');
+  firebase.auth().signOut();
 }
 
 // Nouvelles fonctionnalités
@@ -832,7 +858,6 @@ function showLogin() {
           },
           createdAt: new Date().toISOString()
         };
-        setUser(adminData);
         hideLoader();
         renderApp();
         return;
@@ -924,7 +949,6 @@ async function handleAuthSuccess(firebaseUser, role) {
         lastLogin: userData.lastLogin
       });
       
-      setUser(userData);
       console.log('✅ Utilisateur existant connecté:', userData.personalInfo?.firstName || userData.profile?.firstName);
     } else {
       // Nouvel utilisateur, créer le profil avec la structure basique
@@ -945,7 +969,6 @@ async function handleAuthSuccess(firebaseUser, role) {
       
       // Sauvegarder le nouvel utilisateur dans Firestore
       await saveUserToFirestore(userData);
-      setUser(userData);
       
       console.log('✅ Nouvel utilisateur créé:', userData.personalInfo.firstName);
     }
@@ -1307,9 +1330,6 @@ function setupDetailedRegistrationEvents(email, password, role) {
       
       // Sauvegarder dans Firestore
       await saveUserToFirestore(userData);
-      
-      // Connecter l'utilisateur
-      setUser(userData);
       
       hideLoader();
       showRegistrationSuccess(userData);
@@ -4151,7 +4171,7 @@ function testNFC(tagId) {
 // La fonction renderMedecinDashboard a été supprimée car seuls les rôles 'patient', 'admin' et 'anonyme' sont supportés
 
 // ----------- MAIN -----------
-function renderApp() {
+async function renderApp() {
   console.log("renderApp appellee");
   
   try {
@@ -4173,18 +4193,18 @@ function renderApp() {
       return;
     }
     
-    // Récupérer l'utilisateur local
-    const localUser = getUser();
+    // Récupérer l'utilisateur depuis Firebase
+    const currentUser = await getCurrentUser();
     
-    if (localUser) {
-      console.log("Utilisateur connecté, rôle:", localUser.role);
-      if (localUser.role === 'patient') {
-        renderPatientDashboard(localUser);
-      } else if (localUser.role === 'admin') {
-        renderAdminDashboard(localUser);
+    if (currentUser) {
+      console.log("Utilisateur connecté, rôle:", currentUser.role);
+      if (currentUser.role === 'patient') {
+        renderPatientDashboard(currentUser);
+      } else if (currentUser.role === 'admin') {
+        renderAdminDashboard(currentUser);
       } else {
-        console.error("Rôle utilisateur inconnu:", localUser.role);
-        clearUser();
+        console.error("Rôle utilisateur inconnu:", currentUser.role);
+        firebase.auth().signOut();
         showLogin();
       }
     } else {
