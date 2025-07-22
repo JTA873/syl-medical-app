@@ -1423,20 +1423,63 @@ function initMedicalDataChat(userData) {
   
   // Compléter la collecte de données
   function completeDataCollection() {
+    console.log('🎉 Collecte de données terminée');
+    console.log('📊 Données collectées:', medicalData);
+    
     // Sauvegarder les données
     localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
     
+    // Mettre à jour le profil utilisateur avec les nouvelles données
+    const updatedUserData = {
+      ...userData,
+      profile: {
+        ...userData.profile,
+        ...medicalData.personalInfo
+      },
+      medicalData: medicalData
+    };
+    
+    console.log('👤 Données utilisateur mises à jour:', updatedUserData);
+    
+    // Sauvegarder le profil complet
+    localStorage.setItem('syl-currentUser', JSON.stringify(updatedUserData));
+    
+    // Ajouter un message de fin dans le chat
+    addMessage(`🎉 Parfait ! Votre dossier médical est maintenant configuré.\n\nRedirection vers votre tableau de bord dans quelques instants...`);
+    
     // Sauvegarder dans Firebase si disponible
     if (firebase.firestore && firebase.auth().currentUser) {
+      console.log('💾 Sauvegarde Firebase en cours...');
       const db = firebase.firestore();
-      db.collection('patients').doc(userData.uid).set(medicalData)
-        .then(() => console.log('Données médicales sauvegardées dans Firebase'))
-        .catch(error => console.error('Erreur sauvegarde Firebase:', error));
+      
+      // Utiliser merge: true pour éviter d'écraser des données existantes
+      db.collection('patients').doc(userData.uid).set({
+        ...updatedUserData,
+        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true })
+        .then(() => {
+          console.log('✅ Données médicales sauvegardées dans Firebase');
+          setTimeout(() => {
+            console.log('🚀 Redirection vers le tableau de bord patient');
+            renderPatientDashboard(updatedUserData);
+          }, 2000);
+        })
+        .catch(error => {
+          console.error('❌ Erreur sauvegarde Firebase:', error);
+          // Même en cas d'erreur Firebase, afficher le tableau de bord
+          setTimeout(() => {
+            console.log('🚀 Redirection vers le tableau de bord patient (mode local)');
+            renderPatientDashboard(updatedUserData);
+          }, 2000);
+        });
+    } else {
+      console.log('📱 Mode local - pas de Firebase disponible');
+      // Si pas de Firebase, afficher directement le tableau de bord
+      setTimeout(() => {
+        console.log('🚀 Redirection vers le tableau de bord patient');
+        renderPatientDashboard(updatedUserData);
+      }, 2000);
     }
-    
-    setTimeout(() => {
-      renderPatientDashboard(userData);
-    }, 2000);
   }
   
   // Event listeners
