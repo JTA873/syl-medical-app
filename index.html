@@ -187,17 +187,8 @@ function detectMobileIssues() {
       });
     }
     
-    // Ajouter un listener pour les problèmes de rafraîchissement
-    window.addEventListener('beforeunload', () => {
-      localStorage.setItem('syl-last-load', Date.now().toString());
-    });
-    
-    // Détecter si l'app est bloquée
-    const lastLoad = localStorage.getItem('syl-last-load');
-    if (lastLoad && (Date.now() - parseInt(lastLoad)) < 5000) {
-      console.log("⚠️ Rechargement rapide détecté, possible problème de cache");
-      location.reload(true); // Force le reload
-    }
+    // Nettoyage simple sans rechargement automatique
+    console.log("✅ Optimisations mobile appliquées");
   }
 }
 
@@ -1792,14 +1783,21 @@ async function loadPatientsFromFirebase() {
       throw new Error('Firebase non initialisé correctement');
     }
 
-    // Vérifier l'authentification
+    // Vérifier l'authentification (admin local OU Firebase)
     const currentUser = firebase.auth().currentUser;
-    if (!currentUser) {
+    const localUser = getUser();
+    
+    // Accepter les admins locaux même s'ils ne sont pas connectés à Firebase
+    if (!currentUser && (!localUser || localUser.role !== 'admin')) {
       throw new Error('Vous devez être connecté pour accéder aux données Firebase');
     }
-
-    console.log('Utilisateur connecté:', currentUser.email);
-    console.log('UID:', currentUser.uid);
+    
+    if (localUser && localUser.role === 'admin') {
+      console.log('🔑 Admin local détecté, accès Firebase autorisé:', localUser.email);
+    } else if (currentUser) {
+      console.log('Utilisateur Firebase connecté:', currentUser.email);
+      console.log('UID:', currentUser.uid);
+    }
     console.log('Tentative de chargement des patients depuis Firebase...');
     
     // Essayer différentes approches selon les permissions
@@ -2417,7 +2415,11 @@ function renderAdminDashboard(user) {
         return;
       }
       
-      if (!firebase.auth().currentUser) {
+      // Vérifier l'authentification (admin local OU Firebase)
+      const currentUser = firebase.auth().currentUser;
+      const localUser = getUser();
+      
+      if (!currentUser && (!localUser || localUser.role !== 'admin')) {
         alert('❌ Vous devez être connecté pour synchroniser !\n\nConnectez-vous d\'abord avec un compte admin.');
         return;
       }
@@ -3158,7 +3160,8 @@ async function saveEmergencyData(patient) {
   
   try {
     // S'assurer que l'utilisateur est authentifié
-    if (!firebase.auth().currentUser) {
+    const localUser = getCurrentUser();
+    if (!firebase.auth().currentUser && !(localUser && localUser.role === 'admin')) {
       console.log('⚠️ Pas d\'utilisateur authentifié, impossible de sauvegarder');
       throw new Error('Authentification requise pour sauvegarder dans Firebase');
     }
@@ -5312,10 +5315,8 @@ window.diagnosticAndRepair = function() {
     // Nettoyer le cache
     clearExpiredCache();
     
-    // Réinitialiser Firebase si nécessaire
-    if (!firebase || !db || !auth) {
-      location.reload();
-    }
+    // Note: Firebase sera réinitialisé naturellement au prochain chargement
+    console.log("⚠️ Problèmes détectés mais pas de rechargement automatique");
     
     return false;
   }
@@ -5349,12 +5350,8 @@ function clearExpiredCache() {
 if (window.innerWidth <= 768) {
   console.log("📱 Activation des optimisations mobile");
   
-  // Diagnostic automatique toutes les 5 minutes
-  setInterval(() => {
-    if (!diagnosticAndRepair()) {
-      console.log("🔄 Problèmes détectés et réparés");
-    }
-  }, 5 * 60 * 1000);
+  // Diagnostic à la demande uniquement (pas automatique)
+  console.log("✅ Diagnostic disponible via diagnosticAndRepair()");
   
   // Nettoyage préventif du cache toutes les heures
   setInterval(clearExpiredCache, 60 * 60 * 1000);
