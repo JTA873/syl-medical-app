@@ -2129,9 +2129,9 @@ function renderAdminDashboard(user) {
           <div class="text-sm text-amber-700 space-y-1">
             <p><strong>🗑️ Suppression individuelle :</strong> Cliquez sur l'icône rouge dans la colonne "Actions" de chaque patient</p>
             <p><strong>🚨 Suppression massive :</strong> Bouton "SUPPR. TOUT" - ATTENTION: Irréversible !</p>
-            <p><strong>� Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
-            <p><strong>�🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
-            <p><strong>� Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
+            <p><strong>  Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
+            <p><strong> 🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
+            <p><strong>  Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
           </div>
         </div>
 
@@ -4961,6 +4961,16 @@ firebase.auth().onAuthStateChanged((user) => {
   }
   
   renderApp();
+  
+  // Démarrer la synchronisation automatique après le rendu (avec délai)
+  setTimeout(async () => {
+    try {
+      console.log("🚀 Démarrage de la première auto-synchronisation");
+      await window.autoSyncPatients();
+    } catch (err) {
+      console.log("Première auto-sync échouée:", err);
+    }
+  }, 3000); // Attendre 3 secondes après le rendu
 });
 
 // Timeout de sécurité si Firebase ne répond pas
@@ -5436,6 +5446,148 @@ function clearExpiredCache() {
   });
 }
 
+// Fonction de synchronisation automatique des patients
+window.autoSyncPatients = async function() {
+  console.log("🔄 Vérification automatique des nouveaux patients...");
+  
+  // Vérifier si on est admin
+  const localUser = getCurrentUser();
+  if (!localUser || localUser.role !== 'admin') {
+    console.log("👤 Auto-sync : pas admin, abandon");
+    return;
+  }
+  
+  // Vérifier si Firebase est disponible
+  if (!firebase || !db || typeof db.collection !== 'function') {
+    console.log("🔥 Auto-sync : Firebase non disponible");
+    return;
+  }
+  
+  try {
+    // Charger les données locales avec timestamp
+    const localData = loadPatientsWithTimestamp();
+    const localPatients = localData.patients || [];
+    const lastLocalUpdate = localData.lastUpdate || 0;
+    
+    console.log(`📊 Données locales: ${localPatients.length} patients, dernière MAJ: ${new Date(lastLocalUpdate).toLocaleString()}`);
+    
+    // Vérifier s'il y a de nouveaux patients dans Firebase
+    const firebaseSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+    const firebasePatients = [];
+    
+    firebaseSnapshot.forEach(doc => {
+      const userData = doc.data();
+      firebasePatients.push({
+        id: doc.id,
+        uid: userData.uid || doc.id,
+        email: userData.email,
+        createdAt: userData.createdAt || userData.timestamp,
+        ...userData
+      });
+    });
+    
+    console.log(`🔥 Firebase: ${firebasePatients.length} patients trouvés`);
+    
+    // Chercher les nouveaux patients (créés après notre dernière sync)
+    const newPatients = firebasePatients.filter(fbPatient => {
+      // Vérifier si le patient existe déjà localement
+      const existsLocally = localPatients.some(localPatient => 
+        localPatient.id === fbPatient.id || 
+        localPatient.uid === fbPatient.uid ||
+        localPatient.email === fbPatient.email
+      );
+      
+      if (existsLocally) return false;
+      
+      // Vérifier si c'est un nouveau patient (créé après notre dernière sync)
+      const patientCreatedAt = new Date(fbPatient.createdAt).getTime();
+      return patientCreatedAt > lastLocalUpdate;
+    });
+    
+    if (newPatients.length > 0) {
+      console.log(`🆕 ${newPatients.length} nouveaux patients détectés !`);
+      
+      // Charger les données médicales pour les nouveaux patients
+      const completeNewPatients = [];
+      
+      for (const patient of newPatients) {
+        try {
+          const medicalDoc = await db.collection('patients').doc(patient.id).get();
+          const medicalData = medicalDoc.exists ? medicalDoc.data() : {};
+          
+          completeNewPatients.push({
+            ...patient,
+            personalInfo: medicalData.personalInfo || {},
+            medicalInfo: medicalData.medicalInfo || {},
+            emergencyContact: medicalData.emergencyContact || {},
+            createdAt: patient.createdAt || new Date().toISOString()
+          });
+        } catch (err) {
+          console.warn(`⚠️ Erreur chargement données patient ${patient.id}:`, err);
+          completeNewPatients.push(patient);
+        }
+      }
+      
+      // Fusionner avec les patients existants
+      const updatedPatients = [...localPatients, ...completeNewPatients];
+      
+      // Sauvegarder avec nouveau timestamp
+      savePatientsWithTimestamp(updatedPatients);
+      
+      // Notification discrète
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        console.log(`✅ Auto-sync: ${newPatients.length} nouveaux patients ajoutés silencieusement`);
+      } else {
+        // Sur PC, notification plus visible
+        console.log(`✅ Auto-sync: ${newPatients.length} nouveaux patients synchronisés`);
+        
+        // Petit popup discret en bas à droite
+        showDiscreetNotification(`📥 ${newPatients.length} nouveau${newPatients.length > 1 ? 'x' : ''} patient${newPatients.length > 1 ? 's' : ''} synchronisé${newPatients.length > 1 ? 's' : ''}`);
+      }
+      
+      // Mettre à jour l'interface si on est sur l'admin
+      if (window.location.hash === '' && document.querySelector('[data-tab="patients"]')) {
+        console.log("🔄 Rafraîchissement de l'interface admin");
+        setTimeout(() => {
+          if (window.renderApp) window.renderApp();
+        }, 1000);
+      }
+      
+      return newPatients.length;
+    } else {
+      console.log("✅ Auto-sync: aucun nouveau patient");
+      return 0;
+    }
+    
+  } catch (error) {
+    console.error("❌ Erreur auto-sync:", error);
+    return -1;
+  }
+};
+
+// Fonction pour afficher une notification discrète
+function showDiscreetNotification(message) {
+  const notification = document.createElement('div');
+  notification.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300';
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Animation d'entrée
+  setTimeout(() => {
+    notification.classList.remove('translate-x-full');
+  }, 100);
+  
+  // Animation de sortie et suppression
+  setTimeout(() => {
+    notification.classList.add('translate-x-full');
+    setTimeout(() => {
+      document.body.removeChild(notification);
+    }, 300);
+  }, 3000);
+}
+
 // Fonction de synchronisation forcée pour mobile
 window.forceMobileSync = function() {
   console.log("🔄 Synchronisation forcée pour mobile...");
@@ -5500,6 +5652,15 @@ if (window.innerWidth <= 768) {
   // Nettoyage préventif du cache toutes les heures
   setInterval(clearExpiredCache, 60 * 60 * 1000);
   
+  // Auto-synchronisation des nouveaux patients (mobile) - plus fréquente
+  setInterval(async () => {
+    try {
+      await window.autoSyncPatients();
+    } catch (err) {
+      console.log("Auto-sync mobile error:", err);
+    }
+  }, 2 * 60 * 1000); // Toutes les 2 minutes sur mobile
+  
   // Optimiser les performances de Firebase sur mobile
   if (db) {
     db.enablePersistence({ synchronizeTabs: false }).catch(err => {
@@ -5516,6 +5677,17 @@ if (window.innerWidth <= 768) {
     const img = new Image();
     img.src = src;
   });
+} else {
+  console.log("💻 Activation des optimisations PC");
+  
+  // Auto-synchronisation des nouveaux patients (PC) - moins fréquente
+  setInterval(async () => {
+    try {
+      await window.autoSyncPatients();
+    } catch (err) {
+      console.log("Auto-sync PC error:", err);
+    }
+  }, 5 * 60 * 1000); // Toutes les 5 minutes sur PC
 }
 
 // Gestionnaire de visibilité de la page pour économiser la batterie
@@ -5527,11 +5699,42 @@ document.addEventListener('visibilitychange', function() {
     console.log("📱 Page visible, reprise normale");
     // Vérifier si une mise à jour est nécessaire
     checkAndUpdateVersion();
+    
+    // Synchroniser les nouveaux patients quand l'onglet redevient actif
+    setTimeout(async () => {
+      try {
+        console.log("👁️ Page redevenue visible - auto-sync");
+        await window.autoSyncPatients();
+      } catch (err) {
+        console.log("Auto-sync au retour échoué:", err);
+      }
+    }, 1000);
   }
 });
 
 // Message de debug pour les développeurs
 console.log(`🚀 SYL Medical ${APP_VERSION} (${BUILD_DATE}) - Optimisé pour mobile`);
+
+// Fonctions de debug pour la synchronisation automatique
+window.debugAutoSync = function() {
+  const data = loadPatientsWithTimestamp();
+  console.log("📊 État de la synchronisation:");
+  console.log("• Patients locaux:", data.patients.length);
+  console.log("• Dernière mise à jour:", data.age > 0 ? `${data.age.toFixed(1)}h ago` : "jamais");
+  console.log("• Données obsolètes:", data.isStale ? "OUI" : "NON");
+  console.log("• Plateforme:", window.innerWidth <= 768 ? "Mobile (sync 2min)" : "PC (sync 5min)");
+  return data;
+};
+
+window.forceAutoSync = function() {
+  console.log("🔄 Synchronisation manuelle forcée...");
+  return window.autoSyncPatients();
+};
+
+console.log("🛠️ Fonctions debug disponibles:");
+console.log("• debugAutoSync() - Voir l'état de sync");
+console.log("• forceAutoSync() - Forcer une sync maintenant");
+console.log("• forceMobileSync() - Sync complète mobile");
 
 // Test final de fonctionnement
 setTimeout(() => {
