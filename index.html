@@ -980,7 +980,7 @@ function showLogin() {
   };
 
   document.getElementById('registerEmail').onclick = async () => {
-    const email = document.getElementById('email').value;
+    const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     
     if (password.length < 6) {
@@ -991,33 +991,11 @@ function showLogin() {
     try {
       showLoader();
       const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-      await handleAuthSuccess(userCredential.user, 'patient'); // Défaut: patient
+      // Toutes les inscriptions sont des patients (sauf l'admin qui utilise le système local)
+      await handleAuthSuccess(userCredential.user, 'patient');
     } catch (error) {
       hideLoader();
-      
-      // Gestion spéciale pour email déjà utilisé
-      if (error.code === 'auth/email-already-in-use') {
-        const tryRecover = confirm(
-          `❌ Cette adresse email est déjà utilisée !\n\n` +
-          `Cela peut arriver si :\n` +
-          `• Vous avez déjà un compte avec cet email\n` +
-          `• Un compte "fantôme" existe après une suppression\n\n` +
-          `Solutions :\n` +
-          `1. Cliquez "OK" pour essayer de vous connecter avec cet email\n` +
-          `2. Cliquez "Annuler" pour utiliser un autre email\n\n` +
-          `Voulez-vous essayer de vous connecter ?`
-        );
-        
-        if (tryRecover) {
-          // Basculer en mode connexion
-          document.getElementById('tabEmail').click();
-          document.getElementById('email').value = email;
-          document.getElementById('password').value = password;
-          alert('✅ Formulaire de connexion pré-rempli.\nEssayez de vous connecter avec ces identifiants.');
-        }
-      } else {
-        alert('Erreur d\'inscription: ' + getErrorMessage(error.code));
-      }
+      alert('Erreur d\'inscription: ' + getErrorMessage(error.code));
     }
   };
 
@@ -1071,25 +1049,19 @@ async function handleAuthSuccess(firebaseUser, role) {
 function getErrorMessage(errorCode) {
   switch (errorCode) {
     case 'auth/user-not-found':
-      return 'Aucun compte trouvé avec cet email. Essayez de vous inscrire d\'abord.';
+      return 'Aucun compte trouvé avec cet email';
     case 'auth/wrong-password':
-      return 'Mot de passe incorrect. Vérifiez votre saisie.';
+      return 'Mot de passe incorrect';
     case 'auth/email-already-in-use':
-      return 'Cet email est déjà utilisé. Essayez de vous connecter ou utilisez un autre email.';
+      return 'Cet email est déjà utilisé';
     case 'auth/weak-password':
-      return 'Mot de passe trop faible. Utilisez au moins 6 caractères.';
+      return 'Mot de passe trop faible (min 6 caractères)';
     case 'auth/invalid-email':
-      return 'Format d\'email invalide. Vérifiez la syntaxe.';
+      return 'Email invalide';
     case 'auth/too-many-requests':
-      return 'Trop de tentatives. Attendez quelques minutes avant de réessayer.';
-    case 'auth/network-request-failed':
-      return 'Erreur de connexion réseau. Vérifiez votre connexion internet.';
-    case 'auth/user-disabled':
-      return 'Ce compte a été désactivé. Contactez l\'administrateur.';
-    case 'unknown':
-      return 'Erreur de connexion inconnue. Réessayez ou contactez le support.';
+      return 'Trop de tentatives, réessayez plus tard';
     default:
-      return errorCode || 'Erreur de connexion';
+      return 'Erreur de connexion';
   }
 }
 
@@ -2061,13 +2033,9 @@ function renderAdminDashboard(user) {
         <div class="flex justify-between items-center">
           <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
           <div class="flex gap-2">
-            <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Firebase</button>
-            <button id="testFirebaseAccess" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🔧 Test Firebase</button>
-            <button onclick="diagnoseFirebaseAuthIssues()" class="bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Diagnostiquer les problèmes d'authentification">🔍 Auth Debug</button>
-            <button id="syncEmergencyData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">🚑 Sync Urgence</button>
-            <button onclick="deleteAllPatients()" class="bg-red-700 hover:bg-red-800 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="DANGER - Supprimer tous les patients">${icons.trash} SUPPR. TOUT</button>
-            <button id="clearAllData" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.trash} Vider cache</button>
-            <button id="refreshPatients" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
+            <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Patients</button>
+            <button onclick="deleteAllPatients()" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Supprimer tous les patients">${icons.trash} Supprimer Tout</button>
+            <button id="refreshPatients" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
           </div>
         </div>
 
@@ -2083,7 +2051,7 @@ function renderAdminDashboard(user) {
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div class="flex items-center mb-2">
             <div class="text-amber-600 mr-2">${icons.warning}</div>
-            <h4 class="font-semibold text-amber-800">Nouvelles fonctionnalités de suppression et diagnostic</h4>
+            <h4 class="font-semibold text-blue-800">Gestion Administrative Simplifiée</h4>
           </div>
           <div class="text-sm text-amber-700 space-y-1">
             <p><strong>🗑️ Suppression individuelle :</strong> Cliquez sur l'icône rouge dans la colonne "Actions" de chaque patient</p>
@@ -3338,7 +3306,7 @@ async function deleteFirebaseUser(email) {
   console.log(`ℹ️ Suppression utilisateur Firebase à effectuer manuellement: ${email}`);
 }
 
-// Fonction pour supprimer tous les patients (DANGER - Admin uniquement)
+// Fonction simple pour supprimer tous les patients
 function deleteAllPatients() {
   const adminUser = getUser();
   if (!adminUser || adminUser.role !== 'admin') {
@@ -3346,24 +3314,18 @@ function deleteAllPatients() {
     return;
   }
   
-  if (!confirm('🚨 DANGER - SUPPRESSION MASSIVE 🚨\n\nVoulez-vous supprimer TOUS LES PATIENTS ?\n\nCette action supprimera DÉFINITIVEMENT :\n• Tous les patients\n• Toutes les données médicales\n• Toutes les associations NFC\n• Toutes les données Firebase\n\nCette action est IRRÉVERSIBLE !')) {
+  if (!confirm('⚠️ SUPPRIMER TOUS LES PATIENTS ?\n\nCette action supprimera définitivement :\n• Tous les patients du système\n• Toutes leurs données médicales\n• Les associations NFC\n\nÊtes-vous sûr ?')) {
     return;
   }
   
-  const confirmation = prompt('Pour confirmer la suppression TOTALE, tapez "SUPPRIMER TOUT" :');
-  if (confirmation !== 'SUPPRIMER TOUT') {
-    alert('Suppression annulée.');
-    return;
-  }
-  
-  const finalConfirm = confirm('⚠️ DERNIÈRE CHANCE ⚠️\n\nÊtes-vous ABSOLUMENT CERTAIN de vouloir supprimer TOUS les patients ?\n\nCette action est DÉFINITIVE et IRRÉVERSIBLE !');
-  if (!finalConfirm) {
+  const confirmation = prompt('Pour confirmer, tapez "SUPPRIMER" :');
+  if (confirmation !== 'SUPPRIMER') {
     alert('Suppression annulée.');
     return;
   }
   
   try {
-    // Obtenir la liste des patients avant suppression
+    // Compter les patients
     const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
     const patientCount = patients.length;
     
@@ -3378,23 +3340,15 @@ function deleteAllPatients() {
     });
     localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
     
-    // Supprimer toutes les données Firebase d'urgence
-    patients.forEach(patient => {
-      const patientId = patient.id || patient.uid;
-      if (patientId) {
-        deleteEmergencyDataFirebase(patientId);
-      }
-    });
-    
-    console.log(`🗑️ Suppression massive: ${patientCount} patients supprimés`);
-    alert(`✅ Suppression massive terminée !\n\n• ${patientCount} patients supprimés\n• ${nfcTags.length} tags NFC libérés\n• Données Firebase en cours de suppression...`);
+    console.log(`✅ ${patientCount} patients supprimés`);
+    alert(`✅ Suppression terminée !\n\n${patientCount} patients supprimés\nTags NFC libérés`);
     
     // Rafraîchir l'affichage
     location.reload();
     
   } catch (error) {
-    console.error('❌ Erreur lors de la suppression massive:', error);
-    alert(`❌ Erreur lors de la suppression massive: ${error.message}`);
+    console.error('❌ Erreur lors de la suppression:', error);
+    alert(`❌ Erreur: ${error.message}`);
   }
 }
 
