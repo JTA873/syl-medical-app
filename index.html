@@ -1776,6 +1776,64 @@ function deleteReminder(index) {
   }
 }
 
+// Fonction utilitaire pour sauvegarder les patients avec timestamp
+function savePatientsWithTimestamp(patients) {
+  const dataWithTimestamp = {
+    patients: patients,
+    lastUpdate: Date.now(),
+    source: 'firebase'
+  };
+  localStorage.setItem('syl-patients-data', JSON.stringify(dataWithTimestamp));
+  // Maintenir aussi l'ancien format pour compatibilité
+  localStorage.setItem('syl-patients', JSON.stringify(patients));
+  console.log('💾 Patients sauvegardés avec timestamp:', new Date(dataWithTimestamp.lastUpdate).toLocaleString());
+}
+
+// Fonction utilitaire pour charger les patients avec vérification de fraîcheur
+function loadPatientsWithTimestamp() {
+  try {
+    const dataStr = localStorage.getItem('syl-patients-data');
+    if (dataStr) {
+      const data = JSON.parse(dataStr);
+      const age = Date.now() - data.lastUpdate;
+      const ageHours = age / (1000 * 60 * 60);
+      
+      console.log('📊 Données locales:', {
+        patients: data.patients?.length || 0,
+        age: ageHours.toFixed(1) + 'h',
+        source: data.source
+      });
+      
+      // Sur mobile, alerter si les données sont anciennes (plus de 1 heure)
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile && ageHours > 1) {
+        console.warn('⚠️ Données potentiellement obsolètes sur mobile');
+        return {
+          patients: data.patients || [],
+          isStale: true,
+          age: ageHours
+        };
+      }
+      
+      return {
+        patients: data.patients || [],
+        isStale: false,
+        age: ageHours
+      };
+    }
+  } catch (e) {
+    console.log('Utilisation du format ancien');
+  }
+  
+  // Fallback vers l'ancien format
+  const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  return {
+    patients,
+    isStale: true,
+    age: -1
+  };
+}
+
 // Fonction globale pour charger les patients depuis Firebase
 async function loadPatientsFromFirebase() {
   try {
@@ -1940,7 +1998,9 @@ service cloud.firestore {
     localStorage.removeItem('syl-patients');
     localStorage.removeItem('syl-nfc-tags');
     
-    localStorage.setItem('syl-patients', JSON.stringify(completePatients));
+    // Sauvegarder avec timestamp
+    savePatientsWithTimestamp(completePatients);
+    
     console.log(`✅ ${completePatients.length} patients chargés depuis Firebase`);
     alert(`✅ ${completePatients.length} patients chargés depuis Firebase !\n\nDonnées de test supprimées.`);
     location.reload();
@@ -1965,9 +2025,23 @@ service cloud.firestore {
 
 // ----------- ADMIN DASHBOARD -----------
 function renderAdminDashboard(user) {
-  let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  // Vérifier la fraîcheur des données
+  const dataInfo = loadPatientsWithTimestamp();
+  let patients = dataInfo.patients;
   let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
   let activeTab = 'patients';
+  
+  // Alert si données obsolètes sur mobile
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile && dataInfo.isStale && dataInfo.age > 1) {
+    console.warn('⚠️ Données obsolètes détectées sur mobile');
+    setTimeout(() => {
+      if (confirm(`📱 Données obsolètes détectées !\n\nÂge: ${dataInfo.age.toFixed(1)}h\n\nFaire une synchronisation forcée ?`)) {
+        window.forceMobileSync();
+        return;
+      }
+    }, 1000);
+  }
   
   // Initialiser avec des tags NFC vides si nécessaire
   if (nfcTags.length === 0) {
@@ -2034,6 +2108,7 @@ function renderAdminDashboard(user) {
             <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Patients</button>
             <button onclick="deleteAllPatients()" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Supprimer tous les patients">${icons.trash} Supprimer Tout</button>
             <button id="refreshPatients" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
+            ${window.innerWidth <= 768 ? '<button id="forceMobileSyncBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Synchronisation forcée mobile">📱 Sync Mobile</button>' : ''}
           </div>
         </div>
 
@@ -2314,7 +2389,15 @@ function renderAdminDashboard(user) {
 
   function setupPatientsEvents() {
     document.getElementById('refreshPatients')?.addEventListener('click', async () => {
-      // Recharger les patients depuis Firebase
+      // Détection mobile pour synchronisation forcée
+      const isMobile = window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile && confirm('📱 Mobile détecté. Faire une synchronisation forcée (recommandé) ?')) {
+        window.forceMobileSync();
+        return;
+      }
+      
+      // Recharger les patients depuis Firebase (mode normal)
       try {
         if (db && typeof db.collection === 'function') {
           console.log('Chargement des utilisateurs depuis Firebase...');
@@ -2580,6 +2663,13 @@ function renderAdminDashboard(user) {
       );
       // Re-render la table avec les patients filtrés
       // TODO: Implémenter le filtrage en temps réel
+    });
+
+    // Event listener pour le bouton de synchronisation mobile
+    document.getElementById('forceMobileSyncBtn')?.addEventListener('click', () => {
+      if (confirm('🔄 Synchronisation forcée mobile ?\n\nCela va :\n• Nettoyer tout le cache\n• Recharger les données depuis Firebase\n• Peut prendre quelques secondes')) {
+        window.forceMobileSync();
+      }
     });
   }
 
@@ -5345,6 +5435,60 @@ function clearExpiredCache() {
     }
   });
 }
+
+// Fonction de synchronisation forcée pour mobile
+window.forceMobileSync = function() {
+  console.log("🔄 Synchronisation forcée pour mobile...");
+  
+  // 1. Nettoyer tout le cache navigateur
+  if ('caches' in window) {
+    caches.keys().then(names => {
+      names.forEach(name => caches.delete(name));
+      console.log("🗑️ Cache navigateur nettoyé");
+    });
+  }
+  
+  // 2. Nettoyer le localStorage (sauf données utilisateur critiques)
+  const itemsToKeep = ['syl-user', 'syl-app-version', 'syl-build-date'];
+  const allKeys = Object.keys(localStorage);
+  
+  allKeys.forEach(key => {
+    if (!itemsToKeep.includes(key)) {
+      localStorage.removeItem(key);
+    }
+  });
+  console.log("🗑️ LocalStorage nettoyé");
+  
+  // 3. Désactiver le cache pour cette session
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(registration => {
+        registration.unregister();
+      });
+      console.log("🗑️ Service Workers désactivés");
+    });
+  }
+  
+  // 4. Forcer le rechargement des données depuis Firebase
+  if (window.loadPatientsFromFirebase) {
+    window.loadPatientsFromFirebase().then(() => {
+      console.log("✅ Données Firebase rechargées");
+      // Forcer le re-render de l'interface
+      if (window.renderApp) {
+        window.renderApp();
+      }
+    }).catch(err => {
+      console.error("❌ Erreur rechargement Firebase:", err);
+      // En cas d'erreur, rechargement complet
+      location.reload(true);
+    });
+  } else {
+    // Si pas d'accès Firebase, rechargement complet
+    location.reload(true);
+  }
+  
+  return true;
+};
 
 // Optimisations automatiques pour mobile
 if (window.innerWidth <= 768) {
