@@ -2162,9 +2162,9 @@ function renderAdminDashboard(user) {
           <div class="text-sm text-amber-700 space-y-1">
             <p><strong>🗑️ Suppression individuelle :</strong> Cliquez sur l'icône rouge dans la colonne "Actions" de chaque patient</p>
             <p><strong>🚨 Suppression massive :</strong> Bouton "SUPPR. TOUT" - ATTENTION: Irréversible !</p>
-            <p><strong>  Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
-            <p><strong> 🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
-            <p><strong>  Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
+            <p><strong>� Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
+            <p><strong>�🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
+            <p><strong>� Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
           </div>
         </div>
 
@@ -2716,285 +2716,29 @@ function renderAdminDashboard(user) {
     });
   }
 
-  // ========== FONCTIONS NFC SIMPLIFIÉES ==========
-  
-  // Fonction universelle de scan NFC
-  async function scanNFCTag() {
-    try {
-      console.log('🔍 Démarrage scan NFC...');
-      
-      // Vérifier le support NFC
-      if (!('NDEFReader' in window)) {
-        console.log('⚠️ NFC non supporté, utilisation de la simulation');
-        return showNFCSimulation();
-      }
-
-      // Vérifier HTTPS (sauf localhost)
-      if (location.protocol !== 'https:' && !location.hostname.includes('localhost')) {
-        throw new Error('NFC nécessite HTTPS');
-      }
-
-      // Créer le lecteur NFC
-      const ndef = new NDEFReader();
-      
-      // Interface de scan
-      const scanModal = createNFCModal('scan');
-      document.body.appendChild(scanModal);
-
-      // Démarrer le scan
-      await ndef.scan();
-      console.log('📡 Scan NFC actif');
-
-      // Écouter la détection
-      ndef.addEventListener('reading', ({ message, serialNumber }) => {
-        scanModal.remove();
-        handleNFCRead(message, serialNumber);
-      });
-
-      // Timeout 30 secondes
-      setTimeout(() => {
-        if (document.body.contains(scanModal)) {
-          scanModal.remove();
-          alert('⏰ Scan NFC timeout');
-        }
-      }, 30000);
-
-    } catch (error) {
-      console.error('❌ Erreur scan NFC:', error);
-      
-      if (confirm(`Erreur NFC: ${error.message}\n\nUtiliser la simulation ?`)) {
-        showNFCSimulation();
-      }
-    }
-  }
-  
-  // Fonction universelle d'écriture NFC
-  async function writeNFCTag(patientId, patientName) {
-    try {
-      console.log('✍️ Écriture NFC pour patient:', patientId);
-      
-      if (!patientId) {
-        throw new Error('ID patient requis');
-      }
-
-      // Vérifier le support NFC
-      if (!('NDEFReader' in window)) {
-        return showNFCWriteSimulation(patientId, patientName);
-      }
-
-      // Créer le lecteur NFC
-      const ndef = new NDEFReader();
-      
-      // Préparer les données à écrire
-      const nfcData = {
-        type: 'SYL_PATIENT',
-        patientId: patientId,
-        name: patientName,
-        timestamp: Date.now(),
-        url: `${window.location.origin}${window.location.pathname}?patient=${patientId}&access=medical`
-      };
-
-      // Interface d'écriture
-      const writeModal = createNFCModal('write', patientName);
-      document.body.appendChild(writeModal);
-
-      // Écrire sur le tag
-      await ndef.write({
-        records: [
-          { recordType: "text", data: JSON.stringify(nfcData) },
-          { recordType: "url", data: nfcData.url }
-        ]
-      });
-
-      writeModal.remove();
-      
-      // Sauvegarder l'association dans les données locales
-      saveNFCAssociation(patientId, patientName);
-      
-      alert(`✅ Tag NFC programmé avec succès !\n\nPatient: ${patientName}\nAccès d'urgence configuré`);
-      
-    } catch (error) {
-      console.error('❌ Erreur écriture NFC:', error);
-      alert(`Erreur écriture NFC: ${error.message}`);
-    }
-  }
-
-  // Traitement de lecture NFC
-  function handleNFCRead(message, serialNumber) {
-    let nfcData = null;
-    let tagId = serialNumber || 'NFC_' + Date.now();
-
-    // Analyser les données du tag
-    if (message.records.length > 0) {
-      for (const record of message.records) {
-        try {
-          if (record.recordType === 'text') {
-            const textData = new TextDecoder().decode(record.data);
-            // Vérifier si c'est du JSON SYL
-            if (textData.includes('SYL_PATIENT')) {
-              nfcData = JSON.parse(textData);
-              break;
-            }
-          }
-        } catch (e) {
-          console.log('Données non-JSON sur le tag');
-        }
-      }
-    }
-
-    if (nfcData && nfcData.patientId) {
-      // Tag SYL détecté - accès direct à la fiche
-      console.log('🏷️ Tag SYL détecté:', nfcData.patientId);
-      
-      if (confirm(`Tag patient détecté !\n\nPatient: ${nfcData.name || nfcData.patientId}\n\nOuvrir la fiche médicale ?`)) {
-        // Rediriger vers la fiche patient avec accès d'urgence
-        window.location.href = `${window.location.pathname}?patient=${nfcData.patientId}&access=medical&nfc=${tagId}`;
-      }
-    } else {
-      // Tag vierge ou non-SYL - proposer association
-      console.log('🏷️ Tag vierge détecté:', tagId);
-      showPatientAssociationModal(tagId);
-    }
-  }
-
-  // Modal d'association patient
-  function showPatientAssociationModal(tagId) {
-    const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    modal.innerHTML = `
-      <div class="bg-white rounded-lg p-6 max-w-md mx-4">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">🏷️ Associer le tag NFC</h3>
-        <p class="text-gray-600 mb-4">Tag ID: <code class="bg-gray-100 px-2 py-1 rounded">${tagId}</code></p>
-        
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">Sélectionner un patient :</label>
-          <select id="patientSelect" class="w-full border border-gray-300 rounded-lg px-3 py-2">
-            <option value="">-- Choisir un patient --</option>
-            ${patients.map(p => `
-              <option value="${p.id || p.uid}">${p.personalInfo?.firstName || p.nom || 'Patient'} ${p.personalInfo?.lastName || p.prenom || ''} (${p.email})</option>
-            `).join('')}
-          </select>
-        </div>
-        
-        <div class="flex gap-2">
-          <button id="associateTag" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2">Associer</button>
-          <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white rounded-lg px-4 py-2">Annuler</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-
-    document.getElementById('associateTag').onclick = () => {
-      const selectedPatientId = document.getElementById('patientSelect').value;
-      if (!selectedPatientId) {
-        alert('Veuillez sélectionner un patient');
-        return;
-      }
-
-      const selectedPatient = patients.find(p => (p.id || p.uid) === selectedPatientId);
-      if (selectedPatient) {
-        const patientName = `${selectedPatient.personalInfo?.firstName || selectedPatient.nom || ''} ${selectedPatient.personalInfo?.lastName || selectedPatient.prenom || ''}`.trim();
-        
-        // Programmer le tag avec les données du patient
-        modal.remove();
-        writeNFCTag(selectedPatientId, patientName);
-      }
-    };
-  }
-
-  // Créer les modals NFC
-  function createNFCModal(type, patientName = '') {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    
-    if (type === 'scan') {
-      modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
-          <div class="animate-pulse mb-4">
-            <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">📱</div>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-2">Scan NFC en cours...</h3>
-          <p class="text-gray-600 mb-4">Approchez le tag NFC de votre appareil</p>
-          <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
-        </div>
-      `;
-    } else if (type === 'write') {
-      modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
-          <div class="animate-pulse mb-4">
-            <div class="w-16 h-16 bg-purple-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">✍️</div>
-          </div>
-          <h3 class="text-lg font-bold text-gray-900 mb-2">Écriture NFC en cours...</h3>
-          <p class="text-gray-600 mb-2">Patient: <strong>${patientName}</strong></p>
-          <p class="text-gray-600 mb-4">Maintenez le tag NFC près de votre appareil</p>
-          <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
-        </div>
-      `;
-    }
-    
-    return modal;
-  }
-
-  // Simulation NFC pour tests
-  function showNFCSimulation() {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    modal.innerHTML = `
-      <div class="bg-white rounded-lg p-6 max-w-md mx-4">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">🧪 Simulation NFC</h3>
-        <p class="text-gray-600 mb-4">NFC non supporté. Simulation à des fins de test.</p>
-        
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">ID du tag simulé :</label>
-          <input type="text" id="simTagId" value="NFC_SIM_${Date.now()}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
-        </div>
-        
-        <div class="flex gap-2">
-          <button id="simulateRead" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2">Simuler lecture</button>
-          <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white rounded-lg px-4 py-2">Fermer</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-
-    document.getElementById('simulateRead').onclick = () => {
-      const tagId = document.getElementById('simTagId').value;
-      modal.remove();
-      showPatientAssociationModal(tagId);
-    };
-  }
-
-  // Sauvegarder association NFC
-  function saveNFCAssociation(patientId, patientName) {
-    const associations = JSON.parse(localStorage.getItem('syl-nfc-associations') || '[]');
-    
-    // Retirer toute ancienne association pour ce patient
-    const filtered = associations.filter(a => a.patientId !== patientId);
-    
-    // Ajouter la nouvelle association
-    filtered.push({
-      patientId,
-      patientName,
-      tagId: `NFC_${patientId}`,
-      createdAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString()
-    });
-    
-    localStorage.setItem('syl-nfc-associations', JSON.stringify(filtered));
-    console.log('💾 Association NFC sauvegardée:', patientId);
-  }
-
   function setupNFCEvents() {
     document.getElementById('scanNFC')?.addEventListener('click', async () => {
-      await scanNFCTag();
-    });
+      try {
+        // Vérifier le support NFC
+        if (!('NDEFReader' in window)) {
+          // Fallback avec simulation
+          showNFCSimulationModal();
+          return;
+        }
 
-    document.getElementById('writeNFC')?.addEventListener('click', async () => {
-      await writeNFCTag();
-    });
-  }
+        // Vérifier les permissions
+        const permission = await navigator.permissions.query({ name: 'nfc' });
+        if (permission.state === 'denied') {
+          throw new Error('Permissions NFC refusées. Activez le NFC dans les paramètres du navigateur.');
+        }
+
+        // Vérifier HTTPS
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          throw new Error('NFC nécessite HTTPS. Utilisez un serveur HTTPS ou localhost.');
+        }
+
+        // Démarrer le scan NFC
+        const ndef = new NDEFReader();
         
         // Afficher un modal de scan en cours
         const scanModal = document.createElement('div');
@@ -3407,138 +3151,6 @@ END:VCARD`;
       render();
     });
   }
-
-  // ========== AMÉLIORATION NFC ET ACCÈS PATIENTS ==========
-  
-  // Fonction pour l'accès automatique via NFC
-  window.handleNFCAccess = function(patientId, nfcId) {
-    console.log('🏷️ Accès NFC détecté:', patientId);
-    
-    // Vérifier si on a des données pour ce patient
-    const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    const patient = patients.find(p => (p.id || p.uid) === patientId);
-    
-    if (patient) {
-      // Rediriger vers la fiche patient
-      window.location.href = window.location.pathname + '?patient=' + patientId + '&access=medical&nfc=' + nfcId;
-    } else {
-      alert('❌ Patient non trouvé dans la base locale. Synchronisation nécessaire.');
-    }
-  };
-  
-  // Amélioration de la fonction writeNFC pour être plus simple
-  window.createPatientNFCTag = function(patientId) {
-    const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    const patient = patients.find(p => (p.id || p.uid) === patientId);
-    
-    if (!patient) {
-      alert('❌ Patient non trouvé');
-      return;
-    }
-    
-    const patientName = (patient.personalInfo?.firstName || patient.nom || '') + ' ' + 
-                       (patient.personalInfo?.lastName || patient.prenom || '');
-    
-    // Essayer NFC réel
-    if ('NDEFReader' in window) {
-      writeNFCTag(patientId, patientName.trim());
-    } else {
-      // Simulation pour test
-      const tagId = 'NFC_' + patientId + '_' + Date.now();
-      
-      if (confirm('NFC non supporté. Créer une association simulée ?\\n\\nPatient: ' + patientName + '\\nTag: ' + tagId)) {
-        saveNFCAssociation(patientId, patientName.trim());
-        alert('✅ Association NFC simulée créée !\\n\\nPour tester: utilisez le lien\\n' + 
-              window.location.origin + window.location.pathname + '?patient=' + patientId + '&access=medical&nfc=' + tagId);
-      }
-    }
-  };
-  
-  // Fonction simplifiée pour afficher une fiche patient (sans caractères spéciaux)
-  window.showPatientMedicalRecord = function(patientId) {
-    console.log('🏥 Affichage fiche patient:', patientId);
-    
-    const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    const patient = patients.find(p => (p.id || p.uid) === patientId);
-    
-    if (!patient) {
-      document.getElementById('app').innerHTML = 
-        '<div class="min-h-screen bg-red-50 flex items-center justify-center">' +
-        '  <div class="bg-white rounded-lg shadow-lg p-8 max-w-md mx-4 text-center">' +
-        '    <h2 class="text-xl font-bold text-red-600 mb-4">❌ Patient non trouvé</h2>' +
-        '    <p class="text-gray-600 mb-6">ID: ' + patientId + '</p>' +
-        '    <button onclick="window.location.href=\'' + window.location.pathname + '\'" ' +
-        '            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg">' +
-        '      🏠 Retour à l\'accueil' +
-        '    </button>' +
-        '  </div>' +
-        '</div>';
-      return;
-    }
-    
-    const patientName = (patient.personalInfo?.firstName || patient.nom || 'Prénom') + ' ' + 
-                       (patient.personalInfo?.lastName || patient.prenom || 'Nom');
-    
-    const allergies = patient.medicalInfo?.allergies?.join(', ') || 'Aucune allergie connue';
-    const treatments = patient.medicalInfo?.currentTreatments?.join(', ') || 'Aucun traitement';
-    const conditions = patient.medicalInfo?.conditions?.join(', ') || 'Aucune pathologie';
-    const bloodType = patient.medicalInfo?.bloodType || 'Non renseigné';
-    const emergencyPhone = patient.emergencyContact?.phone || patient.telephone || 'Non renseigné';
-    const primaryDoctor = patient.medicalInfo?.primaryDoctor || 'Non renseigné';
-    
-    document.getElementById('app').innerHTML = 
-      '<div class="min-h-screen bg-red-50">' +
-      '  <header class="bg-red-600 text-white shadow-lg">' +
-      '    <div class="max-w-4xl mx-auto px-4 py-4">' +
-      '      <div class="flex items-center justify-between">' +
-      '        <div class="flex items-center gap-3">' +
-      '          <div class="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">🚑</div>' +
-      '          <div>' +
-      '            <h1 class="text-xl font-bold">SYL Medical - Accès d\'urgence</h1>' +
-      '            <p class="text-red-100 text-sm">Fiche patient pour les secours</p>' +
-      '          </div>' +
-      '        </div>' +
-      '        <div class="text-right text-sm">' +
-      '          <div>📅 ' + new Date().toLocaleDateString('fr-FR') + '</div>' +
-      '          <div>🕐 ' + new Date().toLocaleTimeString('fr-FR') + '</div>' +
-      '        </div>' +
-      '      </div>' +
-      '    </div>' +
-      '  </header>' +
-      '  <main class="max-w-4xl mx-auto px-4 py-6">' +
-      '    <div class="bg-white rounded-lg shadow-md p-6 mb-6">' +
-      '      <h2 class="text-2xl font-bold text-gray-900 mb-4">👤 ' + patientName + '</h2>' +
-      '      <div class="grid md:grid-cols-2 gap-4">' +
-      '        <div><strong>Date de naissance:</strong> ' + (patient.personalInfo?.birthDate || 'Non renseignée') + '</div>' +
-      '        <div><strong>Email:</strong> ' + (patient.email || 'Non renseigné') + '</div>' +
-      '        <div><strong>Contact d\'urgence:</strong> <a href="tel:' + emergencyPhone + '">' + emergencyPhone + '</a></div>' +
-      '        <div><strong>Médecin traitant:</strong> ' + primaryDoctor + '</div>' +
-      '      </div>' +
-      '    </div>' +
-      '    <div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">' +
-      '      <h2 class="text-xl font-bold text-red-800 mb-4">  Informations médicales critiques</h2>' +
-      '      <div class="space-y-3">' +
-      '        <div><strong class="text-red-700">Groupe sanguin:</strong> <span class="text-xl font-bold text-red-900">' + bloodType + '</span></div>' +
-      '        <div><strong class="text-red-700">Allergies:</strong> ' + allergies + '</div>' +
-      '        <div><strong class="text-red-700">Traitements:</strong> ' + treatments + '</div>' +
-      '        <div><strong class="text-red-700">Pathologies:</strong> ' + conditions + '</div>' +
-      '      </div>' +
-      '    </div>' +
-      '    <div class="text-center mt-6">' +
-      '      <button onclick="window.location.href=\'' + window.location.pathname + '\'" ' +
-      '              class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium">' +
-      '        🏠 Retour à l\'accueil' +
-      '      </button>' +
-      '    </div>' +
-      '  </main>' +
-      '</div>';
-  };
-
-  // Fonction pour assigner un tag NFC à un patient (appelée depuis l'interface admin)
-  window.assignNFC = function(patientId) {
-    console.log('🏷️ Assignation NFC pour patient:', patientId);
-    window.createPatientNFCTag(patientId);
-  };
 
   function setupAssociationsEvents() {
     document.getElementById('createAssociation')?.addEventListener('click', () => {
@@ -4749,11 +4361,25 @@ function renderMedecinDashboard(user) {
 
 // Fonction pour afficher la fiche médicale d'un patient via NFC
 async function showPatientMedicalRecord(patientId) {
-  console.log('🚑 Accès fiche médicale d\'urgence:', patientId);
-  
-  // Utiliser notre nouvelle fonction simplifiée
-  window.showPatientMedicalRecord(patientId);
-}
+  // IMPORTANT: Pour permettre l'accès d'urgence depuis n'importe quel appareil,
+  // les règles Firebase doivent autoriser la lecture anonyme des collections patients et users
+  // 
+  // RÈGLES FIRESTORE RECOMMANDÉES :
+  /*
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      // Collection d'accès d'urgence - LECTURE PUBLIQUE
+      match /emergency_access/{patientId} {
+        allow read: if true;  // ⚠️ ACCÈS PUBLIC pour les urgences
+        allow write: if request.auth != null;
+      }
+      
+      // Collections principales - ACCÈS AUTHENTIFIÉ
+      match /users/{userId} {
+        allow read, write: if request.auth != null;
+      }
+      match /patients/{patientId} {
         allow read, write: if request.auth != null;
       }
     }
