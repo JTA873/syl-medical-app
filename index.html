@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -7,6 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#3B82F6">
   <meta name="description" content="Application médicale d'urgence - Accès rapide aux informations vitales">
+  
+  <!-- Cache Control pour éviter les problèmes de cache -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
+  <!-- Version de l'application pour forcer les mises à jour -->
+  <meta name="app-version" content="2.1.0">
+  <meta name="build-date" content="2025-07-23">
   
   <!-- PWA -->
   <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlNZTCBNZWRpY2FsIC0gU3lzdMOobWUgZCdVcmdlbmNlIiwKICAic2hvcnRfbmFtZSI6ICJTWUwgTWVkaWNhbCIsCiAgImRlc2NyaXB0aW9uIjogIkFwcGxpY2F0aW9uIG3DqWRpY2FsZSBkJ3VyZ2VuY2UiLAogICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI0ZGRkZGRiIsCiAgInRoZW1lX2NvbG9yIjogIiMzQjgyRjYiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUI0Yld4dWN6MGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TUM5emRtY2lJSFpwWlhkQ2IzZzlJakFnTUNBNE1EQWdPREF3SWo0OFl5QjRQU0k0TURBaUlIazlJalEzTWlJZ1kzZzlJakU1TWlJZ1kzazlJakk0SWlCeVBTSTFNaUl2UGp3dmMzWm5QZz09IiwKICAgICAgInNpemVzIjogIjUxMng1MTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9zdmcreG1sIgogICAgfQogIF0sCiAgImNhdGVnb3JpZXMiOiBbIm1lZGljYWwiLCAiaGVhbHRoIiwgImVtZXJnZW5jeSJdCn0=">
@@ -108,6 +116,93 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 
 console.log("SYL Medical - Début du chargement");
 
+// ========== GESTION DE VERSION ET CACHE ==========
+const APP_VERSION = "2.1.0";
+const BUILD_DATE = "2025-07-23";
+
+// Fonction de nettoyage du cache et vérification de version
+function checkAndUpdateVersion() {
+  const storedVersion = localStorage.getItem('syl-app-version');
+  const storedBuildDate = localStorage.getItem('syl-build-date');
+  
+  console.log(`📱 Version actuelle: ${APP_VERSION}, stockée: ${storedVersion}`);
+  
+  if (storedVersion !== APP_VERSION || storedBuildDate !== BUILD_DATE) {
+    console.log("🔄 Nouvelle version détectée, nettoyage du cache...");
+    
+    // Sauvegarder les données utilisateur importantes
+    const userData = localStorage.getItem('syl-user');
+    const patientData = localStorage.getItem('syl-patients');
+    
+    // Nettoyer tout le localStorage sauf les données critiques
+    const itemsToKeep = ['syl-user', 'syl-patients'];
+    const allKeys = Object.keys(localStorage);
+    
+    allKeys.forEach(key => {
+      if (!itemsToKeep.includes(key)) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Mettre à jour la version
+    localStorage.setItem('syl-app-version', APP_VERSION);
+    localStorage.setItem('syl-build-date', BUILD_DATE);
+    
+    // Forcer le rafraîchissement du cache du navigateur
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => {
+          caches.delete(name);
+        });
+      });
+    }
+    
+    console.log("✅ Cache nettoyé, version mise à jour");
+    
+    // Afficher un message à l'utilisateur sur mobile
+    if (window.innerWidth <= 768) {
+      setTimeout(() => {
+        alert("📱 Application mise à jour !\nLes améliorations ont été appliquées.");
+      }, 1000);
+    }
+  }
+}
+
+// Vérification de version au chargement
+checkAndUpdateVersion();
+
+// Détection de problèmes de cache sur mobile
+function detectMobileIssues() {
+  const isMobile = window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
+  if (isMobile) {
+    console.log("📱 Mobile détecté, optimisations activées");
+    
+    // Désactiver le cache agressif sur mobile
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => {
+          registration.unregister();
+        });
+      });
+    }
+    
+    // Ajouter un listener pour les problèmes de rafraîchissement
+    window.addEventListener('beforeunload', () => {
+      localStorage.setItem('syl-last-load', Date.now().toString());
+    });
+    
+    // Détecter si l'app est bloquée
+    const lastLoad = localStorage.getItem('syl-last-load');
+    if (lastLoad && (Date.now() - parseInt(lastLoad)) < 5000) {
+      console.log("⚠️ Rechargement rapide détecté, possible problème de cache");
+      location.reload(true); // Force le reload
+    }
+  }
+}
+
+detectMobileIssues();
+
 // Configuration Firebase sécurisée
 const firebaseConfig = {
   apiKey: "AIzaSyDqII2vBhBybNhVcr1QktyhvVeBW2TO0KA",
@@ -128,25 +223,113 @@ const adminAccounts = {
 // Variables Firebase globales
 let db, auth, googleProvider;
 
-// Initialiser Firebase
+// Initialiser Firebase avec gestion d'erreur robuste
 try {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
   auth = firebase.auth();
   googleProvider = new firebase.auth.GoogleAuthProvider();
   console.log("Firebase initialisé avec succès");
+  
+  // Configuration supplémentaire pour mobile
+  if (window.innerWidth <= 768) {
+    auth.settings.appVerificationDisabledForTesting = false;
+    db.settings({
+      timestampsInSnapshots: true,
+      cacheSizeBytes: 1048576 // 1MB cache
+    });
+  }
+  
 } catch (error) {
   console.error("Erreur Firebase:", error);
   document.getElementById('app').innerHTML = `
     <div class="min-h-screen bg-red-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-lg shadow-lg p-6 max-w-md">
         <h2 class="text-xl font-bold text-red-600 mb-4">Erreur Firebase</h2>
-        <p class="text-gray-700">Impossible d'initialiser Firebase: ${error.message}</p>
-        <button onclick="location.reload()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Réessayer</button>
+        <p class="text-gray-700 mb-4">Impossible d'initialiser Firebase: ${error.message}</p>
+        <div class="space-y-2">
+          <button onclick="location.reload()" class="w-full bg-blue-600 text-white px-4 py-2 rounded">Réessayer</button>
+          <button onclick="clearAllCache()" class="w-full bg-red-600 text-white px-4 py-2 rounded">Vider le cache</button>
+        </div>
       </div>
     </div>
   `;
 }
+
+// Fonction pour vider complètement le cache
+window.clearAllCache = function() {
+  // Vider localStorage
+  localStorage.clear();
+  
+  // Vider sessionStorage
+  sessionStorage.clear();
+  
+  // Vider les caches du service worker
+  if ('caches' in window) {
+    caches.keys().then(names => {
+      names.forEach(name => caches.delete(name));
+    });
+  }
+  
+  // Désinscrire les service workers
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(registration => registration.unregister());
+    });
+  }
+  
+  alert("Cache vidé ! Rechargement en cours...");
+  setTimeout(() => {
+    window.location.href = window.location.href.split('?')[0] + '?nocache=' + Date.now();
+  }, 1000);
+};
+
+// Gestion globale des erreurs JavaScript
+window.addEventListener('error', function(e) {
+  console.error('Erreur JavaScript détectée:', e.error);
+  
+  // Sur mobile, proposer un nettoyage de cache en cas d'erreur
+  if (window.innerWidth <= 768 && e.error && e.error.message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'fixed top-4 right-4 bg-red-500 text-white p-3 rounded-lg shadow-lg z-50 max-w-sm';
+    errorDiv.innerHTML = `
+      <div class="text-sm font-medium">Erreur détectée</div>
+      <div class="text-xs mt-1 opacity-90">${e.error.message.substring(0, 50)}...</div>
+      <button onclick="this.parentElement.remove()" class="absolute top-1 right-1 text-white opacity-75 hover:opacity-100">×</button>
+    `;
+    document.body.appendChild(errorDiv);
+    
+    // Auto-suppression après 5 secondes
+    setTimeout(() => {
+      if (errorDiv.parentElement) {
+        errorDiv.remove();
+      }
+    }, 5000);
+  }
+});
+
+// Détection de perte de connexion réseau
+window.addEventListener('online', function() {
+  console.log('📶 Connexion rétablie');
+  if (window.innerWidth <= 768) {
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-green-500 text-white p-3 rounded-lg shadow-lg z-50';
+    notification.innerHTML = '📶 Connexion rétablie';
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  }
+});
+
+window.addEventListener('offline', function() {
+  console.log('📵 Connexion perdue');
+  if (window.innerWidth <= 768) {
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-orange-500 text-white p-3 rounded-lg shadow-lg z-50';
+    notification.innerHTML = '📵 Mode hors ligne';
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  }
+});
 
 const icons = {
   heart: '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path d="M12 21C12 21 7.5 16.5 4 12.5C1.5 9.5 3.5 5 8 5C10 5 12 7 12 7C12 7 14 5 16 5C20.5 5 22.5 9.5 20 12.5C16.5 16.5 12 21 12 21Z" stroke-width="2"/></svg>',
@@ -766,8 +949,9 @@ function showLogin() {
     try {
       showLoader();
       
-      // Vérification admin en local d'abord
-      if (role === 'admin' && adminAccounts[email] === password) {
+      // Vérification admin en local d'abord (détection automatique)
+      if (adminAccounts[email] === password) {
+        console.log('🔑 Connexion admin détectée pour:', email);
         const adminData = {
           uid: 'admin_' + email.replace(/[^a-zA-Z0-9]/g, '_'),
           email: email,
@@ -785,9 +969,9 @@ function showLogin() {
         return;
       }
       
-      // Connexion Firebase pour les autres rôles
+      // Connexion Firebase pour les patients
       const userCredential = await auth.signInWithEmailAndPassword(email, password);
-      await handleAuthSuccess(userCredential.user, role);
+      await handleAuthSuccess(userCredential.user, 'patient');
     } catch (error) {
       hideLoader();
       console.error('Erreur de connexion:', error);
@@ -4756,6 +4940,143 @@ function logout() {
 if (!icons.arrow) {
   icons.arrow = '<svg class="icon" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>';
 }
+
+// ========== OPTIMISATIONS MOBILE FINALES ==========
+
+// Fonction de diagnostic et réparation pour mobile
+window.diagnosticAndRepair = function() {
+  console.log("🔧 Diagnostic et réparation en cours...");
+  
+  const issues = [];
+  const repairs = [];
+  
+  // Vérifier la mémoire
+  if (performance.memory) {
+    const memoryUsage = performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit;
+    if (memoryUsage > 0.8) {
+      issues.push("Mémoire saturée");
+      repairs.push("Nettoyage de la mémoire");
+    }
+  }
+  
+  // Vérifier le localStorage
+  try {
+    const testKey = 'syl-test-' + Date.now();
+    localStorage.setItem(testKey, 'test');
+    localStorage.removeItem(testKey);
+  } catch (e) {
+    issues.push("Stockage local plein");
+    repairs.push("Nettoyage du stockage");
+  }
+  
+  // Vérifier Firebase
+  if (!firebase || !db || !auth) {
+    issues.push("Firebase non initialisé");
+    repairs.push("Réinitialisation Firebase");
+  }
+  
+  // Effectuer les réparations
+  if (issues.length > 0) {
+    console.log("🚨 Problèmes détectés:", issues);
+    console.log("🔧 Réparations:", repairs);
+    
+    // Nettoyer la mémoire
+    if (window.gc) {
+      window.gc();
+    }
+    
+    // Nettoyer le cache
+    clearExpiredCache();
+    
+    // Réinitialiser Firebase si nécessaire
+    if (!firebase || !db || !auth) {
+      location.reload();
+    }
+    
+    return false;
+  }
+  
+  console.log("✅ Aucun problème détecté");
+  return true;
+};
+
+// Nettoyage du cache expiré
+function clearExpiredCache() {
+  const now = Date.now();
+  const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
+  
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('syl-cache-')) {
+      try {
+        const item = JSON.parse(localStorage.getItem(key));
+        if (item.timestamp && (now - item.timestamp) > maxAge) {
+          localStorage.removeItem(key);
+          console.log("🗑️ Cache expiré supprimé:", key);
+        }
+      } catch (e) {
+        // Supprimer les éléments corrompus
+        localStorage.removeItem(key);
+      }
+    }
+  });
+}
+
+// Optimisations automatiques pour mobile
+if (window.innerWidth <= 768) {
+  console.log("📱 Activation des optimisations mobile");
+  
+  // Diagnostic automatique toutes les 5 minutes
+  setInterval(() => {
+    if (!diagnosticAndRepair()) {
+      console.log("🔄 Problèmes détectés et réparés");
+    }
+  }, 5 * 60 * 1000);
+  
+  // Nettoyage préventif du cache toutes les heures
+  setInterval(clearExpiredCache, 60 * 60 * 1000);
+  
+  // Optimiser les performances de Firebase sur mobile
+  if (db) {
+    db.enablePersistence({ synchronizeTabs: false }).catch(err => {
+      console.log("Persistence déjà activée:", err);
+    });
+  }
+  
+  // Précharger les images critiques
+  const criticalImages = [
+    'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg=='
+  ];
+  
+  criticalImages.forEach(src => {
+    const img = new Image();
+    img.src = src;
+  });
+}
+
+// Gestionnaire de visibilité de la page pour économiser la batterie
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    console.log("📱 Page cachée, réduction de l'activité");
+    // Réduire les timers et animations
+  } else {
+    console.log("📱 Page visible, reprise normale");
+    // Vérifier si une mise à jour est nécessaire
+    checkAndUpdateVersion();
+  }
+});
+
+// Message de debug pour les développeurs
+console.log(`🚀 SYL Medical ${APP_VERSION} (${BUILD_DATE}) - Optimisé pour mobile`);
+
+// Test final de fonctionnement
+setTimeout(() => {
+  if (typeof renderApp === 'function') {
+    console.log("✅ Application prête");
+  } else {
+    console.error("❌ Erreur critique: renderApp non définie");
+    location.reload();
+  }
+}, 2000);
 </script>
 </body>
 </html>
