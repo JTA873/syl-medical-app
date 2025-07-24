@@ -116,6 +116,176 @@ window.onerror = function(msg, url, lineNo, columnNo, error) {
 
 console.log("SYL Medical - Début du chargement");
 
+// ========== SYSTÈME DE STOCKAGE FIRESTORE (REMPLACEMENT LOCALSTORAGE) ==========
+
+// Configuration temps réel - tout sur Firestore
+let isRealtimeEnabled = false;
+let firestoreListeners = [];
+
+// Fonction pour initialiser la synchronisation temps réel
+async function initRealtimeSync() {
+  if (!db || isRealtimeEnabled) return;
+  
+  console.log("🔥 Initialisation de la synchronisation temps réel Firestore");
+  
+  try {
+    // Listener pour les patients (remplace localStorage syl-patients)
+    const patientsListener = db.collection('patients').onSnapshot((snapshot) => {
+      console.log("🔄 Mise à jour temps réel des patients");
+      const patients = [];
+      snapshot.forEach(doc => {
+        patients.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      // Notifier les changements à l'interface
+      window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: patients }));
+    });
+    
+    // Listener pour les utilisateurs (remplace localStorage syl-user)
+    const usersListener = db.collection('users').onSnapshot((snapshot) => {
+      console.log("🔄 Mise à jour temps réel des utilisateurs");
+      const users = [];
+      snapshot.forEach(doc => {
+        users.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      window.dispatchEvent(new CustomEvent('usersUpdated', { detail: users }));
+    });
+    
+    firestoreListeners.push(patientsListener, usersListener);
+    isRealtimeEnabled = true;
+    console.log("✅ Synchronisation temps réel activée");
+    
+  } catch (error) {
+    console.error("❌ Erreur initialisation temps réel:", error);
+  }
+}
+
+// Fonction pour nettoyer les listeners
+function cleanupRealtimeSync() {
+  firestoreListeners.forEach(unsubscribe => unsubscribe());
+  firestoreListeners = [];
+  isRealtimeEnabled = false;
+  console.log("🔥 Listeners Firestore nettoyés");
+}
+
+// Remplacements des fonctions localStorage par Firestore
+
+// Sauvegarder un patient (remplace localStorage.setItem pour patients)
+async function savePatientToFirestore(patient) {
+  if (!db) throw new Error("Firestore non initialisé");
+  
+  try {
+    const docRef = patient.id ? 
+      db.collection('patients').doc(patient.id) :
+      db.collection('patients').doc();
+    
+    const patientData = {
+      ...patient,
+      id: docRef.id,
+      lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+      modifiedBy: getCurrentUser()?.email || 'unknown'
+    };
+    
+    await docRef.set(patientData, { merge: true });
+    console.log("💾 Patient sauvegardé sur Firestore:", docRef.id);
+    return docRef.id;
+    
+  } catch (error) {
+    console.error("❌ Erreur sauvegarde patient:", error);
+    throw error;
+  }
+}
+
+// Charger tous les patients (remplace JSON.parse(localStorage.getItem('syl-patients')))
+async function loadPatientsFromFirestore() {
+  if (!db) throw new Error("Firestore non initialisé");
+  
+  try {
+    const snapshot = await db.collection('patients').orderBy('lastModified', 'desc').get();
+    const patients = [];
+    
+    snapshot.forEach(doc => {
+      patients.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    console.log(`📊 ${patients.length} patients chargés depuis Firestore`);
+    return patients;
+    
+  } catch (error) {
+    console.error("❌ Erreur chargement patients:", error);
+    return [];
+  }
+}
+
+// Supprimer un patient (remplace la logique localStorage)
+async function deletePatientFromFirestore(patientId) {
+  if (!db) throw new Error("Firestore non initialisé");
+  
+  try {
+    // Supprimer le document patient
+    await db.collection('patients').doc(patientId).delete();
+    
+    // Supprimer aussi de la collection users si c'est un compte utilisateur
+    const userQuery = await db.collection('users').where('patientId', '==', patientId).get();
+    const deletePromises = [];
+    userQuery.forEach(doc => {
+      deletePromises.push(db.collection('users').doc(doc.id).delete());
+    });
+    
+    await Promise.all(deletePromises);
+    console.log("🗑️ Patient supprimé de Firestore:", patientId);
+    
+  } catch (error) {
+    console.error("❌ Erreur suppression patient:", error);
+    throw error;
+  }
+}
+
+// Sauvegarder l'utilisateur connecté (remplace localStorage syl-user)
+async function saveCurrentUserToFirestore(user) {
+  if (!db) return;
+  
+  try {
+    const userDoc = {
+      ...user,
+      lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+      isOnline: true
+    };
+    
+    await db.collection('activeUsers').doc(user.email).set(userDoc, { merge: true });
+    console.log("👤 Utilisateur actif sauvegardé:", user.email);
+    
+  } catch (error) {
+    console.error("❌ Erreur sauvegarde utilisateur actif:", error);
+  }
+}
+
+// Nettoyer l'utilisateur à la déconnexion
+async function removeCurrentUserFromFirestore(userEmail) {
+  if (!db || !userEmail) return;
+  
+  try {
+    await db.collection('activeUsers').doc(userEmail).update({
+      isOnline: false,
+      lastLogout: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    console.log("👤 Utilisateur marqué hors ligne:", userEmail);
+    
+  } catch (error) {
+    console.error("❌ Erreur mise à jour statut utilisateur:", error);
+  }
+}
+
 // ========== GESTION DE VERSION ET CACHE ==========
 const APP_VERSION = "2.1.0";
 const BUILD_DATE = "2025-07-23";
@@ -446,21 +616,53 @@ async function loadFromFirebase(collection, id) {
   }
 }
 
-function saveUser(user) {
-  localStorage.setItem('syl-user', JSON.stringify(user));
-  // Synchronisation Firebase automatique
-  if (user.uid) {
-    saveToFirebase('users', user, user.uid);
+// Fonction pour sauvegarder l'utilisateur (VERSION FIRESTORE)
+async function saveUser(user) {
+  await setUser(user);
+  
+  // Synchronisation Firebase automatique pour les utilisateurs patients
+  if (user.uid && user.role === 'patient') {
+    try {
+      await db.collection('users').doc(user.uid).set({
+        ...user,
+        lastModified: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      console.log("👤 Utilisateur sauvegardé sur Firestore:", user.email);
+    } catch (error) {
+      console.error("❌ Erreur sauvegarde utilisateur Firebase:", error);
+    }
   }
 }
 
+// Variables globales pour l'utilisateur connecté (cache en mémoire)
+let currentUserCache = null;
+
+// Fonction pour obtenir l'utilisateur connecté
 function getUser() {
-  const u = localStorage.getItem('syl-user');
-  return u ? JSON.parse(u) : null;
+  return currentUserCache;
 }
 
-function clearUser() {
-  localStorage.removeItem('syl-user');
+// Fonction pour obtenir l'utilisateur connecté (alias)
+function getCurrentUser() {
+  return currentUserCache;
+}
+
+// Fonction pour définir l'utilisateur connecté
+async function setUser(user) {
+  currentUserCache = user;
+  if (user) {
+    await saveCurrentUserToFirestore(user);
+  }
+  console.log("👤 Utilisateur connecté:", user?.email || "aucun");
+}
+
+// Fonction pour déconnecter l'utilisateur
+async function clearUser() {
+  if (currentUserCache?.email) {
+    await removeCurrentUserFromFirestore(currentUserCache.email);
+  }
+  currentUserCache = null;
+  console.log("👋 Utilisateur déconnecté");
 }
 
 // Nouvelles fonctionnalités
@@ -2023,31 +2225,43 @@ service cloud.firestore {
   }
 }
 
-// ----------- ADMIN DASHBOARD -----------
-function renderAdminDashboard(user) {
-  // Vérifier la fraîcheur des données
-  const dataInfo = loadPatientsWithTimestamp();
-  let patients = dataInfo.patients;
-  let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
+// ----------- ADMIN DASHBOARD (VERSION FIRESTORE TEMPS RÉEL) -----------
+async function renderAdminDashboard(user) {
+  let patients = [];
+  let nfcTags = [];
   let activeTab = 'patients';
   
-  // Alert si données obsolètes sur mobile
-  const isMobile = window.innerWidth <= 768;
-  if (isMobile && dataInfo.isStale && dataInfo.age > 1) {
-    console.warn('⚠️ Données obsolètes détectées sur mobile');
-    setTimeout(() => {
-      if (confirm(`📱 Données obsolètes détectées !\n\nÂge: ${dataInfo.age.toFixed(1)}h\n\nFaire une synchronisation forcée ?`)) {
-        window.forceMobileSync();
-        return;
-      }
-    }, 1000);
+  console.log("🔥 Dashboard Admin - Mode Firestore temps réel");
+  
+  // Initialiser la synchronisation temps réel
+  await initRealtimeSync();
+  
+  // Charger les données initiales depuis Firestore
+  try {
+    patients = await loadPatientsFromFirestore();
+    
+    // Charger les tags NFC depuis Firestore
+    const nfcSnapshot = await db.collection('nfcTags').get();
+    nfcTags = [];
+    nfcSnapshot.forEach(doc => {
+      nfcTags.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+  } catch (error) {
+    console.error("❌ Erreur chargement données admin:", error);
+    patients = [];
+    nfcTags = [];
   }
   
-  // Initialiser avec des tags NFC vides si nécessaire
-  if (nfcTags.length === 0) {
-    nfcTags = [];
-    localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
-  }
+  // Écouter les mises à jour temps réel
+  window.addEventListener('patientsUpdated', (event) => {
+    patients = event.detail;
+    console.log("🔄 Patients mis à jour en temps réel:", patients.length);
+    render(); // Re-render l'interface
+  });
   
   render();
 
@@ -2129,9 +2343,9 @@ function renderAdminDashboard(user) {
           <div class="text-sm text-amber-700 space-y-1">
             <p><strong>🗑️ Suppression individuelle :</strong> Cliquez sur l'icône rouge dans la colonne "Actions" de chaque patient</p>
             <p><strong>🚨 Suppression massive :</strong> Bouton "SUPPR. TOUT" - ATTENTION: Irréversible !</p>
-            <p><strong>  Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
-            <p><strong> 🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
-            <p><strong>  Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
+            <p><strong>� Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
+            <p><strong>�🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
+            <p><strong>� Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
           </div>
         </div>
 
@@ -3399,8 +3613,8 @@ async function deleteFirebaseUser(email) {
   console.log(`ℹ️ Suppression utilisateur Firebase à effectuer manuellement: ${email}`);
 }
 
-// Fonction simple pour supprimer tous les patients
-function deleteAllPatients() {
+// Fonction pour supprimer tous les patients (VERSION FIRESTORE)
+async function deleteAllPatients() {
   const adminUser = getUser();
   if (!adminUser || adminUser.role !== 'admin') {
     alert('❌ Accès refusé - Admin uniquement');
@@ -3417,31 +3631,85 @@ function deleteAllPatients() {
     return;
   }
   
+  if (!db) {
+    alert('❌ Erreur: Firebase non initialisé');
+    return;
+  }
+  
   try {
-    // Compter les patients
-    const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    const patientCount = patients.length;
+    // Afficher un indicateur de progression
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    progressDiv.innerHTML = `
+      <div class="bg-white rounded-lg p-6 text-center">
+        <div class="animate-spin h-8 w-8 border-b-2 border-red-600 mx-auto mb-4"></div>
+        <p class="text-lg font-medium">Suppression en cours...</p>
+        <p id="deleteProgress" class="text-sm text-gray-600">Initialisation...</p>
+      </div>
+    `;
+    document.body.appendChild(progressDiv);
     
-    // Supprimer tous les patients
-    localStorage.setItem('syl-patients', JSON.stringify([]));
+    const updateProgress = (message) => {
+      document.getElementById('deleteProgress').textContent = message;
+    };
     
-    // Libérer tous les tags NFC
-    let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
-    nfcTags.forEach(tag => {
-      tag.assignedTo = null;
-      tag.assignedAt = null;
+    // 1. Supprimer tous les patients
+    updateProgress('Suppression des patients...');
+    const patientsSnapshot = await db.collection('patients').get();
+    const patientCount = patientsSnapshot.size;
+    
+    const patientDeletePromises = [];
+    patientsSnapshot.forEach(doc => {
+      patientDeletePromises.push(db.collection('patients').doc(doc.id).delete());
     });
-    localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
     
-    console.log(`✅ ${patientCount} patients supprimés`);
-    alert(`✅ Suppression terminée !\n\n${patientCount} patients supprimés\nTags NFC libérés`);
+    await Promise.all(patientDeletePromises);
+    updateProgress(`${patientCount} patients supprimés`);
     
-    // Rafraîchir l'affichage
-    location.reload();
+    // 2. Supprimer tous les utilisateurs patients
+    updateProgress('Suppression des comptes utilisateurs...');
+    const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+    const userCount = usersSnapshot.size;
+    
+    const userDeletePromises = [];
+    usersSnapshot.forEach(doc => {
+      userDeletePromises.push(db.collection('users').doc(doc.id).delete());
+    });
+    
+    await Promise.all(userDeletePromises);
+    updateProgress(`${userCount} comptes utilisateurs supprimés`);
+    
+    // 3. Libérer tous les tags NFC
+    updateProgress('Libération des tags NFC...');
+    const nfcSnapshot = await db.collection('nfcTags').get();
+    const nfcUpdatePromises = [];
+    
+    nfcSnapshot.forEach(doc => {
+      nfcUpdatePromises.push(
+        db.collection('nfcTags').doc(doc.id).update({
+          assignedTo: null,
+          assignedAt: null,
+          lastModified: firebase.firestore.FieldValue.serverTimestamp()
+        })
+      );
+    });
+    
+    await Promise.all(nfcUpdatePromises);
+    updateProgress('Tags NFC libérés');
+    
+    // Supprimer l'indicateur de progression
+    document.body.removeChild(progressDiv);
+    
+    console.log(`✅ Suppression terminée: ${patientCount} patients, ${userCount} comptes`);
+    alert(`✅ Suppression terminée !\n\n• ${patientCount} patients supprimés\n• ${userCount} comptes utilisateurs supprimés\n• Tags NFC libérés\n\nLes changements sont synchronisés en temps réel.`);
     
   } catch (error) {
+    // Supprimer l'indicateur de progression en cas d'erreur
+    const progressDiv = document.querySelector('.fixed.inset-0');
+    if (progressDiv) document.body.removeChild(progressDiv);
+    
     console.error('❌ Erreur lors de la suppression:', error);
-    alert(`❌ Erreur: ${error.message}`);
+    alert(`❌ Erreur lors de la suppression: ${error.message}`);
   }
 }
 
@@ -4962,6 +5230,16 @@ firebase.auth().onAuthStateChanged((user) => {
   
   renderApp();
   
+  // Initialiser la synchronisation temps réel Firestore
+  setTimeout(async () => {
+    try {
+      console.log("🔥 Initialisation du système temps réel");
+      await initRealtimeSync();
+    } catch (err) {
+      console.log("Erreur init temps réel:", err);
+    }
+  }, 2000); // Attendre 2 secondes après le rendu
+  
   // Démarrer la synchronisation automatique après le rendu (avec délai)
   setTimeout(async () => {
     try {
@@ -5745,6 +6023,27 @@ setTimeout(() => {
     location.reload();
   }
 }, 2000);
+
+// Nettoyage des listeners Firestore à la fermeture de la page
+window.addEventListener('beforeunload', async () => {
+  console.log("🔄 Nettoyage avant fermeture de page");
+  cleanupRealtimeSync();
+  
+  // Marquer l'utilisateur comme hors ligne
+  const user = getCurrentUser();
+  if (user?.email) {
+    await removeCurrentUserFromFirestore(user.email);
+  }
+});
+
+// Gestion des erreurs globales pour Firestore
+window.addEventListener('error', (event) => {
+  if (event.error && event.error.message.includes('firestore')) {
+    console.error("❌ Erreur Firestore globale:", event.error);
+  }
+});
+
+console.log("🔥 Système Firestore temps réel initialisé");
 </script>
 </body>
 </html>
