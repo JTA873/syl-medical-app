@@ -286,6 +286,74 @@ async function removeCurrentUserFromFirestore(userEmail) {
   }
 }
 
+// Migration automatique des utilisateurs vers patients
+async function autoMigrateUsersToPatients() {
+  if (!db) return;
+  
+  try {
+    console.log("🔄 Migration automatique des utilisateurs vers patients...");
+    
+    // Chercher tous les utilisateurs avec le rôle 'patient'
+    const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+    const migrationPromises = [];
+    let migratedCount = 0;
+    
+    usersSnapshot.forEach(userDoc => {
+      const userData = userDoc.data();
+      
+      // Créer un document patient complet
+      const patientData = {
+        id: userDoc.id,
+        uid: userData.uid || userDoc.id,
+        email: userData.email,
+        role: 'patient',
+        personalInfo: userData.personalInfo || {
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
+          birthDate: userData.birthDate || '',
+          phone: userData.phone || '',
+          address: userData.address || ''
+        },
+        medicalInfo: userData.medicalInfo || {
+          allergies: [],
+          medications: [],
+          conditions: [],
+          bloodType: '',
+          emergencyNotes: ''
+        },
+        emergencyContact: userData.emergencyContact || {
+          name: '',
+          relationship: '',
+          phone: ''
+        },
+        emergencyInfo: userData.emergencyInfo || {
+          criticalNotes: ''
+        },
+        isActive: userData.isActive !== undefined ? userData.isActive : true,
+        nfcTagId: userData.nfcTagId || null,
+        createdAt: userData.createdAt || userData.timestamp || new Date().toISOString(),
+        lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+        modifiedBy: 'auto-migration'
+      };
+      
+      // Migration vers la collection patients
+      const migrationPromise = db.collection('patients').doc(userDoc.id).set(patientData, { merge: true });
+      migrationPromises.push(migrationPromise);
+      migratedCount++;
+    });
+    
+    if (migrationPromises.length > 0) {
+      await Promise.all(migrationPromises);
+      console.log(`✅ Migration terminée: ${migratedCount} utilisateurs migrés vers patients`);
+    } else {
+      console.log("ℹ️ Aucun utilisateur à migrer");
+    }
+    
+  } catch (error) {
+    console.error("❌ Erreur lors de la migration automatique:", error);
+  }
+}
+
 // ========== GESTION DE VERSION ET CACHE ==========
 const APP_VERSION = "2.1.0";
 const BUILD_DATE = "2025-07-23";
@@ -2240,6 +2308,14 @@ async function renderAdminDashboard(user) {
   try {
     patients = await loadPatientsFromFirestore();
     
+    // Migration automatique : vérifier s'il y a des utilisateurs patients non migrés
+    if (patients.length === 0) {
+      console.log("🔄 Aucun patient trouvé, vérification des utilisateurs à migrer...");
+      await autoMigrateUsersToPatients();
+      // Recharger après migration
+      patients = await loadPatientsFromFirestore();
+    }
+    
     // Charger les tags NFC depuis Firestore
     const nfcSnapshot = await db.collection('nfcTags').get();
     nfcTags = [];
@@ -2274,6 +2350,10 @@ async function renderAdminDashboard(user) {
             ${icons.settings}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Admin</h1>
           </div>
           <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+              <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span class="text-sm text-green-600 font-medium">Temps réel</span>
+            </div>
             <div class="text-sm text-gray-600">Admin: ${user.profile.firstName}</div>
             <button id="logoutBtn" class="border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
           </div>
@@ -2319,7 +2399,6 @@ async function renderAdminDashboard(user) {
         <div class="flex justify-between items-center">
           <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
           <div class="flex gap-2">
-            <button id="loadFirebaseUsers" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Charger Patients</button>
             <button onclick="deleteAllPatients()" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Supprimer tous les patients">${icons.trash} Supprimer Tout</button>
             <button id="refreshPatients" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
             ${window.innerWidth <= 768 ? '<button id="forceMobileSyncBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Synchronisation forcée mobile">📱 Sync Mobile</button>' : ''}
@@ -2690,18 +2769,6 @@ async function renderAdminDashboard(user) {
       } catch (error) {
         console.error('Erreur refresh patients:', error);
         alert('❌ Erreur Firebase: ' + error.message + '\n\nUtilisation des données de démonstration.');
-      }
-    });
-
-    document.getElementById('loadFirebaseUsers')?.addEventListener('click', async () => {
-      if (confirm('Charger les utilisateurs depuis Firebase ? Cela remplacera les données actuelles.')) {
-        try {
-          // Utiliser la même logique que refreshPatients mais force le chargement
-          await loadPatientsFromFirebase();
-        } catch (error) {
-          console.error('Erreur:', error);
-          alert('❌ Erreur lors du chargement: ' + error.message);
-        }
       }
     });
 
