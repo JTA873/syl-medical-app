@@ -2570,11 +2570,14 @@ function renderPatientDashboard(user) {
           const qr = new QRious({
             element: canvas,
             value: emergencyInfo,
-            size: 200,
-            level: 'M'
+            size: 256, // QR plus grand pour plus de lisibilité
+            level: 'L', // Correction d'erreur faible = plus de données possibles
+            background: 'white',
+            foreground: 'black'
           });
           
           console.log('QR Code médical généré avec succès');
+          console.log('Taille du contenu:', emergencyInfo.length, 'caractères');
           console.log('Contenu:', emergencyInfo.substring(0, 100) + '...');
         } catch (qrError) {
           console.error('Erreur QRious:', qrError);
@@ -2681,18 +2684,16 @@ ${patient.medecinTraitant || 'Non renseigné'}
       
     } catch (error) {
       console.error('Erreur création info urgence:', error);
-      // Fallback avec info minimale
-      return `🚨 URGENCE MÉDICALE 🚨
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 PATIENT: ${user.email || 'Utilisateur connecté'}
-🆔 ID: ${user.uid ? user.uid.substring(0, 8) : 'N/A'}
-📅 Généré le: ${new Date().toLocaleDateString('fr-FR')}
+      // Fallback avec info minimale et compacte
+      return `URGENCE MEDICALE
+PATIENT: ${user.email || 'Utilisateur connecte'}
+ID: ${user.uid ? user.uid.substring(0, 8) : 'N/A'}
+DATE: ${new Date().toLocaleDateString('fr-FR')}
 
-⚠️ Données patient non disponibles
-📞 Contactez les services d'urgence
+Donnees patient non disponibles
+Contactez services urgence
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ SYL Medical - Système d'Urgence`;
+SYL Medical`;
     }
   }
 
