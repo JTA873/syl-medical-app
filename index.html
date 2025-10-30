@@ -4003,6 +4003,61 @@ async function renderAdminDashboard(user) {
     });
   }
 
+  // Fonction pour afficher le contenu détaillé d'un tag NFC
+  function showNFCContentModal(tagId, serialNumber, tagData) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-lg mx-4 max-h-96 overflow-y-auto">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">📱 Contenu du tag NFC</h3>
+        
+        <div class="space-y-4">
+          <!-- ID du tag -->
+          <div class="bg-blue-50 border border-blue-200 rounded p-3">
+            <h4 class="font-medium text-blue-800 mb-1">ID du tag</h4>
+            <code class="text-sm font-mono text-blue-900">${tagId}</code>
+          </div>
+          
+          <!-- Numéro de série -->
+          ${serialNumber ? `
+            <div class="bg-gray-50 border border-gray-200 rounded p-3">
+              <h4 class="font-medium text-gray-800 mb-1">Numéro de série</h4>
+              <code class="text-sm font-mono text-gray-700">${serialNumber}</code>
+            </div>
+          ` : ''}
+          
+          <!-- Données du tag -->
+          <div class="bg-green-50 border border-green-200 rounded p-3">
+            <h4 class="font-medium text-green-800 mb-2">Contenu (${tagData.length} enregistrement${tagData.length > 1 ? 's' : ''})</h4>
+            ${tagData.length > 0 ? tagData.map((data, index) => `
+              <div class="mb-3 pb-3 ${index < tagData.length - 1 ? 'border-b border-green-200' : ''}">
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded">
+                    ${data.type}${data.mediaType !== 'N/A' ? ` (${data.mediaType})` : ''}
+                  </span>
+                  <span class="text-xs text-gray-500">${data.size} bytes</span>
+                </div>
+                <div class="text-sm text-gray-700 break-all">
+                  ${data.content.length > 200 ? data.content.substring(0, 200) + '...' : data.content}
+                </div>
+              </div>
+            `).join('') : '<p class="text-sm text-gray-600">Tag vide</p>'}
+          </div>
+        </div>
+        
+        <div class="flex gap-2 mt-6">
+          <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
+            Fermer
+          </button>
+          <button onclick="navigator.clipboard.writeText('${tagId}').then(() => alert('ID copié !')); this.closest('.fixed').remove();" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">
+            Copier ID
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
   function setupNFCEvents() {
     document.getElementById('scanNFC')?.addEventListener('click', async () => {
       try {
@@ -4025,7 +4080,13 @@ async function renderAdminDashboard(user) {
         }
 
         // Démarrer le scan NFC
-        const ndef = new NDEFReader();
+        let ndef;
+        try {
+          ndef = new NDEFReader();
+        } catch (constructorError) {
+          console.error('Erreur constructor NDEFReader:', constructorError);
+          throw new Error('Impossible d\'initialiser le lecteur NFC. Vérifiez que le NFC est activé et que vous utilisez un navigateur compatible.');
+        }
         
         // Afficher un modal de scan en cours
         const scanModal = document.createElement('div');
@@ -4058,24 +4119,49 @@ async function renderAdminDashboard(user) {
           scanModal.remove();
           
           let tagId = '';
+          let tagContent = '';
+          let tagData = [];
           
-          // Essayer de lire les données du tag
+          // Analyser les données du tag
           if (message.records.length > 0) {
-            const record = message.records[0];
-            if (record.recordType === 'text') {
-              tagId = new TextDecoder().decode(record.data);
-            } else if (record.recordType === 'url') {
-              tagId = new TextDecoder().decode(record.data);
-            } else {
-              // Utiliser le numéro de série si pas de données
-              tagId = serialNumber || 'NFC_' + Date.now();
-            }
+            message.records.forEach((record, index) => {
+              const decoder = new TextDecoder();
+              let content = '';
+              
+              if (record.recordType === 'text') {
+                content = decoder.decode(record.data);
+                tagContent = content;
+                tagId = content;
+              } else if (record.recordType === 'url') {
+                content = decoder.decode(record.data);
+                tagContent = content;
+                // Extraire l'ID depuis l'URL si possible
+                const urlMatch = content.match(/[?&](nfc|patient|tag)=([^&]+)/);
+                if (urlMatch) {
+                  tagId = urlMatch[2];
+                } else {
+                  tagId = 'URL_' + Date.now();
+                }
+              } else if (record.recordType === 'mime') {
+                content = decoder.decode(record.data);
+                tagContent = content;
+              } else {
+                content = 'Données binaires (' + record.data.byteLength + ' bytes)';
+              }
+              
+              tagData.push({
+                type: record.recordType,
+                mediaType: record.mediaType || 'N/A',
+                content: content,
+                size: record.data.byteLength
+              });
+            });
           } else {
-            // Utiliser le numéro de série
+            tagContent = 'Tag vide';
             tagId = serialNumber || 'NFC_' + Date.now();
           }
 
-          // Formater l'ID
+          // Formater l'ID si nécessaire
           if (!tagId.startsWith('NFC_') && !tagId.startsWith('SYL_')) {
             tagId = 'NFC_' + tagId;
           }
@@ -4086,8 +4172,8 @@ async function renderAdminDashboard(user) {
             nfcTagIdField.value = tagId;
           }
           
-          // Afficher une confirmation
-          showNFCSuccessModal(tagId);
+          // Afficher les détails du contenu du tag
+          showNFCContentModal(tagId, serialNumber, tagData);
         });
 
         // Timeout pour le scan
@@ -4297,8 +4383,36 @@ async function renderAdminDashboard(user) {
 
         document.getElementById('startNFCWrite').onclick = async () => {
           try {
+            // Vérifications de sécurité avant d'instancier NDEFReader
+            if (!('NDEFReader' in window)) {
+              throw new Error('NDEFReader non disponible sur cet appareil');
+            }
+
+            // Vérifier HTTPS
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+              throw new Error('NFC nécessite HTTPS pour l\'écriture');
+            }
+
+            // Vérifier les permissions
+            try {
+              const permission = await navigator.permissions.query({ name: 'nfc' });
+              if (permission.state === 'denied') {
+                throw new Error('Permissions NFC refusées');
+              }
+            } catch (permError) {
+              console.warn('Impossible de vérifier les permissions NFC:', permError);
+            }
+
             const dataType = document.getElementById('nfcDataType').value;
-            const ndef = new NDEFReader();
+            
+            // Créer l'instance NDEFReader dans un try-catch
+            let ndef;
+            try {
+              ndef = new NDEFReader();
+            } catch (constructorError) {
+              console.error('Erreur constructor NDEFReader:', constructorError);
+              throw new Error('Impossible d\'initialiser le lecteur NFC. Vérifiez que le NFC est activé et que vous utilisez un navigateur compatible.');
+            }
             
             // Préparer les données selon le type
             let ndefMessage;
