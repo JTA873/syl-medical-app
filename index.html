@@ -232,11 +232,75 @@ async function loadPatientsFromFirestore() {
     });
     
     console.log(`📊 ${patients.length} patients chargés depuis Firestore`);
+    
+    // Corriger automatiquement les données manquantes (admin uniquement)
+    await autoFixPatientsData(snapshot);
+    
     return patients;
     
   } catch (error) {
     console.error("❌ Erreur chargement patients:", error);
     return [];
+  }
+}
+
+// Fonction pour corriger automatiquement les données manquantes des patients
+async function autoFixPatientsData(snapshot) {
+  if (!db || !snapshot) return;
+  
+  const currentUser = getCurrentUser();
+  if (!currentUser || currentUser.role !== 'admin') return; // Seulement pour admin
+  
+  let fixCount = 0;
+  const fixes = [];
+  
+  snapshot.forEach(doc => {
+    const patient = doc.data();
+    let needsFix = false;
+    const updates = {};
+    
+    // Vérifier uid
+    if (!patient.uid) {
+      updates.uid = doc.id;
+      needsFix = true;
+    }
+    
+    // Vérifier id
+    if (!patient.id) {
+      updates.id = doc.id;
+      needsFix = true;
+    }
+    
+    // Vérifier email
+    if (!patient.email && patient.personalInfo?.email) {
+      updates.email = patient.personalInfo.email;
+      needsFix = true;
+    }
+    
+    // Vérifier role
+    if (!patient.role) {
+      updates.role = 'patient';
+      needsFix = true;
+    }
+    
+    if (needsFix) {
+      fixes.push(
+        db.collection('patients').doc(doc.id).update({
+          ...updates,
+          autoFixedAt: firebase.firestore.FieldValue.serverTimestamp()
+        })
+      );
+      fixCount++;
+    }
+  });
+  
+  if (fixes.length > 0) {
+    try {
+      await Promise.all(fixes);
+      console.log(`🔧 ${fixCount} patients corrigés automatiquement (champs manquants ajoutés)`);
+    } catch (error) {
+      console.warn('⚠️ Correction auto ignorée:', error.message);
+    }
   }
 }
 
@@ -2432,6 +2496,9 @@ async function renderAdminDashboard(user) {
   let activeTab = 'patients';
   
   console.log("🔥 Dashboard Admin - Mode Firestore temps réel");
+  
+  // Lancer le debug silencieux pour l'admin
+  setTimeout(() => silentDebugCheck(), 3000);
   
   // Initialiser la synchronisation temps réel
   await initRealtimeSync();
