@@ -6313,7 +6313,10 @@ window.debugFirebaseCollections = async function() {
       console.log(`   • Top champs:`);
       sortedFields.forEach(([field, stats]) => {
         const coverage = ((stats.count / docs.length) * 100).toFixed(1);
-        console.log(`     - ${field}: ${stats.count}/${docs.length} (${coverage}%) [${stats.types.join(', ')}]`);
+        // Protection pour éviter les erreurs de type
+        const typesSet = stats.types instanceof Set ? stats.types : new Set(Array.isArray(stats.types) ? stats.types : []);
+        const typesArray = Array.from(typesSet);
+        console.log(`     - ${field}: ${stats.count}/${docs.length} (${coverage}%) [${typesArray.join(', ')}]`);
       });
       
       // Détecter les incohérences
@@ -6329,10 +6332,26 @@ window.debugFirebaseCollections = async function() {
     }
   }
   
-  // Recommandations de nettoyage
+  // Générer des recommandations de nettoyage
   console.log("\n🛠️ RECOMMANDATIONS DE NETTOYAGE:");
   console.log("=".repeat(40));
   generateCleanupRecommendations(analysis);
+  
+  // Résumé global
+  const successCount = Object.values(analysis).filter(data => !data.error).length;
+  const errorCount = Object.values(analysis).filter(data => data.error).length;
+  console.log(`\n📊 RÉSUMÉ: ${successCount} collections analysées, ${errorCount} erreurs de permissions`);
+  
+  if (errorCount > 0) {
+    console.log("\n💡 SOLUTION pour les erreurs de permissions:");
+    console.log("1. Vérifiez les règles Firestore dans Firebase Console");
+    console.log("2. Ajoutez les permissions pour ces collections:");
+    Object.entries(analysis).forEach(([collection, data]) => {
+      if (data.error && data.error.includes('permissions')) {
+        console.log(`   - ${collection}: allow read: if isAdmin();`);
+      }
+    });
+  }
   
   return analysis;
 };
@@ -6377,8 +6396,11 @@ function detectInconsistencies(docs, fieldStats) {
   
   // Champs avec types multiples
   Object.entries(fieldStats).forEach(([field, stats]) => {
-    if (stats.types.size > 1) {
-      issues.push(`"${field}" a plusieurs types: ${Array.from(stats.types).join(', ')}`);
+    // Protection pour éviter les erreurs de type
+    const typesSet = stats.types instanceof Set ? stats.types : new Set(Array.isArray(stats.types) ? stats.types : []);
+    if (typesSet.size > 1) {
+      const typesArray = Array.from(typesSet);
+      issues.push(`"${field}" a plusieurs types: ${typesArray.join(', ')}`);
     }
   });
   
@@ -6414,14 +6436,18 @@ function flattenObject(obj, prefix = '') {
 function generateCleanupRecommendations(analysis) {
   Object.entries(analysis).forEach(([collection, data]) => {
     if (data.error) {
-      console.log(`❌ ${collection}: Inaccessible - Vérifier les permissions`);
+      if (data.error.includes('permissions')) {
+        console.log(`🔒 ${collection}: Permissions insuffisantes - Collection accessible mais lecture limitée`);
+      } else {
+        console.log(`❌ ${collection}: Erreur technique - ${data.error}`);
+      }
       return;
     }
     
     console.log(`\n📁 ${collection.toUpperCase()}:`);
     
     if (data.count === 0) {
-      console.log(`   • Collection vide - Considérer la suppression`);
+      console.log(`   • Collection vide - ${collection === 'nfcTags' ? 'Normal (fonctionnalité future)' : 'Considérer la suppression'}`);
       return;
     }
     
@@ -6432,21 +6458,34 @@ function generateCleanupRecommendations(analysis) {
     );
     
     if (missingFields.length > 0) {
-      console.log(`   • Champs manquants: ${missingFields.join(', ')}`);
+      console.log(`   • Champs manquants (>20%): ${missingFields.join(', ')}`);
+    } else {
+      console.log(`   • ✅ Structure conforme - Tous les champs requis présents`);
     }
     
     // Champs avec types incohérents
     const inconsistentFields = Object.entries(data.fieldStats)
-      .filter(([field, stats]) => stats.types.size > 1)
+      .filter(([field, stats]) => {
+        const typesSet = stats.types instanceof Set ? stats.types : new Set(Array.isArray(stats.types) ? stats.types : []);
+        return typesSet.size > 1;
+      })
       .map(([field]) => field);
     
     if (inconsistentFields.length > 0) {
-      console.log(`   • Types incohérents: ${inconsistentFields.join(', ')}`);
+      console.log(`   • ⚠️ Types incohérents: ${inconsistentFields.join(', ')}`);
     }
     
     // Taille excessive
     if (data.totalSize > 100000) { // > 100KB
-      console.log(`   • Taille excessive: ${(data.totalSize / 1024).toFixed(2)} KB`);
+      console.log(`   • 📦 Taille importante: ${(data.totalSize / 1024).toFixed(2)} KB - Optimisation recommandée`);
+    }
+    
+    // Complexité des documents
+    if (data.docs.length > 0) {
+      const avgFields = Object.keys(data.fieldStats).length / data.docs.length;
+      if (avgFields > 50) {
+        console.log(`   • 🔧 Structure complexe: ${avgFields.toFixed(1)} champs/document en moyenne`);
+      }
     }
   });
 }
@@ -6604,7 +6643,7 @@ function getMostCommonType(types) {
   if (typeArray.includes('string')) return 'string';
   if (typeArray.includes('object')) return 'object';
   if (typeArray.includes('array')) return 'array';
-  return typeArray[0];
+  return typeArray[0] || 'unknown';
 }
 
 // Fonctions de debug pour la synchronisation automatique (améliorées)
