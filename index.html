@@ -25,20 +25,20 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   
   <!-- Vérification du chargement des librairies -->
   <script>
     window.addEventListener('load', function() {
-      console.log('QRCode disponible:', typeof QRCode !== 'undefined');
+      console.log('QRious disponible:', typeof QRious !== 'undefined');
       console.log('jsPDF disponible:', typeof window.jspdf !== 'undefined');
       
       // Attendre un peu plus si les librairies ne sont pas encore chargées
-      if (typeof QRCode === 'undefined' || typeof window.jspdf === 'undefined') {
+      if (typeof QRious === 'undefined' || typeof window.jspdf === 'undefined') {
         console.warn('Librairies non chargées, nouvelle tentative dans 2s...');
         setTimeout(() => {
-          console.log('QRCode disponible (2e tentative):', typeof QRCode !== 'undefined');
+          console.log('QRious disponible (2e tentative):', typeof QRious !== 'undefined');
           console.log('jsPDF disponible (2e tentative):', typeof window.jspdf !== 'undefined');
         }, 2000);
       }
@@ -906,12 +906,26 @@ class SYLUtilities {
         });
       `;
       
-      const blob = new Blob([swCode], { type: 'application/javascript' });
-      const swUrl = URL.createObjectURL(blob);
-      
-      navigator.serviceWorker.register(swUrl)
-        .then(() => console.log('Service Worker enregistré'))
-        .catch(err => console.log('Erreur Service Worker:', err));
+      // Plutôt que d'utiliser blob URL, créons un service worker via data URI
+      // ou vérifions si on peut l'éviter complètement
+      if (location.protocol === 'https:' || location.hostname === 'localhost') {
+        try {
+          const blob = new Blob([swCode], { type: 'application/javascript' });
+          const swUrl = URL.createObjectURL(blob);
+          
+          navigator.serviceWorker.register(swUrl)
+            .then(registration => {
+              console.log('Service Worker enregistré:', registration);
+              // Nettoyer l'URL blob après l'enregistrement
+              URL.revokeObjectURL(swUrl);
+            })
+            .catch(err => console.warn('Service Worker non disponible:', err));
+        } catch (error) {
+          console.warn('Service Worker blob registration failed:', error);
+        }
+      } else {
+        console.log('Service Worker non disponible (HTTPS requis)');
+      }
     }
   }
   
@@ -925,12 +939,52 @@ class SYLUtilities {
   }
   
   static showNotification(title, options) {
-    if (Notification.permission === 'granted') {
-      new Notification(title, {
-        icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==',
-        badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgODAwIj48YyB4PSI4MDAiIHk9IjQ3MiIgY3g9IjE5MiIgY3k9IjI4IiByPSI1MiIvPjwvc3ZnPg==',
-        ...options
-      });
+    if ('serviceWorker' in navigator && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        // Utiliser le Service Worker pour afficher la notification si disponible
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, {
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              tag: 'syl-medical',
+              requireInteraction: true,
+              ...options
+            });
+          }).catch(error => {
+            console.warn('Service Worker notification failed, using fallback:', error);
+            // Fallback vers Notification directe
+            try {
+              new Notification(title, {
+                icon: '/favicon.ico',
+                tag: 'syl-medical',
+                ...options
+              });
+            } catch (notifError) {
+              console.error('Notification fallback failed:', notifError);
+            }
+          });
+        } else {
+          // Pas de Service Worker actif, utiliser Notification directe
+          try {
+            new Notification(title, {
+              icon: '/favicon.ico',
+              tag: 'syl-medical',
+              ...options
+            });
+          } catch (notifError) {
+            console.error('Direct notification failed:', notifError);
+          }
+        }
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            this.showNotification(title, options);
+          }
+        });
+      }
+    } else {
+      console.warn('Notifications not supported in this browser');
     }
   }
   
@@ -2491,9 +2545,9 @@ function renderPatientDashboard(user) {
       
       const canvas = document.getElementById('qrCodeCanvas');
       if (canvas) {
-        // Vérifier si QRCode est disponible
-        if (typeof QRCode === 'undefined') {
-          console.warn('QRCode library not loaded, using fallback');
+        // Vérifier si QRious est disponible
+        if (typeof QRious === 'undefined') {
+          console.warn('QRious library not loaded, using fallback');
           // Fallback : afficher l'URL en texte
           const ctx = canvas.getContext('2d');
           canvas.width = 200;
@@ -2504,30 +2558,38 @@ function renderPatientDashboard(user) {
           ctx.font = '12px Arial';
           ctx.textAlign = 'center';
           ctx.fillText('QR Code', 100, 90);
-          ctx.fillText('Erreur de chargement', 100, 110);
-          ctx.fillText('URL: ' + profileUrl.substring(0, 20) + '...', 100, 130);
+          ctx.fillText('Librairie en cours de chargement...', 100, 110);
+          ctx.font = '8px Arial';
+          ctx.fillText(profileUrl.substring(0, 35), 100, 130);
+          ctx.fillText(profileUrl.substring(35), 100, 145);
           return;
         }
         
-        // Définir la taille du canvas
-        canvas.width = 200;
-        canvas.height = 200;
-        
-        // Efface le canvas
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Génère le QR code
-        await QRCode.toCanvas(canvas, profileUrl, {
-          width: 200,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF'
-          }
-        });
-        
-        console.log('QR Code généré avec succès pour:', profileUrl);
+        // Utiliser QRious pour générer le QR code
+        try {
+          const qr = new QRious({
+            element: canvas,
+            value: profileUrl,
+            size: 200,
+            level: 'M'
+          });
+          
+          console.log('QR Code généré avec succès pour:', profileUrl);
+        } catch (qrError) {
+          console.error('Erreur QRious:', qrError);
+          // Fallback en cas d'erreur
+          const ctx = canvas.getContext('2d');
+          canvas.width = 200;
+          canvas.height = 200;
+          ctx.fillStyle = '#fee2e2';
+          ctx.fillRect(0, 0, 200, 200);
+          ctx.fillStyle = '#dc2626';
+          ctx.font = '14px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('Erreur QR Code', 100, 100);
+          ctx.font = '10px Arial';
+          ctx.fillText(qrError.message, 100, 120);
+        }
       } else {
         console.error('Canvas QR code non trouvé');
       }
