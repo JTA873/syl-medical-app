@@ -2540,8 +2540,8 @@ function renderPatientDashboard(user) {
   // Fonction pour générer le QR code du patient avec informations médicales directes
   async function generatePatientQRCode() {
     try {
-      // Créer le contenu d'urgence médicale formaté avec emojis
-      const emergencyInfo = await createEmergencyInfoText();
+      // Créer un contenu d'urgence ultra-compact
+      const emergencyInfo = await createSimpleEmergencyInfo();
       
       const canvas = document.getElementById('qrCodeCanvas');
       if (canvas) {
@@ -2550,18 +2550,17 @@ function renderPatientDashboard(user) {
           console.warn('QRious library not loaded, using fallback');
           // Fallback : afficher les infos en texte
           const ctx = canvas.getContext('2d');
-          canvas.width = 200;
-          canvas.height = 200;
+          canvas.width = 256;
+          canvas.height = 256;
           ctx.fillStyle = '#f3f4f6';
-          ctx.fillRect(0, 0, 200, 200);
+          ctx.fillRect(0, 0, 256, 256);
           ctx.fillStyle = '#1f2937';
-          ctx.font = '12px Arial';
+          ctx.font = '14px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText('🚨 URGENCE MÉDICALE', 100, 70);
-          ctx.font = '10px Arial';
-          ctx.fillText('QR en cours de génération...', 100, 90);
-          ctx.fillText(`Patient: ${user.email}`, 100, 110);
-          ctx.fillText('Librairie QRious en attente', 100, 130);
+          ctx.fillText('URGENCE MEDICALE', 128, 100);
+          ctx.font = '12px Arial';
+          ctx.fillText('QR en cours...', 128, 120);
+          ctx.fillText(`Patient: ${user.email}`, 128, 140);
           return;
         }
         
@@ -2570,30 +2569,28 @@ function renderPatientDashboard(user) {
           const qr = new QRious({
             element: canvas,
             value: emergencyInfo,
-            size: 256, // QR plus grand pour plus de lisibilité
-            level: 'L', // Correction d'erreur faible = plus de données possibles
+            size: 256,
+            level: 'L', // Plus de données possibles
             background: 'white',
             foreground: 'black'
           });
           
-          console.log('QR Code médical généré avec succès');
-          console.log('Taille du contenu:', emergencyInfo.length, 'caractères');
-          console.log('Contenu:', emergencyInfo.substring(0, 100) + '...');
+          console.log('QR Code médical généré - Taille:', emergencyInfo.length, 'caractères');
+          console.log('Contenu:', emergencyInfo);
         } catch (qrError) {
           console.error('Erreur QRious:', qrError);
           // Fallback en cas d'erreur
           const ctx = canvas.getContext('2d');
-          canvas.width = 200;
-          canvas.height = 200;
+          canvas.width = 256;
+          canvas.height = 256;
           ctx.fillStyle = '#fee2e2';
-          ctx.fillRect(0, 0, 200, 200);
+          ctx.fillRect(0, 0, 256, 256);
           ctx.fillStyle = '#dc2626';
-          ctx.font = '14px Arial';
+          ctx.font = '16px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText('❌ Erreur QR Code', 100, 90);
-          ctx.font = '10px Arial';
-          ctx.fillText('Vérifiez vos données', 100, 110);
-          ctx.fillText(qrError.message.substring(0, 20), 100, 130);
+          ctx.fillText('Erreur QR Code', 128, 120);
+          ctx.font = '12px Arial';
+          ctx.fillText('Contenu trop long', 128, 140);
         }
       } else {
         console.error('Canvas QR code non trouvé');
@@ -2604,18 +2601,70 @@ function renderPatientDashboard(user) {
       const canvas = document.getElementById('qrCodeCanvas');
       if (canvas) {
         const ctx = canvas.getContext('2d');
-        canvas.width = 200;
-        canvas.height = 200;
+        canvas.width = 256;
+        canvas.height = 256;
         ctx.fillStyle = '#fee2e2';
-        ctx.fillRect(0, 0, 200, 200);
+        ctx.fillRect(0, 0, 256, 256);
         ctx.fillStyle = '#dc2626';
-        ctx.font = '14px Arial';
+        ctx.font = '16px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('❌ Erreur QR Code', 100, 90);
-        ctx.font = '10px Arial';
-        ctx.fillText('Erreur système', 100, 110);
-        ctx.fillText(error.message.substring(0, 20), 100, 130);
+        ctx.fillText('Erreur QR Code', 128, 120);
+        ctx.font = '12px Arial';
+        ctx.fillText('Erreur système', 128, 140);
       }
+    }
+  }
+
+  // Fonction pour créer un contenu d'urgence ultra-simple
+  async function createSimpleEmergencyInfo() {
+    try {
+      // Récupérer les données du patient connecté depuis Firestore
+      let patient = {};
+      
+      if (user && user.uid) {
+        const patientDoc = await db.collection('patients').doc(user.uid).get();
+        if (patientDoc.exists) {
+          patient = patientDoc.data();
+        } else {
+          // Fallback: chercher par email
+          const patientQuery = await db.collection('patients')
+            .where('email', '==', user.email)
+            .limit(1)
+            .get();
+          
+          if (!patientQuery.empty) {
+            patient = patientQuery.docs[0].data();
+          }
+        }
+      }
+      
+      const age = patient.dateNaissance ? 
+        new Date().getFullYear() - new Date(patient.dateNaissance).getFullYear() : 'N/A';
+      
+      // Version ultra-minimaliste
+      let emergencyText = `URGENCE MEDICALE
+${patient.prenom || 'N/A'} ${patient.nom || 'N/A'}
+Age: ${age}
+Sang: ${patient.groupeSanguin || 'N/A'}
+Allergies: ${patient.allergies ? patient.allergies.substring(0, 20) : 'Aucune'}
+Contact: ${patient.contactUrgence || 'N/A'}
+ID: ${user.uid ? user.uid.substring(0, 6) : 'N/A'}`;
+
+      // Nettoyer pour QR code
+      emergencyText = emergencyText
+        .replace(/[^\x20-\x7E\n]/g, '') // ASCII seulement
+        .trim();
+
+      console.log('Emergency text length:', emergencyText.length);
+      return emergencyText;
+      
+    } catch (error) {
+      console.error('Erreur création info urgence:', error);
+      // Version ultra-minimale en cas d'erreur
+      return `URGENCE MEDICALE
+Patient: ${user.email || 'N/A'}
+ID: ${user.uid ? user.uid.substring(0, 6) : 'N/A'}
+SYL Medical`;
     }
   }
 
