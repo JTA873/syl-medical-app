@@ -2618,14 +2618,15 @@ function renderPatientDashboard(user) {
 
   // Fonction pour créer le texte d'urgence médicale formaté
   function createEmergencyInfoText() {
-    const patient = currentPatient;
+    // Récupérer les données du patient connecté
+    const patient = patients.find(p => p.email === user.email) || {};
     const now = new Date();
     const age = patient.dateNaissance ? 
       new Date().getFullYear() - new Date(patient.dateNaissance).getFullYear() : 'N/A';
     
     let emergencyText = `🚨 URGENCE MÉDICALE 🚨
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 PATIENT: ${patient.prenom || ''} ${patient.nom || ''}
+👤 PATIENT: ${patient.prenom || 'Non renseigné'} ${patient.nom || 'Non renseigné'}
 📅 Né(e) le: ${patient.dateNaissance || 'Non renseigné'} (${age} ans)
 🩸 Groupe sanguin: ${patient.groupeSanguin || 'Non renseigné'}
 
