@@ -2688,6 +2688,113 @@ async function renderAdminDashboard(user) {
     `;
   }
 
+  function renderDebugTab() {
+    return `
+      <div class="space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-2xl font-bold text-gray-900">Debug & Maintenance</h2>
+          <div class="flex gap-2">
+            <button id="runQuickDiag" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">
+              🏥 Diagnostic Rapide
+            </button>
+          </div>
+        </div>
+
+        <!-- Diagnostic System -->
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">🔍 Analyse des Collections Firebase</h3>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <button id="analyzeCollections" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+              📊 Analyser Collections
+            </button>
+            
+            <button id="cleanupData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+              🧹 Nettoyer (Test)
+            </button>
+            
+            <button id="migrateSchema" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
+              🚀 Migrer Schéma
+            </button>
+          </div>
+
+          <div id="debugOutput" class="bg-gray-50 border border-gray-200 rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm">
+            <div class="text-gray-500">🔧 Debug SYL Medical - Console active</div>
+            <div class="text-blue-600">📝 Cliquez sur les boutons ci-dessus pour analyser vos données</div>
+            <div class="text-purple-600">📊 ${patients.length} patients détectés</div>
+          </div>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+              <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">🔥</div>
+              <div class="ml-4">
+                <h4 class="text-lg font-semibold text-gray-900">Firebase</h4>
+                <p class="text-sm text-gray-600">État connexion</p>
+              </div>
+            </div>
+            <div class="text-green-600 font-medium">✅ Connecté</div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+              <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">📊</div>
+              <div class="ml-4">
+                <h4 class="text-lg font-semibold text-gray-900">Collections</h4>
+                <p class="text-sm text-gray-600">Documents</p>
+              </div>
+            </div>
+            <div class="text-blue-600 font-medium">${patients.length} patients</div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div class="flex items-center mb-4">
+              <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">💾</div>
+              <div class="ml-4">
+                <h4 class="text-lg font-semibold text-gray-900">Cache</h4>
+                <p class="text-sm text-gray-600">Local</p>
+              </div>
+            </div>
+            <div class="text-green-600 font-medium">✅ Actif</div>
+          </div>
+        </div>
+
+        <!-- Console Commands -->
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">🛠️ Commandes Console Disponibles</h3>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div class="bg-gray-50 rounded-lg p-3 cursor-pointer hover:bg-gray-100" onclick="window.debugFirebaseCollections?.();">
+              <code class="text-purple-600 font-bold">debugFirebaseCollections()</code>
+              <p class="text-gray-600 mt-1">Analyse complète des collections</p>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-3 cursor-pointer hover:bg-gray-100" onclick="window.cleanupFirebaseData?.();">
+              <code class="text-purple-600 font-bold">cleanupFirebaseData()</code>
+              <p class="text-gray-600 mt-1">Nettoie et normalise les données</p>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-3 cursor-pointer hover:bg-gray-100" onclick="window.migrateToStandardSchema?.();">
+              <code class="text-purple-600 font-bold">migrateToStandardSchema()</code>
+              <p class="text-gray-600 mt-1">Migration vers schéma standard</p>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-3 cursor-pointer hover:bg-gray-100" onclick="window.quickDiagnosis?.();">
+              <code class="text-purple-600 font-bold">quickDiagnosis()</code>
+              <p class="text-gray-600 mt-1">Diagnostic rapide du système</p>
+            </div>
+          </div>
+          
+          <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p class="text-blue-700 text-sm">💡 <strong>Astuce :</strong> Ouvrez la console développeur (F12) pour voir les résultats détaillés</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function setupPatientsEvents() {
     document.getElementById('refreshPatients')?.addEventListener('click', async () => {
       // Détection mobile pour synchronisation forcée
@@ -3432,6 +3539,86 @@ END:VCARD`;
       });
       SYLAnalytics.trackEvent('nfc_association_created', { patientId, tagId });
       render();
+    });
+  }
+
+  function setupDebugEvents() {
+    // Fonction de log dans l'interface
+    function logToDebugOutput(message, type = 'info') {
+      const output = document.getElementById('debugOutput');
+      if (!output) return;
+      
+      const timestamp = new Date().toLocaleTimeString();
+      const typeClass = type === 'error' ? 'text-red-600' : type === 'success' ? 'text-green-600' : 'text-blue-600';
+      
+      const logElement = document.createElement('div');
+      logElement.className = `mb-1 ${typeClass}`;
+      logElement.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
+      
+      output.appendChild(logElement);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    // Diagnostic rapide
+    document.getElementById('runQuickDiag')?.addEventListener('click', async () => {
+      logToDebugOutput("🏥 Démarrage du diagnostic rapide...", 'info');
+      
+      try {
+        const result = await window.quickDiagnosis();
+        logToDebugOutput(`✅ Diagnostic terminé: Firebase=${result.firebase}, User=${!!result.user}`, 'success');
+      } catch (error) {
+        logToDebugOutput(`❌ Erreur diagnostic: ${error.message}`, 'error');
+      }
+    });
+    
+    // Analyse des collections
+    document.getElementById('analyzeCollections')?.addEventListener('click', async () => {
+      logToDebugOutput("📊 Analyse des collections Firebase...", 'info');
+      
+      try {
+        const analysis = await window.debugFirebaseCollections();
+        
+        // Résumer les résultats
+        Object.entries(analysis).forEach(([collection, data]) => {
+          if (data.error) {
+            logToDebugOutput(`❌ ${collection}: ${data.error}`, 'error');
+          } else {
+            logToDebugOutput(`✅ ${collection}: ${data.count} documents`, 'success');
+          }
+        });
+        
+        logToDebugOutput("📋 Analyse terminée - Voir console F12", 'info');
+        
+      } catch (error) {
+        logToDebugOutput(`❌ Erreur analyse: ${error.message}`, 'error');
+      }
+    });
+    
+    // Nettoyage des données
+    document.getElementById('cleanupData')?.addEventListener('click', async () => {
+      logToDebugOutput("🧹 Nettoyage (mode test)...", 'info');
+      
+      try {
+        const actions = await window.cleanupFirebaseData({ dryRun: true });
+        logToDebugOutput(`📋 ${actions.length} actions identifiées`, 'info');
+      } catch (error) {
+        logToDebugOutput(`❌ Erreur: ${error.message}`, 'error');
+      }
+    });
+    
+    // Migration du schéma
+    document.getElementById('migrateSchema')?.addEventListener('click', async () => {
+      if (!confirm('Migration du schéma - Continuer?')) return;
+      
+      logToDebugOutput("🚀 Migration...", 'info');
+      
+      try {
+        await window.migrateToStandardSchema();
+        logToDebugOutput("✅ Migration terminée", 'success');
+        setTimeout(() => window.renderApp?.(), 1000);
+      } catch (error) {
+        logToDebugOutput(`❌ Erreur: ${error.message}`, 'error');
+      }
     });
   }
 }
