@@ -25,6 +25,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -917,74 +919,188 @@ class SYLUtilities {
   
   // Export PDF
   static generatePDF(medicalData) {
-    const emergencyInfo = `
-<!DOCTYPE html>
-<html>
-<head>
-  <title>SYL Medical - Fiche d'urgence</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .header { text-align: center; color: #dc2626; border-bottom: 3px solid #dc2626; padding-bottom: 10px; }
-    .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
-    .critical { background-color: #fef2f2; border-color: #dc2626; }
-    .label { font-weight: bold; color: #374151; }
-    .value { color: #1f2937; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>🚑 FICHE MÉDICALE D'URGENCE</h1>
-    <h2>${medicalData.personalInfo.firstName} ${medicalData.personalInfo.lastName}</h2>
-  </div>
-  
-  <div class="section critical">
-    <h3>INFORMATIONS CRITIQUES</h3>
-    <div class="grid">
-      <div><span class="label">Groupe sanguin:</span> <span class="value">${medicalData.personalInfo.bloodType || 'Non renseigné'}</span></div>
-      <div><span class="label">Date de naissance:</span> <span class="value">${medicalData.personalInfo.dateOfBirth}</span></div>
-    </div>
-  </div>
-  
-  <div class="section">
-    <h3>ALLERGIES</h3>
-    <p class="value">${medicalData.medicalHistory.allergies.join(', ') || 'Aucune allergie connue'}</p>
-  </div>
-  
-  <div class="section">
-    <h3>TRAITEMENTS EN COURS</h3>
-    <p class="value">${medicalData.medicalHistory.medications.join(', ') || 'Aucun traitement'}</p>
-  </div>
-  
-  <div class="section">
-    <h3>CONTACT D'URGENCE</h3>
-    <p class="value">${medicalData.personalInfo.emergencyContact.name} (${medicalData.personalInfo.emergencyContact.relation})<br>
-    Tél: ${medicalData.personalInfo.emergencyContact.phone}</p>
-  </div>
-  
-  ${medicalData.emergencyInfo.criticalNotes ? `
-  <div class="section critical">
-    <h3>NOTES CRITIQUES</h3>
-    <p class="value">${medicalData.emergencyInfo.criticalNotes}</p>
-  </div>
-  ` : ''}
-  
-  <div class="section">
-    <p style="text-align: center; color: #6b7280; font-size: 12px;">
-      Généré le ${new Date().toLocaleString('fr-FR')} par SYL Medical
-    </p>
-  </div>
-</body>
-</html>
-    `;
-    
-    const blob = new Blob([emergencyInfo], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fiche-urgence-${medicalData.personalInfo.firstName}-${new Date().toISOString().split('T')[0]}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      // Créer un nouveau document PDF avec jsPDF
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      
+      // Configuration des couleurs et styles
+      const primaryColor = [220, 38, 38]; // Rouge
+      const secondaryColor = [59, 130, 246]; // Bleu
+      const grayColor = [107, 114, 128]; // Gris
+      
+      let yPosition = 20;
+      const leftMargin = 20;
+      const pageWidth = doc.internal.pageSize.width;
+      const pageHeight = doc.internal.pageSize.height;
+      
+      // Fonction pour ajouter une nouvelle page si nécessaire
+      const checkPageBreak = (neededSpace) => {
+        if (yPosition + neededSpace > pageHeight - 20) {
+          doc.addPage();
+          yPosition = 20;
+          return true;
+        }
+        return false;
+      };
+      
+      // En-tête du document
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('🚑 FICHE MÉDICALE D\'URGENCE SYL', pageWidth / 2, 18, { align: 'center' });
+      
+      yPosition = 40;
+      
+      // Nom du patient
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      const fullName = `${medicalData.personalInfo?.firstName || ''} ${medicalData.personalInfo?.lastName || ''}`.trim();
+      doc.text(fullName, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+      
+      // Date de génération
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text(`Généré le ${new Date().toLocaleString('fr-FR')}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 20;
+      
+      // Fonction pour ajouter une section
+      const addSection = (title, content, isCritical = false) => {
+        checkPageBreak(30);
+        
+        // Titre de section
+        const bgColor = isCritical ? [254, 242, 242] : [249, 250, 251];
+        const borderColor = isCritical ? primaryColor : [229, 231, 235];
+        
+        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+        doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+        doc.roundedRect(leftMargin, yPosition, pageWidth - 40, 12, 2, 2, 'FD');
+        
+        doc.setTextColor(isCritical ? primaryColor[0] : 0, isCritical ? primaryColor[1] : 0, isCritical ? primaryColor[2] : 0);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, leftMargin + 5, yPosition + 8);
+        yPosition += 20;
+        
+        // Contenu
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        
+        if (Array.isArray(content)) {
+          content.forEach(item => {
+            checkPageBreak(6);
+            doc.text(`• ${item}`, leftMargin + 5, yPosition);
+            yPosition += 6;
+          });
+        } else {
+          const lines = doc.splitTextToSize(content, pageWidth - 50);
+          lines.forEach(line => {
+            checkPageBreak(6);
+            doc.text(line, leftMargin + 5, yPosition);
+            yPosition += 6;
+          });
+        }
+        yPosition += 10;
+      };
+      
+      // Calculer l'âge
+      const calculateAge = (birthDate) => {
+        if (!birthDate) return 'Non renseigné';
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+          age--;
+        }
+        return age + ' ans';
+      };
+      
+      // Informations critiques
+      const criticalInfo = [
+        `Groupe sanguin: ${medicalData.personalInfo?.bloodType || 'Non renseigné'}`,
+        `Âge: ${calculateAge(medicalData.personalInfo?.dateOfBirth)}`,
+        `Date de naissance: ${medicalData.personalInfo?.dateOfBirth ? new Date(medicalData.personalInfo.dateOfBirth).toLocaleDateString('fr-FR') : 'Non renseignée'}`,
+        `Taille: ${medicalData.personalInfo?.height || 'Non renseigné'} cm`,
+        `Poids: ${medicalData.personalInfo?.weight || 'Non renseigné'} kg`
+      ];
+      addSection('INFORMATIONS CRITIQUES', criticalInfo, true);
+      
+      // Allergies
+      const allergies = medicalData.medicalHistory?.allergies?.length ? 
+        medicalData.medicalHistory.allergies : ['Aucune allergie connue'];
+      addSection('ALLERGIES', allergies, true);
+      
+      // Traitements en cours
+      const medications = medicalData.medicalHistory?.medications?.length ? 
+        medicalData.medicalHistory.medications : ['Aucun traitement en cours'];
+      addSection('TRAITEMENTS EN COURS', medications);
+      
+      // Pathologies
+      const diseases = medicalData.medicalHistory?.chronicDiseases?.length ? 
+        medicalData.medicalHistory.chronicDiseases : ['Aucune pathologie connue'];
+      addSection('PATHOLOGIES CHRONIQUES', diseases);
+      
+      // Médecin traitant
+      if (medicalData.emergencyInfo?.primaryPhysician?.name) {
+        const physicianInfo = [
+          `Nom: ${medicalData.emergencyInfo.primaryPhysician.name}`,
+          `Spécialité: ${medicalData.emergencyInfo.primaryPhysician.specialty || 'Non renseignée'}`,
+          `Téléphone: ${medicalData.emergencyInfo.primaryPhysician.phone || 'Non renseigné'}`
+        ];
+        addSection('MÉDECIN TRAITANT', physicianInfo);
+      }
+      
+      // Contact d'urgence
+      if (medicalData.personalInfo?.emergencyContact?.name) {
+        const contactInfo = [
+          `Nom: ${medicalData.personalInfo.emergencyContact.name}`,
+          `Relation: ${medicalData.personalInfo.emergencyContact.relationship || 'Non renseignée'}`,
+          `Téléphone: ${medicalData.personalInfo.emergencyContact.phone || 'Non renseigné'}`,
+          `Email: ${medicalData.personalInfo.emergencyContact.email || 'Non renseigné'}`
+        ];
+        addSection('CONTACT D\'URGENCE', contactInfo, true);
+      }
+      
+      // Notes critiques
+      if (medicalData.emergencyInfo?.criticalNotes) {
+        addSection('NOTES CRITIQUES POUR LES SECOURS', medicalData.emergencyInfo.criticalNotes, true);
+      }
+      
+      // Numéros d'urgence
+      const emergencyNumbers = [
+        'SAMU: 15',
+        'Pompiers: 18',
+        'Police: 17',
+        'Urgences européennes: 112'
+      ];
+      addSection('NUMÉROS D\'URGENCE', emergencyNumbers, true);
+      
+      // Footer
+      checkPageBreak(20);
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('📋 Document généré par SYL Medical • Usage strictement médical', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.text('🔒 Données sensibles - Confidentialité médicale', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      
+      // Sauvegarder le PDF
+      const fileName = `SYL-Medical-${fullName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      // Notification de succès
+      console.log('PDF généré avec succès:', fileName);
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      alert('❌ Erreur lors de la génération du PDF. Veuillez réessayer.');
+    }
   }
   
   // API NFC pour l'accès d'urgence
@@ -1656,7 +1772,7 @@ function renderPatientDashboard(user) {
       <header class="bg-white shadow-sm border-b">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
           <div class="flex items-center">
-            ${icons.heart}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Patient</h1>
+            ${icons.heart}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Medical</h1>
           </div>
           <div class="flex items-center space-x-4">
             <div class="text-sm text-gray-600">Bonjour, ${user.profile.firstName} ${user.profile.lastName || ''}</div>
@@ -1756,37 +1872,106 @@ function renderPatientDashboard(user) {
         <!-- Médecin traitant -->
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">👨‍⚕️ Médecin traitant</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Dr. Nom" value="${medicalData.emergencyInfo.primaryPhysician.name}" id="physicianName">
             <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Spécialité" value="${medicalData.emergencyInfo.primaryPhysician.specialty}" id="physicianSpecialty">
             <input class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Téléphone" value="${medicalData.emergencyInfo.primaryPhysician.phone}" id="physicianPhone">
           </div>
+          <button id="savePhysician" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">
+            💾 Sauvegarder médecin traitant
+          </button>
         </div>
 
         <!-- Notes critiques -->
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-4">🚨 Notes critiques pour les secours</h3>
-          <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg h-24" placeholder="Informations vitales à communiquer aux secours (ex: risque d'allergie, contre-indications spécifiques...)" id="criticalNotes">${medicalData.emergencyInfo.criticalNotes}</textarea>
-        </div>
-
-        <!-- Nouvelles fonctionnalités d'urgence -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <button id="generateQR" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-            📱 QR Code
-          </button>
-          <button id="getLocation" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-            📍 Localisation
-          </button>
-          <button id="exportPDF" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-            📄 Export PDF
-          </button>
-          <button id="emergencyCall" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-            📞 SAMU 15
+          <textarea class="w-full px-3 py-2 border border-gray-300 rounded-lg h-24 mb-4" placeholder="Informations vitales à communiquer aux secours (ex: risque d'allergie, contre-indications spécifiques...)" id="criticalNotes">${medicalData.emergencyInfo.criticalNotes}</textarea>
+          <button id="saveCriticalNotes" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">
+            💾 Sauvegarder notes critiques
           </button>
         </div>
 
-        <button id="saveEmergency" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-6 py-3 text-lg">
-          ${icons.check} SAUVEGARDER LES INFOS D'URGENCE
+        <!-- QR Code et Export du profil patient -->
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">📱 Profil médical numérique</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- QR Code -->
+            <div class="text-center">
+              <h4 class="font-medium text-gray-800 mb-3">QR Code du profil</h4>
+              <div id="qrCodeContainer" class="mb-4">
+                <canvas id="qrCodeCanvas" class="mx-auto border border-gray-300 rounded-lg"></canvas>
+              </div>
+              <p class="text-sm text-gray-600 mb-4">
+                Scannez pour accéder à votre profil médical en ligne
+              </p>
+              <div class="flex gap-2 justify-center">
+                <button id="refreshQR" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-3 py-2 text-sm flex items-center gap-1">
+                  🔄 Actualiser
+                </button>
+                <button id="downloadQR" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-3 py-2 text-sm flex items-center gap-1">
+                  📥 Télécharger
+                </button>
+              </div>
+            </div>
+            
+            <!-- PDF Export -->
+            <div class="text-center">
+              <h4 class="font-medium text-gray-800 mb-3">Fiche médicale PDF</h4>
+              <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                <div class="text-4xl mb-2">📄</div>
+                <p class="text-sm text-gray-600">
+                  Exportez votre fiche médicale complète au format PDF
+                </p>
+              </div>
+              <button id="generatePDF" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2 mx-auto">
+                📄 Générer fiche PDF
+              </button>
+              <p class="text-xs text-gray-500 mt-2">
+                Inclut toutes vos informations médicales
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Urgences médicales -->
+        <div class="bg-white rounded-xl shadow-lg border-2 border-red-200 p-6">
+          <h3 class="text-lg font-semibold text-red-600 mb-4 flex items-center">
+            🚨 Urgences médicales
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- SAMU -->
+            <div class="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+              <div class="text-3xl mb-2">🚑</div>
+              <h4 class="font-bold text-red-800 mb-2">SAMU</h4>
+              <p class="text-sm text-red-600 mb-3">Urgences médicales</p>
+              <button id="callSAMU" class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg px-4 py-2 text-lg w-full">
+                📞 Appeler le 15
+              </button>
+            </div>
+            
+            <!-- Autres urgences -->
+            <div class="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+              <div class="text-3xl mb-2">🆘</div>
+              <h4 class="font-bold text-orange-800 mb-2">Autres urgences</h4>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between items-center">
+                  <span>Pompiers:</span>
+                  <a href="tel:18" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-xs">18</a>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span>Police:</span>
+                  <a href="tel:17" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs">17</a>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span>Urgences EU:</span>
+                  <a href="tel:112" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs">112</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section d'urgence simplifiée -->
         </button>
       </div>
     `;
@@ -1829,13 +2014,8 @@ function renderPatientDashboard(user) {
               <input required type="date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" value="${medicalData.personalInfo.dateOfBirth || ''}" id="pfBirth">
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Âge</label>
-              <select class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" id="pfAge">
-                <option value="">Sélectionnez votre âge</option>
-                ${Array.from({length: 100}, (_, i) => i + 1).map(age => 
-                  `<option value="${age}" ${medicalData.personalInfo.age == age ? 'selected' : ''}>${age} ans</option>`
-                ).join('')}
-              </select>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Âge (calculé automatiquement)</label>
+              <input readonly class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600" placeholder="Calculé depuis la date de naissance" value="${medicalData.personalInfo.age || ''}" id="pfAge">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Groupe sanguin <span class="text-red-500">*</span></label>
@@ -2081,12 +2261,56 @@ function renderPatientDashboard(user) {
           </div>
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">Répétition</label>
-            <select id="reminderRepeat" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            <select id="reminderRepeat" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="toggleRepeatOptions()">
               <option value="none">Aucune</option>
+              <option value="hourly">Toutes les X heures</option>
               <option value="daily">Quotidien</option>
               <option value="weekly">Hebdomadaire</option>
+              <option value="weekdays">Jours spécifiques</option>
               <option value="monthly">Mensuel</option>
             </select>
+          </div>
+          
+          <div id="hourlyOptions" class="mb-4 hidden">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Répéter toutes les</label>
+            <div class="flex items-center gap-2">
+              <input type="number" id="hourInterval" min="1" max="24" value="1" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+              <span class="text-gray-600">heure(s)</span>
+            </div>
+          </div>
+          
+          <div id="weekdaysOptions" class="mb-4 hidden">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Jours de la semaine</label>
+            <div class="grid grid-cols-4 gap-2">
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-1" value="1" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Lundi
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-2" value="2" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Mardi
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-3" value="3" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Mercredi
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-4" value="4" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Jeudi
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-5" value="5" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Vendredi
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-6" value="6" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Samedi
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="weekday-0" value="0" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                Dimanche
+              </label>
+            </div>
           </div>
           <button id="saveReminder" class="bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.check} Créer le rappel</button>
         </div>
@@ -2106,7 +2330,7 @@ function renderPatientDashboard(user) {
                     <span>📅 ${new Date(reminder.dateTime).toLocaleDateString('fr-FR')}</span>
                     <span>🕒 ${new Date(reminder.dateTime).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}</span>
                     <span>${reminder.method === 'notification' ? '📱' : reminder.method === 'email' ? '📧' : reminder.method === 'sms' ? '💬' : '🔔'} ${reminder.method || 'notification'}</span>
-                    ${reminder.repeat && reminder.repeat !== 'none' ? `<span>🔄 ${reminder.repeat}</span>` : ''}
+                    ${reminder.repeat && reminder.repeat !== 'none' ? `<span>🔄 ${getRepeatDisplayText(reminder)}</span>` : ''}
                   </div>
                 </div>
                 <div class="flex items-center gap-2 ml-4">
@@ -2122,91 +2346,152 @@ function renderPatientDashboard(user) {
   }
 
   function tabEmergencyEvents() {
-    // Nouvelles fonctionnalités d'urgence
-    document.getElementById('generateQR')?.addEventListener('click', () => {
-      const qrUrl = SYLUtilities.generateEmergencyQR(medicalData);
-      const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-      modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 max-w-md mx-4">
-          <h3 class="text-lg font-bold mb-4">QR Code d'Urgence</h3>
-          <img src="${qrUrl}" alt="QR Code" class="w-full max-w-xs mx-auto mb-4" />
-          <p class="text-sm text-gray-600 mb-4">Scannez ce code pour accéder rapidement aux informations d'urgence</p>
-          <div class="flex gap-2">
-            <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Fermer</button>
-            <a href="${qrUrl}" download="qr-urgence.png" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2 text-center">Télécharger</a>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-    });
-
-    document.getElementById('getLocation')?.addEventListener('click', async () => {
-      try {
-        const location = await SYLUtilities.getEmergencyLocation();
-        const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        modal.innerHTML = `
-          <div class="bg-white rounded-lg p-6 max-w-md mx-4">
-            <h3 class="text-lg font-bold mb-4">📍 Localisation d'Urgence</h3>
-            <p class="mb-2"><strong>Latitude:</strong> ${location.latitude.toFixed(6)}</p>
-            <p class="mb-2"><strong>Longitude:</strong> ${location.longitude.toFixed(6)}</p>
-            <p class="mb-2"><strong>Précision:</strong> ±${Math.round(location.accuracy)}m</p>
-            <p class="text-sm text-gray-600 mb-4">Coordonnées GPS à communiquer aux secours</p>
-            <div class="flex gap-2">
-              <button onclick="this.closest('.fixed').remove()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Fermer</button>
-              <button onclick="navigator.clipboard.writeText('${location.latitude}, ${location.longitude}'); alert('Coordonnées copiées !')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">Copier</button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(modal);
-      } catch (error) {
-        alert('❌ Impossible d\'obtenir la localisation: ' + error);
-      }
-    });
-
-    document.getElementById('exportPDF')?.addEventListener('click', () => {
-      SYLUtilities.generatePDF(medicalData);
-      SYLUtilities.showNotification('Fiche d\'urgence générée', {
-        body: 'Votre fiche médicale d\'urgence a été téléchargée'
-      });
-    });
-
-    document.getElementById('emergencyCall')?.addEventListener('click', () => {
-      if (confirm('Composer le 15 (SAMU) ?')) {
-        window.open('tel:15');
-      }
-    });
-
-    document.getElementById('saveEmergency').onclick = async () => {
+    // Event listeners pour les nouveaux boutons de sauvegarde
+    document.getElementById('savePhysician')?.addEventListener('click', async () => {
       medicalData.emergencyInfo.primaryPhysician.name = document.getElementById('physicianName').value;
       medicalData.emergencyInfo.primaryPhysician.specialty = document.getElementById('physicianSpecialty').value;
       medicalData.emergencyInfo.primaryPhysician.phone = document.getElementById('physicianPhone').value;
-      medicalData.emergencyInfo.criticalNotes = document.getElementById('criticalNotes').value;
       medicalData.emergencyInfo.lastUpdate = new Date().toISOString();
       localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
       
-      // Synchronisation Firebase avec UID utilisateur comme ID
+      // Synchronisation Firebase
       if (user.uid) {
         try {
           const patientData = { ...medicalData, uid: user.uid, email: user.email };
           await savePatientToFirestore(patientData);
-          SYLUtilities.showNotification('Données sauvegardées', {
-            body: 'Vos informations d\'urgence ont été mises à jour'
+          SYLUtilities.showNotification('Médecin traitant sauvegardé', {
+            body: 'Les informations de votre médecin traitant ont été mises à jour'
           });
-          alert('✅ Données d\'urgence sauvegardées et synchronisées avec Firebase !');
         } catch (error) {
           console.error('Erreur sync Firebase:', error);
-          alert('⚠️ Données sauvegardées localement. Synchronisation Firebase échouée.');
+          alert('⚠️ Médecin sauvegardé localement. Synchronisation Firebase échouée.');
         }
       } else {
-        alert('✅ Données d\'urgence sauvegardées !');
+        alert('✅ Médecin traitant sauvegardé !');
       }
-      render();
-    };
+    });
+
+    document.getElementById('saveCriticalNotes')?.addEventListener('click', async () => {
+      medicalData.emergencyInfo.criticalNotes = document.getElementById('criticalNotes').value;
+      medicalData.emergencyInfo.lastUpdate = new Date().toISOString();
+      localStorage.setItem('syl-medicalData', JSON.stringify(medicalData));
+      
+      // Synchronisation Firebase
+      if (user.uid) {
+        try {
+          const patientData = { ...medicalData, uid: user.uid, email: user.email };
+          await savePatientToFirestore(patientData);
+          SYLUtilities.showNotification('Notes critiques sauvegardées', {
+            body: 'Vos notes critiques d\'urgence ont été mises à jour'
+          });
+        } catch (error) {
+          console.error('Erreur sync Firebase:', error);
+          alert('⚠️ Notes sauvegardées localement. Synchronisation Firebase échouée.');
+        }
+      } else {
+        alert('✅ Notes critiques sauvegardées !');
+      }
+    });
+
+    // Génération automatique du QR code
+    generatePatientQRCode();
+    
+    // Event listeners pour le QR code
+    document.getElementById('refreshQR')?.addEventListener('click', () => {
+      generatePatientQRCode();
+      SYLUtilities.showNotification('QR Code actualisé', {
+        body: 'Le QR code a été mis à jour avec vos dernières informations'
+      });
+    });
+
+    document.getElementById('downloadQR')?.addEventListener('click', () => {
+      const canvas = document.getElementById('qrCodeCanvas');
+      const link = document.createElement('a');
+      link.download = `SYL-Medical-QR-${user.profile?.firstName || 'Patient'}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+      SYLUtilities.showNotification('QR Code téléchargé', {
+        body: 'Le QR code de votre profil médical a été téléchargé'
+      });
+    });
+
+    // Event listener pour la génération PDF
+    document.getElementById('generatePDF')?.addEventListener('click', () => {
+      SYLUtilities.generatePDF(medicalData);
+      SYLUtilities.showNotification('Fiche PDF générée', {
+        body: 'Votre fiche médicale complète a été téléchargée au format PDF'
+      });
+    });
+
+    // Event listener pour l'appel SAMU
+    document.getElementById('callSAMU')?.addEventListener('click', () => {
+      if (confirm('🚑 Vous vous apprêtez à composer le 15 (SAMU).\n\nEn cas d\'urgence médicale vitale, confirmez l\'appel.\n\nVoulez-vous continuer ?')) {
+        window.open('tel:15');
+        SYLUtilities.showNotification('Appel SAMU', {
+          body: 'Mise en relation avec le 15...'
+        });
+      }
+    });
+  }
+
+  // Fonction pour générer le QR code du patient
+  async function generatePatientQRCode() {
+    try {
+      // URL vers le profil patient en ligne (utilise l'UID Firebase)
+      const profileUrl = `https://jta873.github.io/?patient=${user.uid}`;
+      
+      const canvas = document.getElementById('qrCodeCanvas');
+      if (canvas && window.QRCode) {
+        // Efface le canvas
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Génère le QR code
+        await QRCode.toCanvas(canvas, profileUrl, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Erreur génération QR code:', error);
+    }
   }
 
   function tabProfileEvents() {
+    // Calcul automatique de l'âge
+    const birthInput = document.getElementById('pfBirth');
+    const ageInput = document.getElementById('pfAge');
+    
+    function calculateAge() {
+      const birthDate = birthInput.value;
+      if (birthDate) {
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+          age--;
+        }
+        
+        ageInput.value = age >= 0 ? `${age} ans` : '';
+        medicalData.personalInfo.age = age;
+      } else {
+        ageInput.value = '';
+        medicalData.personalInfo.age = '';
+      }
+    }
+    
+    // Calculer l'âge à l'ouverture si date existe
+    calculateAge();
+    
+    // Recalculer l'âge quand la date change
+    birthInput.addEventListener('change', calculateAge);
+    
     document.getElementById('saveProfile').onclick = async () => {
       // Validation des champs requis
       const requiredFields = [
@@ -2404,6 +2689,50 @@ function renderPatientDashboard(user) {
     };
   }
 
+  // Fonction pour afficher/masquer les options de répétition
+  function toggleRepeatOptions() {
+    const repeatType = document.getElementById('reminderRepeat').value;
+    const hourlyOptions = document.getElementById('hourlyOptions');
+    const weekdaysOptions = document.getElementById('weekdaysOptions');
+    
+    // Masquer toutes les options d'abord
+    hourlyOptions.classList.add('hidden');
+    weekdaysOptions.classList.add('hidden');
+    
+    // Afficher les options selon le type sélectionné
+    if (repeatType === 'hourly') {
+      hourlyOptions.classList.remove('hidden');
+    } else if (repeatType === 'weekdays') {
+      weekdaysOptions.classList.remove('hidden');
+    }
+  }
+
+  // Fonction pour formater l'affichage de la répétition
+  function getRepeatDisplayText(reminder) {
+    if (!reminder.repeat || reminder.repeat === 'none') return '';
+    
+    switch (reminder.repeat) {
+      case 'hourly':
+        const hours = reminder.repeatOptions?.hourInterval || 1;
+        return hours === 1 ? 'Toutes les heures' : `Toutes les ${hours}h`;
+      case 'daily':
+        return 'Quotidien';
+      case 'weekly':
+        return 'Hebdomadaire';
+      case 'weekdays':
+        if (reminder.repeatOptions?.weekdays?.length) {
+          const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+          const selectedDays = reminder.repeatOptions.weekdays.map(day => dayNames[day]).join(', ');
+          return `${selectedDays}`;
+        }
+        return 'Jours spécifiques';
+      case 'monthly':
+        return 'Mensuel';
+      default:
+        return reminder.repeat;
+    }
+  }
+
   function tabRemindersEvents() {
     document.getElementById('saveReminder')?.addEventListener('click', () => {
       const title = document.getElementById('reminderTitle').value.trim();
@@ -2413,6 +2742,25 @@ function renderPatientDashboard(user) {
       const message = document.getElementById('reminderMessage').value.trim();
       const method = document.getElementById('reminderMethod').value;
       const repeat = document.getElementById('reminderRepeat').value;
+      
+      // Récupérer les options de répétition avancées
+      let repeatOptions = {};
+      if (repeat === 'hourly') {
+        repeatOptions.hourInterval = parseInt(document.getElementById('hourInterval').value) || 1;
+      } else if (repeat === 'weekdays') {
+        const selectedDays = [];
+        for (let i = 0; i <= 6; i++) {
+          const checkbox = document.getElementById(`weekday-${i}`);
+          if (checkbox && checkbox.checked) {
+            selectedDays.push(i);
+          }
+        }
+        repeatOptions.weekdays = selectedDays;
+        if (selectedDays.length === 0) {
+          alert('⚠️ Veuillez sélectionner au moins un jour de la semaine');
+          return;
+        }
+      }
       
       if (!title || !date || !time) {
         alert('⚠️ Veuillez remplir les champs obligatoires:\n• Titre\n• Date\n• Heure');
@@ -2434,6 +2782,7 @@ function renderPatientDashboard(user) {
         message: message || `Rappel: ${title}`,
         method,
         repeat,
+        repeatOptions,
         dateTime: dateTime.toISOString(),
         createdAt: now.toISOString(),
         notified: false,
@@ -2453,6 +2802,18 @@ function renderPatientDashboard(user) {
       document.getElementById('reminderMessage').value = '';
       document.getElementById('reminderDate').value = '';
       document.getElementById('reminderTime').value = '';
+      document.getElementById('reminderRepeat').value = 'none';
+      document.getElementById('hourInterval').value = '1';
+      
+      // Reset checkboxes
+      for (let i = 0; i <= 6; i++) {
+        const checkbox = document.getElementById(`weekday-${i}`);
+        if (checkbox) checkbox.checked = false;
+      }
+      
+      // Masquer les options de répétition
+      document.getElementById('hourlyOptions').classList.add('hidden');
+      document.getElementById('weekdaysOptions').classList.add('hidden');
       
       // Notification de confirmation
       const methodText = method === 'notification' ? 'notification smartphone' : 
@@ -5705,6 +6066,221 @@ async function showPatientMedicalRecord(patientId) {
   });
 }
 
+// Fonction pour afficher le profil patient public (QR code)
+async function showPatientPublicProfile(patientId) {
+  try {
+    // Récupérer les données patient depuis Firebase
+    const patientsSnapshot = await db.collection('patients').doc(patientId).get();
+    let patient = null;
+    
+    if (patientsSnapshot.exists) {
+      patient = { id: patientsSnapshot.id, ...patientsSnapshot.data() };
+    }
+    
+    if (!patient) {
+      document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+            <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+              👤
+            </div>
+            <h2 class="text-xl font-bold text-gray-800 mb-2">Profil non trouvé</h2>
+            <p class="text-gray-600 mb-4">Aucun profil patient trouvé pour cet ID.</p>
+            <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
+              Retour à l'application
+            </button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Calculer l'âge
+    const calculateAge = (birthDate) => {
+      if (!birthDate) return 'N/A';
+      const today = new Date();
+      const birth = new Date(birthDate);
+      let age = today.getFullYear() - birth.getFullYear();
+      const monthDiff = today.getMonth() - birth.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      return age + ' ans';
+    };
+
+    // Afficher le profil patient public
+    document.getElementById('app').innerHTML = `
+      <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <!-- En-tête du profil -->
+        <div class="bg-blue-600 text-white py-6">
+          <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center">
+                <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-blue-600 font-bold mr-4">
+                  👤
+                </div>
+                <div>
+                  <h1 class="text-3xl font-bold">Profil Médical SYL</h1>
+                  <p class="text-blue-100">Informations de santé personnelles</p>
+                </div>
+              </div>
+              <button onclick="location.href='${window.location.pathname}'" class="bg-blue-700 hover:bg-blue-800 text-white rounded-lg px-4 py-2">
+                Retour
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <!-- Identification du patient -->
+          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+            <div class="text-center mb-6">
+              <div class="w-20 h-20 bg-blue-100 rounded-full mx-auto flex items-center justify-center text-blue-600 text-2xl mb-4">
+                👤
+              </div>
+              <h2 class="text-3xl font-bold text-gray-900 mb-2">
+                ${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}
+              </h2>
+              <div class="inline-flex items-center px-4 py-2 bg-blue-100 rounded-full">
+                <span class="text-blue-800 font-medium">Âge: ${calculateAge(patient.personalInfo?.dateOfBirth)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Informations personnelles -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Informations vitales -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                🩸 Informations vitales
+              </h3>
+              <div class="space-y-3">
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Groupe sanguin:</span>
+                  <span class="font-medium text-red-600">${patient.personalInfo?.bloodType || 'Non renseigné'}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Taille:</span>
+                  <span class="font-medium">${patient.personalInfo?.height || 'Non renseigné'} cm</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Poids:</span>
+                  <span class="font-medium">${patient.personalInfo?.weight || 'Non renseigné'} kg</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-600">Bracelet:</span>
+                  <span class="font-medium text-blue-600">${patient.personalInfo?.braceletColor || 'Non choisi'}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Médecin traitant -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                👨‍⚕️ Médecin traitant
+              </h3>
+              <div class="space-y-3">
+                ${patient.emergencyInfo?.primaryPhysician?.name ? `
+                  <div class="p-3 bg-green-50 rounded-lg">
+                    <div class="font-medium text-green-800">${patient.emergencyInfo.primaryPhysician.name}</div>
+                    <div class="text-sm text-green-600">${patient.emergencyInfo.primaryPhysician.specialty || ''}</div>
+                    ${patient.emergencyInfo.primaryPhysician.phone ? `
+                      <div class="text-sm text-green-600 mt-1">📞 ${patient.emergencyInfo.primaryPhysician.phone}</div>
+                    ` : ''}
+                  </div>
+                ` : `
+                  <div class="p-3 bg-gray-100 rounded-lg text-gray-600">
+                    Aucun médecin traitant renseigné
+                  </div>
+                `}
+              </div>
+            </div>
+          </div>
+
+          <!-- Allergies et pathologies -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Allergies -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                ⚠️ Allergies
+              </h3>
+              ${patient.medicalHistory?.allergies?.length ? 
+                patient.medicalHistory.allergies.map(allergy => `
+                  <div class="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">
+                    <span class="text-red-800 font-medium">${allergy}</span>
+                  </div>
+                `).join('') : 
+                '<div class="bg-gray-100 rounded-lg px-3 py-2 text-gray-600">Aucune allergie connue</div>'
+              }
+            </div>
+
+            <!-- Pathologies -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                🏥 Pathologies
+              </h3>
+              ${patient.medicalHistory?.chronicDiseases?.length ? 
+                patient.medicalHistory.chronicDiseases.map(disease => `
+                  <div class="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-2">
+                    <span class="text-orange-800 font-medium">${disease}</span>
+                  </div>
+                `).join('') : 
+                '<div class="bg-gray-100 rounded-lg px-3 py-2 text-gray-600">Aucune pathologie connue</div>'
+              }
+            </div>
+          </div>
+
+          <!-- Contact d'urgence -->
+          ${patient.personalInfo?.emergencyContact?.name ? `
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+              <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                📞 Contact d'urgence
+              </h3>
+              <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div class="font-medium text-green-800 text-lg">${patient.personalInfo.emergencyContact.name}</div>
+                <div class="text-green-700">${patient.personalInfo.emergencyContact.relationship || ''}</div>
+                ${patient.personalInfo.emergencyContact.phone ? `
+                  <div class="text-green-700 mt-2">📞 ${patient.personalInfo.emergencyContact.phone}</div>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Footer -->
+          <div class="mt-8 text-center text-gray-500 text-sm">
+            <p>📱 Profil médical SYL • Consultation: ${new Date().toLocaleString('fr-FR')}</p>
+            <p class="mt-1">🔒 Informations personnelles de santé</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Enregistrer l'accès
+    SYLAnalytics.trackEvent('patient_profile_access', { 
+      patientId: patient.id || patient.uid, 
+      accessMethod: 'qr_code',
+      accessTime: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de l\'affichage du profil patient:', error);
+    document.getElementById('app').innerHTML = `
+      <div class="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+          <div class="w-16 h-16 bg-red-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl mb-4">
+            ❌
+          </div>
+          <h2 class="text-xl font-bold text-red-600 mb-2">Erreur de chargement</h2>
+          <p class="text-gray-600 mb-4">Impossible de charger le profil patient.</p>
+          <button onclick="location.href='${window.location.pathname}'" class="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2">
+            Retour à l'application
+          </button>
+        </div>
+      </div>
+    `;
+  }
+}
+
 // ----------- MAIN -----------
 function renderApp() {
   console.log("renderApp appellee");
@@ -5917,6 +6493,21 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('⏳ Première tentative échouée, attente Firebase...');
       setTimeout(() => {
         showPatientMedicalRecord(patientId);
+      }, 2000);
+    });
+    
+    return; // Arrêt complet pour éviter toute interférence
+  }
+  
+  // Mode accès profil patient public (QR code)
+  if (patientId && !accessType) {
+    console.log('📱 MODE QR: Accès profil patient public détecté:', patientId);
+    
+    // Essayer immédiatement, puis avec délai si Firebase n'est pas prêt
+    showPatientPublicProfile(patientId).catch(() => {
+      console.log('⏳ Première tentative échouée, attente Firebase...');
+      setTimeout(() => {
+        showPatientPublicProfile(patientId);
       }, 2000);
     });
     
