@@ -2242,61 +2242,20 @@ function deleteReminder(index) {
   }
 }
 
-// Fonction utilitaire pour sauvegarder les patients avec timestamp
+// DEPRECATED: Les fonctions localStorage ne sont plus utilisées - 100% Firebase
 function savePatientsWithTimestamp(patients) {
-  const dataWithTimestamp = {
-    patients: patients,
-    lastUpdate: Date.now(),
-    source: 'firebase'
-  };
-  localStorage.setItem('syl-patients-data', JSON.stringify(dataWithTimestamp));
-  // Maintenir aussi l'ancien format pour compatibilité
-  localStorage.setItem('syl-patients', JSON.stringify(patients));
-  console.log('💾 Patients sauvegardés avec timestamp:', new Date(dataWithTimestamp.lastUpdate).toLocaleString());
+  console.warn('⚠️ savePatientsWithTimestamp est obsolète - utilisation de Firebase uniquement');
+  // Ne fait plus rien - fonction conservée pour compatibilité temporaire
 }
 
-// Fonction utilitaire pour charger les patients avec vérification de fraîcheur
 function loadPatientsWithTimestamp() {
-  try {
-    const dataStr = localStorage.getItem('syl-patients-data');
-    if (dataStr) {
-      const data = JSON.parse(dataStr);
-      const age = Date.now() - data.lastUpdate;
-      const ageHours = age / (1000 * 60 * 60);
-      
-      console.log('📊 Données locales:', {
-        patients: data.patients?.length || 0,
-        age: ageHours.toFixed(1) + 'h',
-        source: data.source
-      });
-      
-      // Sur mobile, alerter si les données sont anciennes (plus de 1 heure)
-      const isMobile = window.innerWidth <= 768;
-      if (isMobile && ageHours > 1) {
-        console.warn('⚠️ Données potentiellement obsolètes sur mobile');
-        return {
-          patients: data.patients || [],
-          isStale: true,
-          age: ageHours
-        };
-      }
-      
-      return {
-        patients: data.patients || [],
-        isStale: false,
-        age: ageHours
-      };
-    }
-  } catch (e) {
-    console.log('Utilisation du format ancien');
-  }
-  
-  // Fallback vers l'ancien format
-  const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  console.warn('⚠️ loadPatientsWithTimestamp est obsolète - utilisation de Firebase uniquement');
+  // Retourne une structure vide pour compatibilité
   return {
-    patients,
-    isStale: true,
-    age: -1
+    patients: [],
+    isStale: false,
+    age: 0,
+    source: 'deprecated'
   };
 }
 
@@ -2460,15 +2419,8 @@ service cloud.firestore {
       };
     });
     
-    // Supprimer les anciennes données de test
-    localStorage.removeItem('syl-patients');
-    localStorage.removeItem('syl-nfc-tags');
-    
-    // Sauvegarder avec timestamp
-    savePatientsWithTimestamp(completePatients);
-    
     console.log(`✅ ${completePatients.length} patients chargés depuis Firebase`);
-    alert(`✅ ${completePatients.length} patients chargés depuis Firebase !\n\nDonnées de test supprimées.`);
+    alert(`✅ ${completePatients.length} patients chargés depuis Firebase !`);
     location.reload();
     return true;
     
@@ -3108,20 +3060,13 @@ async function renderAdminDashboard(user) {
             alert(`✅ ${patients.length} patients chargés depuis Firebase !`);
             return;
           } else {
-            alert('ℹ️ Aucun patient trouvé dans Firebase. Utilisation des données de démonstration.');
+            alert('ℹ️ Aucun patient trouvé dans Firebase.');
           }
-        }
-        
-        // Fallback : réinitialiser avec des données de démonstration
-        if (confirm('Voulez-vous charger les données de démonstration ?')) {
-          localStorage.removeItem('syl-patients');
-          localStorage.removeItem('syl-nfc-tags');
-          location.reload();
         }
         
       } catch (error) {
         console.error('Erreur refresh patients:', error);
-        alert('❌ Erreur Firebase: ' + error.message + '\n\nUtilisation des données de démonstration.');
+        alert('❌ Erreur Firebase: ' + error.message);
       }
     });
 
@@ -4678,29 +4623,22 @@ function testNFC(tagId) {
 }
 
 // ----------- MEDECIN DASHBOARD -----------
-function renderMedecinDashboard(user) {
-  let patients = JSON.parse(localStorage.getItem('syl-patients') || 'null');
-  if (!patients) {
-    patients = [
-      {
-        id: '1',
-        personalInfo: { firstName: 'Jean', lastName: 'Martin', dateOfBirth: '1978-05-15', bloodType: 'O+', height: '175', weight: '80' },
-        medicalHistory: { allergies: ['Pénicilline', 'Pollen'], medications: ['Metformine 500mg'], conditions: ['Diabète type 2'], chronicDiseases: ['Diabète type 2', 'Hypertension'] },
-        emergencyInfo: { criticalNotes: 'Risque hypoglycémie', contraindications: ['Corticoïdes'] },
-        lastAccess: '2024-01-15',
-        isActive: true
-      },
-      {
-        id: '2',
-        personalInfo: { firstName: 'Marie', lastName: 'Dubois', dateOfBirth: '1985-08-22', bloodType: 'A+', height: '165', weight: '65' },
-        medicalHistory: { allergies: ['Aspirine'], medications: ['Levothyrox'], conditions: ['Hypothyroïdie'], chronicDiseases: ['Hypothyroïdie'] },
-        emergencyInfo: { criticalNotes: '', contraindications: [] },
-        lastAccess: '2024-01-14',
-        isActive: true
-      }
-    ];
-    localStorage.setItem('syl-patients', JSON.stringify(patients));
+async function renderMedecinDashboard(user) {
+  let patients = [];
+  
+  // Charger les patients depuis Firebase uniquement
+  try {
+    const patientsSnapshot = await db.collection('patients').get();
+    patients = patientsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    console.log(`✅ ${patients.length} patients chargés depuis Firebase`);
+  } catch (error) {
+    console.error('❌ Erreur chargement patients:', error);
+    alert('❌ Impossible de charger les patients depuis Firebase.\n\nVérifiez votre connexion et vos permissions.');
   }
+  
   let searchTerm = '';
   let selectedPatient = null;
   let activeTab = 'patients';
@@ -6237,14 +6175,14 @@ function clearExpiredCache() {
   });
 }
 
-// Fonction de synchronisation automatique des patients
+// Fonction de synchronisation automatique des patients (100% FIREBASE - AUCUN localStorage)
 window.autoSyncPatients = async function() {
-  console.log("🔄 Vérification automatique des nouveaux patients...");
+  console.log("🔄 Synchronisation automatique Firebase...");
   
   // Vérifier si on est admin
   const localUser = getCurrentUser();
   if (!localUser || localUser.role !== 'admin') {
-    console.log("👤 Auto-sync : pas admin, abandon");
+    console.log("👤 Auto-sync : réservé aux admins");
     return;
   }
   
@@ -6255,105 +6193,54 @@ window.autoSyncPatients = async function() {
   }
   
   try {
-    // Charger les données locales avec timestamp
-    const localData = loadPatientsWithTimestamp();
-    const localPatients = localData.patients || [];
-    const lastLocalUpdate = localData.lastUpdate || 0;
+    // Charger UNIQUEMENT depuis Firebase
+    const patientsSnapshot = await db.collection('patients').get();
+    const patients = [];
     
-    console.log(`📊 Données locales: ${localPatients.length} patients, dernière MAJ: ${new Date(lastLocalUpdate).toLocaleString()}`);
-    
-    // Vérifier s'il y a de nouveaux patients dans Firebase
-    const firebaseSnapshot = await db.collection('users').where('role', '==', 'patient').get();
-    const firebasePatients = [];
-    
-    firebaseSnapshot.forEach(doc => {
-      const userData = doc.data();
-      firebasePatients.push({
+    patientsSnapshot.forEach(doc => {
+      patients.push({
         id: doc.id,
-        uid: userData.uid || doc.id,
-        email: userData.email,
-        createdAt: userData.createdAt || userData.timestamp,
-        ...userData
+        ...doc.data()
       });
     });
     
-    console.log(`🔥 Firebase: ${firebasePatients.length} patients trouvés`);
+    console.log(`📊 Firebase: ${patients.length} patients synchronisés`);
     
-    // Chercher les nouveaux patients (créés après notre dernière sync)
-    const newPatients = firebasePatients.filter(fbPatient => {
-      // Vérifier si le patient existe déjà localement
-      const existsLocally = localPatients.some(localPatient => 
-        localPatient.id === fbPatient.id || 
-        localPatient.uid === fbPatient.uid ||
-        localPatient.email === fbPatient.email
-      );
-      
-      if (existsLocally) return false;
-      
-      // Vérifier si c'est un nouveau patient (créé après notre dernière sync)
-      const patientCreatedAt = new Date(fbPatient.createdAt).getTime();
-      return patientCreatedAt > lastLocalUpdate;
-    });
+    // Vérifier s'il y a des utilisateurs à migrer vers patients
+    const usersSnapshot = await db.collection('users').where('role', '==', 'patient').get();
+    let newPatients = 0;
     
-    if (newPatients.length > 0) {
-      console.log(`🆕 ${newPatients.length} nouveaux patients détectés !`);
+    for (const userDoc of usersSnapshot.docs) {
+      const userData = userDoc.data();
+      const userId = userDoc.id;
       
-      // Charger les données médicales pour les nouveaux patients
-      const completeNewPatients = [];
+      // Vérifier si ce patient existe déjà
+      const existsInPatients = patients.some(p => p.uid === userId || p.id === userId);
       
-      for (const patient of newPatients) {
-        try {
-          const medicalDoc = await db.collection('patients').doc(patient.id).get();
-          const medicalData = medicalDoc.exists ? medicalDoc.data() : {};
-          
-          completeNewPatients.push({
-            ...patient,
-            personalInfo: medicalData.personalInfo || {},
-            medicalInfo: medicalData.medicalInfo || {},
-            emergencyContact: medicalData.emergencyContact || {},
-            createdAt: patient.createdAt || new Date().toISOString()
-          });
-        } catch (err) {
-          console.warn(`⚠️ Erreur chargement données patient ${patient.id}:`, err);
-          completeNewPatients.push(patient);
-        }
+      if (!existsInPatients) {
+        // Migrer vers patients
+        console.log(`🔄 Migration: ${userData.email} → collection patients`);
+        await db.collection('patients').doc(userId).set({
+          uid: userId,
+          id: userId,
+          email: userData.email,
+          role: 'patient',
+          ...userData,
+          migratedFrom: 'users',
+          migratedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        newPatients++;
       }
-      
-      // Fusionner avec les patients existants
-      const updatedPatients = [...localPatients, ...completeNewPatients];
-      
-      // Sauvegarder avec nouveau timestamp
-      savePatientsWithTimestamp(updatedPatients);
-      
-      // Notification discrète
-      const isMobile = window.innerWidth <= 768;
-      if (isMobile) {
-        console.log(`✅ Auto-sync: ${newPatients.length} nouveaux patients ajoutés silencieusement`);
-      } else {
-        // Sur PC, notification plus visible
-        console.log(`✅ Auto-sync: ${newPatients.length} nouveaux patients synchronisés`);
-        
-        // Petit popup discret en bas à droite
-        showDiscreetNotification(`📥 ${newPatients.length} nouveau${newPatients.length > 1 ? 'x' : ''} patient${newPatients.length > 1 ? 's' : ''} synchronisé${newPatients.length > 1 ? 's' : ''}`);
-      }
-      
-      // Mettre à jour l'interface si on est sur l'admin
-      if (window.location.hash === '' && document.querySelector('[data-tab="patients"]')) {
-        console.log("🔄 Rafraîchissement de l'interface admin");
-        setTimeout(() => {
-          if (window.renderApp) window.renderApp();
-        }, 1000);
-      }
-      
-      return newPatients.length;
+    }
+    
+    if (newPatients > 0) {
+      console.log(`✅ Auto-sync: ${newPatients} patients migrés de users → patients`);
     } else {
-      console.log("✅ Auto-sync: aucun nouveau patient");
-      return 0;
+      console.log(`✅ Auto-sync: Aucune migration nécessaire`);
     }
     
   } catch (error) {
-    console.error("❌ Erreur auto-sync:", error);
-    return -1;
+    console.error(`❌ Erreur auto-sync:`, error);
   }
 };
 
@@ -6897,22 +6784,23 @@ function getMostCommonType(types) {
   return typeArray[0] || 'unknown';
 }
 
-// Fonctions de debug pour la synchronisation automatique (améliorées)
-window.debugAutoSync = function() {
-  const data = loadPatientsWithTimestamp();
+// Fonctions de debug pour la synchronisation automatique
+window.debugAutoSync = async function() {
   console.log("📊 État de la synchronisation:");
-  console.log("• Patients locaux:", data.patients.length);
-  console.log("• Dernière mise à jour:", data.age > 0 ? `${data.age.toFixed(1)}h ago` : "jamais");
-  console.log("• Données obsolètes:", data.isStale ? "OUI" : "NON");
+  console.log("• Source de données: 100% Firebase (aucun localStorage)");
   console.log("• Plateforme:", window.innerWidth <= 768 ? "Mobile (sync 2min)" : "PC (sync 5min)");
   
-  // Analyse rapide des données locales
-  if (data.patients.length > 0) {
-    const fields = data.patients.map(p => Object.keys(flattenObject(p)).length);
-    console.log("• Complexité moyenne:", (fields.reduce((a,b) => a+b, 0) / fields.length).toFixed(1), "champs/patient");
+  try {
+    const patientsSnapshot = await db.collection('patients').get();
+    console.log("• Patients Firebase:", patientsSnapshot.size);
+    
+    if (patientsSnapshot.size > 0) {
+      const fields = patientsSnapshot.docs.map(doc => Object.keys(flattenObject(doc.data())).length);
+      console.log("• Complexité moyenne:", (fields.reduce((a,b) => a+b, 0) / fields.length).toFixed(1), "champs/patient");
+    }
+  } catch (error) {
+    console.error("❌ Erreur lecture Firebase:", error);
   }
-  
-  return data;
 };
 
 window.forceAutoSync = function() {
