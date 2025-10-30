@@ -2541,7 +2541,7 @@ function renderPatientDashboard(user) {
   async function generatePatientQRCode() {
     try {
       // Créer le contenu d'urgence médicale formaté avec emojis
-      const emergencyInfo = createEmergencyInfoText();
+      const emergencyInfo = await createEmergencyInfoText();
       
       const canvas = document.getElementById('qrCodeCanvas');
       if (canvas) {
@@ -2560,7 +2560,7 @@ function renderPatientDashboard(user) {
           ctx.fillText('🚨 URGENCE MÉDICALE', 100, 70);
           ctx.font = '10px Arial';
           ctx.fillText('QR en cours de génération...', 100, 90);
-          ctx.fillText(`${currentPatient.prenom} ${currentPatient.nom}`, 100, 110);
+          ctx.fillText(`Patient: ${user.email}`, 100, 110);
           ctx.fillText('Librairie QRious en attente', 100, 130);
           return;
         }
@@ -2617,14 +2617,33 @@ function renderPatientDashboard(user) {
   }
 
   // Fonction pour créer le texte d'urgence médicale formaté
-  function createEmergencyInfoText() {
-    // Récupérer les données du patient connecté
-    const patient = patients.find(p => p.email === user.email) || {};
-    const now = new Date();
-    const age = patient.dateNaissance ? 
-      new Date().getFullYear() - new Date(patient.dateNaissance).getFullYear() : 'N/A';
-    
-    let emergencyText = `🚨 URGENCE MÉDICALE 🚨
+  async function createEmergencyInfoText() {
+    try {
+      // Récupérer les données du patient connecté depuis Firestore
+      let patient = {};
+      
+      if (user && user.uid) {
+        const patientDoc = await db.collection('patients').doc(user.uid).get();
+        if (patientDoc.exists) {
+          patient = patientDoc.data();
+        } else {
+          // Fallback: chercher par email
+          const patientQuery = await db.collection('patients')
+            .where('email', '==', user.email)
+            .limit(1)
+            .get();
+          
+          if (!patientQuery.empty) {
+            patient = patientQuery.docs[0].data();
+          }
+        }
+      }
+      
+      const now = new Date();
+      const age = patient.dateNaissance ? 
+        new Date().getFullYear() - new Date(patient.dateNaissance).getFullYear() : 'N/A';
+      
+      let emergencyText = `🚨 URGENCE MÉDICALE 🚨
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 👤 PATIENT: ${patient.prenom || 'Non renseigné'} ${patient.nom || 'Non renseigné'}
 📅 Né(e) le: ${patient.dateNaissance || 'Non renseigné'} (${age} ans)
@@ -2645,19 +2664,36 @@ ${patient.contactUrgence || 'Non renseigné'}
 👨‍⚕️ MÉDECIN TRAITANT:
 ${patient.medecinTraitant || 'Non renseigné'}
 
-🆔 ID Patient: ${user.uid.substring(0, 8)}
-📅 Dernière MAJ: ${now.toLocaleDateString('fr-FR')}
+🆔 ID Patient: ${user.uid ? user.uid.substring(0, 8) : 'N/A'}
+� Email: ${user.email || 'Non renseigné'}
+�📅 Dernière MAJ: ${now.toLocaleDateString('fr-FR')}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚡ SYL Medical - Système d'Urgence`;
 
-    // Nettoyer le texte pour éviter les caractères problématiques
-    emergencyText = emergencyText
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Supprimer caractères de contrôle
-      .replace(/\s+$/gm, '') // Supprimer espaces en fin de ligne
-      .trim();
+      // Nettoyer le texte pour éviter les caractères problématiques
+      emergencyText = emergencyText
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Supprimer caractères de contrôle
+        .replace(/\s+$/gm, '') // Supprimer espaces en fin de ligne
+        .trim();
 
-    return emergencyText;
+      return emergencyText;
+      
+    } catch (error) {
+      console.error('Erreur création info urgence:', error);
+      // Fallback avec info minimale
+      return `🚨 URGENCE MÉDICALE 🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 PATIENT: ${user.email || 'Utilisateur connecté'}
+🆔 ID: ${user.uid ? user.uid.substring(0, 8) : 'N/A'}
+📅 Généré le: ${new Date().toLocaleDateString('fr-FR')}
+
+⚠️ Données patient non disponibles
+📞 Contactez les services d'urgence
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ SYL Medical - Système d'Urgence`;
+    }
   }
 
   function tabProfileEvents() {
