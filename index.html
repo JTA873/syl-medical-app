@@ -142,6 +142,9 @@ async function initRealtimeSync() {
       
       // Notifier les changements à l'interface
       window.dispatchEvent(new CustomEvent('patientsUpdated', { detail: patients }));
+    }, (error) => {
+      console.warn("⚠️ Listener patients en erreur (utilisation du cache local):", error.message);
+      // Continuer avec les données locales
     });
     
     // Listener pour les utilisateurs (remplace localStorage syl-user)
@@ -156,6 +159,8 @@ async function initRealtimeSync() {
       });
       
       window.dispatchEvent(new CustomEvent('usersUpdated', { detail: users }));
+    }, (error) => {
+      console.warn("⚠️ Listener utilisateurs en erreur (non critique):", error.message);
     });
     
     firestoreListeners.push(patientsListener, usersListener);
@@ -163,7 +168,8 @@ async function initRealtimeSync() {
     console.log("✅ Synchronisation temps réel activée");
     
   } catch (error) {
-    console.error("❌ Erreur initialisation temps réel:", error);
+    console.warn("⚠️ Synchronisation temps réel partielle:", error.message);
+    console.log("📱 Utilisation du mode hors ligne");
   }
 }
 
@@ -266,7 +272,8 @@ async function saveCurrentUserToFirestore(user) {
     console.log("👤 Utilisateur actif sauvegardé:", user.email);
     
   } catch (error) {
-    console.error("❌ Erreur sauvegarde utilisateur actif:", error);
+    console.warn("⚠️ Sauvegarde statut utilisateur ignorée (non critique):", error.message);
+    // Cette erreur n'est pas critique pour le fonctionnement de l'app
   }
 }
 
@@ -2362,20 +2369,20 @@ async function renderAdminDashboard(user) {
       
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div class="lg:col-span-1">
-            <nav class="space-y-2">
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='patients' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="patients">${icons.users} <span class="ml-3">Patients</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='nfc' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="nfc">${icons.smartphone} <span class="ml-3">Tags NFC</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='associations' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="associations">${icons.shield} <span class="ml-3">Associations</span></button>
-              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='analytics' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="analytics">${icons.activity} <span class="ml-3">Analytics</span></button>
-            </nav>
-          </div>
-          
-          <div class="lg:col-span-3">
+        <div class="lg:col-span-1">
+          <nav class="space-y-2">
+            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='patients' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="patients">${icons.users} <span class="ml-3">Patients</span></button>
+            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='nfc' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="nfc">${icons.smartphone} <span class="ml-3">Tags NFC</span></button>
+            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='associations' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="associations">${icons.shield} <span class="ml-3">Associations</span></button>
+            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='analytics' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="analytics">${icons.activity} <span class="ml-3">Analytics</span></button>
+            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='debug' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="debug">🔧 <span class="ml-3">Debug & Maintenance</span></button>
+          </nav>
+        </div>          <div class="lg:col-span-3">
             ${activeTab === 'patients' ? renderPatientsTab() : ''}
             ${activeTab === 'nfc' ? renderNFCTab() : ''}
             ${activeTab === 'associations' ? renderAssociationsTab() : ''}
             ${activeTab === 'analytics' ? renderAnalyticsTab() : ''}
+            ${activeTab === 'debug' ? renderDebugTab() : ''}
           </div>
         </div>
       </div>
@@ -2391,6 +2398,7 @@ async function renderAdminDashboard(user) {
     if (activeTab === 'patients') setupPatientsEvents();
     if (activeTab === 'nfc') setupNFCEvents();
     if (activeTab === 'associations') setupAssociationsEvents();
+    if (activeTab === 'debug') setupDebugEvents();
   }
 
   function renderPatientsTab() {
@@ -6060,7 +6068,359 @@ document.addEventListener('visibilitychange', function() {
 // Message de debug pour les développeurs
 console.log(`🚀 SYL Medical ${APP_VERSION} (${BUILD_DATE}) - Optimisé pour mobile`);
 
-// Fonctions de debug pour la synchronisation automatique
+// ========== SYSTÈME DE DEBUG FIREBASE AVANCÉ ==========
+
+// Analyseur automatique des collections Firebase
+window.debugFirebaseCollections = async function() {
+  if (!db) {
+    console.error("❌ Firebase non initialisé");
+    return;
+  }
+  
+  console.log("🔍 ANALYSE COMPLÈTE DES COLLECTIONS FIREBASE");
+  console.log("=".repeat(60));
+  
+  const collections = ['patients', 'users', 'activeUsers', 'nfcTags', 'admins'];
+  const analysis = {};
+  
+  for (const collectionName of collections) {
+    try {
+      console.log(`\n📁 Analyse de la collection "${collectionName}"...`);
+      
+      const snapshot = await db.collection(collectionName).get();
+      const docs = [];
+      const fieldStats = {};
+      const typeStats = {};
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        docs.push({
+          id: doc.id,
+          data: data,
+          size: JSON.stringify(data).length
+        });
+        
+        // Analyser les champs et types
+        analyzeFields(data, fieldStats, typeStats, '');
+      });
+      
+      analysis[collectionName] = {
+        count: docs.length,
+        docs: docs,
+        fieldStats: fieldStats,
+        typeStats: typeStats,
+        totalSize: docs.reduce((sum, doc) => sum + doc.size, 0)
+      };
+      
+      // Afficher l'analyse
+      console.log(`📊 Collection "${collectionName}":`);
+      console.log(`   • Documents: ${docs.length}`);
+      console.log(`   • Taille totale: ${(analysis[collectionName].totalSize / 1024).toFixed(2)} KB`);
+      console.log(`   • Champs uniques: ${Object.keys(fieldStats).length}`);
+      
+      // Afficher les champs les plus fréquents
+      const sortedFields = Object.entries(fieldStats)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 10);
+      
+      console.log(`   • Top champs:`);
+      sortedFields.forEach(([field, stats]) => {
+        const coverage = ((stats.count / docs.length) * 100).toFixed(1);
+        console.log(`     - ${field}: ${stats.count}/${docs.length} (${coverage}%) [${stats.types.join(', ')}]`);
+      });
+      
+      // Détecter les incohérences
+      const inconsistencies = detectInconsistencies(docs, fieldStats);
+      if (inconsistencies.length > 0) {
+        console.warn(`   ⚠️ Incohérences détectées:`);
+        inconsistencies.forEach(inc => console.warn(`     - ${inc}`));
+      }
+      
+    } catch (error) {
+      console.error(`❌ Erreur analyse collection "${collectionName}":`, error.message);
+      analysis[collectionName] = { error: error.message };
+    }
+  }
+  
+  // Recommandations de nettoyage
+  console.log("\n🛠️ RECOMMANDATIONS DE NETTOYAGE:");
+  console.log("=".repeat(40));
+  generateCleanupRecommendations(analysis);
+  
+  return analysis;
+};
+
+// Fonction d'analyse récursive des champs
+function analyzeFields(obj, fieldStats, typeStats, prefix = '') {
+  if (!obj || typeof obj !== 'object') return;
+  
+  Object.entries(obj).forEach(([key, value]) => {
+    const fieldPath = prefix ? `${prefix}.${key}` : key;
+    const valueType = getDetailedType(value);
+    
+    if (!fieldStats[fieldPath]) {
+      fieldStats[fieldPath] = { count: 0, types: new Set() };
+    }
+    
+    fieldStats[fieldPath].count++;
+    fieldStats[fieldPath].types.add(valueType);
+    
+    typeStats[valueType] = (typeStats[valueType] || 0) + 1;
+    
+    // Analyse récursive pour les objets
+    if (valueType === 'object' && value !== null) {
+      analyzeFields(value, fieldStats, typeStats, fieldPath);
+    }
+  });
+}
+
+// Détection du type détaillé
+function getDetailedType(value) {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (Array.isArray(value)) return 'array';
+  if (value instanceof Date) return 'date';
+  if (typeof value === 'object' && value.seconds !== undefined) return 'timestamp';
+  return typeof value;
+}
+
+// Détection des incohérences
+function detectInconsistencies(docs, fieldStats) {
+  const issues = [];
+  
+  // Champs avec types multiples
+  Object.entries(fieldStats).forEach(([field, stats]) => {
+    if (stats.types.size > 1) {
+      issues.push(`"${field}" a plusieurs types: ${Array.from(stats.types).join(', ')}`);
+    }
+  });
+  
+  // Documents avec structures très différentes
+  if (docs.length > 1) {
+    const fieldCounts = docs.map(doc => Object.keys(flattenObject(doc.data)).length);
+    const avgFields = fieldCounts.reduce((a, b) => a + b, 0) / fieldCounts.length;
+    const outliers = docs.filter((doc, i) => Math.abs(fieldCounts[i] - avgFields) > avgFields * 0.5);
+    
+    if (outliers.length > 0) {
+      issues.push(`${outliers.length} documents avec structure atypique`);
+    }
+  }
+  
+  return issues;
+}
+
+// Aplatir un objet pour compter les champs
+function flattenObject(obj, prefix = '') {
+  const flattened = {};
+  Object.entries(obj || {}).forEach(([key, value]) => {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.assign(flattened, flattenObject(value, newKey));
+    } else {
+      flattened[newKey] = value;
+    }
+  });
+  return flattened;
+}
+
+// Générer des recommandations de nettoyage
+function generateCleanupRecommendations(analysis) {
+  Object.entries(analysis).forEach(([collection, data]) => {
+    if (data.error) {
+      console.log(`❌ ${collection}: Inaccessible - Vérifier les permissions`);
+      return;
+    }
+    
+    console.log(`\n📁 ${collection.toUpperCase()}:`);
+    
+    if (data.count === 0) {
+      console.log(`   • Collection vide - Considérer la suppression`);
+      return;
+    }
+    
+    // Recommandations basées sur les champs
+    const requiredFields = getRequiredFieldsForCollection(collection);
+    const missingFields = requiredFields.filter(field => 
+      !data.fieldStats[field] || data.fieldStats[field].count < data.count * 0.8
+    );
+    
+    if (missingFields.length > 0) {
+      console.log(`   • Champs manquants: ${missingFields.join(', ')}`);
+    }
+    
+    // Champs avec types incohérents
+    const inconsistentFields = Object.entries(data.fieldStats)
+      .filter(([field, stats]) => stats.types.size > 1)
+      .map(([field]) => field);
+    
+    if (inconsistentFields.length > 0) {
+      console.log(`   • Types incohérents: ${inconsistentFields.join(', ')}`);
+    }
+    
+    // Taille excessive
+    if (data.totalSize > 100000) { // > 100KB
+      console.log(`   • Taille excessive: ${(data.totalSize / 1024).toFixed(2)} KB`);
+    }
+  });
+}
+
+// Définir les champs requis par collection
+function getRequiredFieldsForCollection(collection) {
+  const schemas = {
+    patients: ['id', 'email', 'personalInfo.firstName', 'personalInfo.lastName', 'role'],
+    users: ['uid', 'email', 'role'],
+    activeUsers: ['email', 'isOnline', 'lastLogin'],
+    nfcTags: ['id', 'patientId', 'isActive'],
+    admins: ['uid', 'email', 'permissions']
+  };
+  return schemas[collection] || [];
+}
+
+// Nettoyage automatique des données
+window.cleanupFirebaseData = async function(options = {}) {
+  console.log("🧹 NETTOYAGE AUTOMATIQUE DES DONNÉES");
+  console.log("=".repeat(40));
+  
+  const {
+    dryRun = true,
+    fixTypes = true,
+    addMissingFields = true,
+    removeEmptyCollections = false
+  } = options;
+  
+  if (dryRun) {
+    console.log("🔍 MODE TEST - Aucune modification ne sera effectuée");
+  }
+  
+  const analysis = await window.debugFirebaseCollections();
+  const cleanupActions = [];
+  
+  for (const [collection, data] of Object.entries(analysis)) {
+    if (data.error) continue;
+    
+    for (const doc of data.docs) {
+      const fixes = await generateDocumentFixes(collection, doc, data.fieldStats);
+      if (fixes.length > 0) {
+        cleanupActions.push({
+          collection,
+          docId: doc.id,
+          fixes: fixes
+        });
+      }
+    }
+  }
+  
+  console.log(`\n📋 ${cleanupActions.length} actions de nettoyage identifiées`);
+  
+  if (!dryRun && cleanupActions.length > 0) {
+    console.log("🔧 Application des corrections...");
+    // Appliquer les corrections ici
+    for (const action of cleanupActions) {
+      await applyDocumentFixes(action);
+    }
+    console.log("✅ Nettoyage terminé");
+  }
+  
+  return cleanupActions;
+};
+
+// Générer les corrections pour un document
+async function generateDocumentFixes(collection, doc, fieldStats) {
+  const fixes = [];
+  const schema = getStandardSchema(collection);
+  
+  // Ajouter les champs manquants
+  Object.entries(schema).forEach(([field, defaultValue]) => {
+    if (!hasNestedField(doc.data, field)) {
+      fixes.push({
+        type: 'add_field',
+        field: field,
+        value: defaultValue
+      });
+    }
+  });
+  
+  // Corriger les types incohérents
+  Object.entries(fieldStats).forEach(([field, stats]) => {
+    if (stats.types.size > 1) {
+      const currentValue = getNestedField(doc.data, field);
+      const expectedType = getMostCommonType(stats.types);
+      if (currentValue !== undefined && getDetailedType(currentValue) !== expectedType) {
+        fixes.push({
+          type: 'fix_type',
+          field: field,
+          currentValue: currentValue,
+          expectedType: expectedType
+        });
+      }
+    }
+  });
+  
+  return fixes;
+}
+
+// Schémas standards pour chaque collection
+function getStandardSchema(collection) {
+  const schemas = {
+    patients: {
+      'id': '',
+      'email': '',
+      'role': 'patient',
+      'personalInfo.firstName': '',
+      'personalInfo.lastName': '',
+      'personalInfo.birthDate': '',
+      'personalInfo.phone': '',
+      'personalInfo.address': '',
+      'personalInfo.bloodType': '',
+      'medicalInfo.allergies': [],
+      'medicalInfo.medications': [],
+      'medicalInfo.conditions': [],
+      'medicalInfo.emergencyNotes': '',
+      'emergencyContact.name': '',
+      'emergencyContact.relationship': '',
+      'emergencyContact.phone': '',
+      'isActive': true,
+      'nfcTagId': null,
+      'createdAt': new Date().toISOString(),
+      'lastModified': firebase.firestore.FieldValue.serverTimestamp()
+    },
+    users: {
+      'uid': '',
+      'email': '',
+      'role': 'patient',
+      'profile.firstName': '',
+      'profile.lastName': '',
+      'profile.phone': '',
+      'createdAt': new Date().toISOString()
+    },
+    nfcTags: {
+      'id': '',
+      'patientId': null,
+      'isActive': true,
+      'createdAt': new Date().toISOString()
+    }
+  };
+  return schemas[collection] || {};
+}
+
+// Utilitaires pour les champs imbriqués
+function hasNestedField(obj, path) {
+  return path.split('.').reduce((current, key) => current && current[key] !== undefined, obj);
+}
+
+function getNestedField(obj, path) {
+  return path.split('.').reduce((current, key) => current && current[key], obj);
+}
+
+function getMostCommonType(types) {
+  const typeArray = Array.from(types);
+  if (typeArray.includes('string')) return 'string';
+  if (typeArray.includes('object')) return 'object';
+  if (typeArray.includes('array')) return 'array';
+  return typeArray[0];
+}
+
+// Fonctions de debug pour la synchronisation automatique (améliorées)
 window.debugAutoSync = function() {
   const data = loadPatientsWithTimestamp();
   console.log("📊 État de la synchronisation:");
@@ -6068,6 +6428,13 @@ window.debugAutoSync = function() {
   console.log("• Dernière mise à jour:", data.age > 0 ? `${data.age.toFixed(1)}h ago` : "jamais");
   console.log("• Données obsolètes:", data.isStale ? "OUI" : "NON");
   console.log("• Plateforme:", window.innerWidth <= 768 ? "Mobile (sync 2min)" : "PC (sync 5min)");
+  
+  // Analyse rapide des données locales
+  if (data.patients.length > 0) {
+    const fields = data.patients.map(p => Object.keys(flattenObject(p)).length);
+    console.log("• Complexité moyenne:", (fields.reduce((a,b) => a+b, 0) / fields.length).toFixed(1), "champs/patient");
+  }
+  
   return data;
 };
 
@@ -6076,10 +6443,217 @@ window.forceAutoSync = function() {
   return window.autoSyncPatients();
 };
 
+// Appliquer les corrections à un document
+async function applyDocumentFixes(action) {
+  if (!db) return;
+  
+  try {
+    const docRef = db.collection(action.collection).doc(action.docId);
+    const updateData = {};
+    
+    for (const fix of action.fixes) {
+      switch (fix.type) {
+        case 'add_field':
+          setNestedField(updateData, fix.field, fix.value);
+          console.log(`➕ Ajout ${fix.field} = ${fix.value} dans ${action.collection}/${action.docId}`);
+          break;
+          
+        case 'fix_type':
+          const convertedValue = convertType(fix.currentValue, fix.expectedType);
+          setNestedField(updateData, fix.field, convertedValue);
+          console.log(`🔧 Conversion ${fix.field}: ${fix.currentValue} → ${convertedValue} dans ${action.collection}/${action.docId}`);
+          break;
+      }
+    }
+    
+    if (Object.keys(updateData).length > 0) {
+      await docRef.update(updateData);
+      console.log(`✅ Document ${action.docId} mis à jour`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ Erreur correction ${action.collection}/${action.docId}:`, error.message);
+  }
+}
+
+// Définir une valeur dans un objet avec un chemin imbriqué
+function setNestedField(obj, path, value) {
+  const keys = path.split('.');
+  const lastKey = keys.pop();
+  const target = keys.reduce((current, key) => {
+    if (!current[key]) current[key] = {};
+    return current[key];
+  }, obj);
+  target[lastKey] = value;
+}
+
+// Convertir un type vers un autre
+function convertType(value, targetType) {
+  switch (targetType) {
+    case 'string':
+      return String(value || '');
+    case 'number':
+      return Number(value) || 0;
+    case 'boolean':
+      return Boolean(value);
+    case 'array':
+      return Array.isArray(value) ? value : [];
+    case 'object':
+      return (value && typeof value === 'object') ? value : {};
+    case 'timestamp':
+      return firebase.firestore.FieldValue.serverTimestamp();
+    default:
+      return value;
+  }
+}
+
+// Migrer automatiquement les données vers une structure normalisée
+window.migrateToStandardSchema = async function(collection = null) {
+  console.log("🚀 MIGRATION VERS SCHÉMA STANDARD");
+  console.log("=".repeat(40));
+  
+  const collectionsToMigrate = collection ? [collection] : ['patients', 'users'];
+  
+  for (const coll of collectionsToMigrate) {
+    console.log(`\n📁 Migration de la collection "${coll}"...`);
+    
+    try {
+      const snapshot = await db.collection(coll).get();
+      let migratedCount = 0;
+      
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+        const standardizedData = standardizeDocument(coll, data);
+        
+        if (JSON.stringify(data) !== JSON.stringify(standardizedData)) {
+          await doc.ref.set(standardizedData, { merge: true });
+          migratedCount++;
+          console.log(`✅ Document ${doc.id} standardisé`);
+        }
+      }
+      
+      console.log(`📊 Collection "${coll}": ${migratedCount} documents migrés sur ${snapshot.size}`);
+      
+    } catch (error) {
+      console.error(`❌ Erreur migration "${coll}":`, error.message);
+    }
+  }
+  
+  console.log("\n🎉 Migration terminée !");
+};
+
+// Standardiser un document selon son type
+function standardizeDocument(collection, data) {
+  const standardized = { ...data };
+  
+  switch (collection) {
+    case 'patients':
+      return standardizePatientDocument(standardized);
+    case 'users':
+      return standardizeUserDocument(standardized);
+    default:
+      return standardized;
+  }
+}
+
+// Standardiser un document patient
+function standardizePatientDocument(data) {
+  const standard = {
+    id: data.id || data.uid || '',
+    uid: data.uid || data.id || '',
+    email: data.email || '',
+    role: 'patient',
+    personalInfo: {
+      firstName: data.personalInfo?.firstName || data.firstName || data.profile?.firstName || '',
+      lastName: data.personalInfo?.lastName || data.lastName || data.profile?.lastName || '',
+      birthDate: data.personalInfo?.birthDate || data.birthDate || '',
+      phone: data.personalInfo?.phone || data.phone || data.profile?.phone || '',
+      address: data.personalInfo?.address || data.address || '',
+      bloodType: data.personalInfo?.bloodType || data.bloodType || ''
+    },
+    medicalInfo: {
+      allergies: data.medicalInfo?.allergies || data.allergies || [],
+      medications: data.medicalInfo?.medications || data.medications || [],
+      conditions: data.medicalInfo?.conditions || data.conditions || [],
+      emergencyNotes: data.medicalInfo?.emergencyNotes || data.emergencyNotes || ''
+    },
+    emergencyContact: {
+      name: data.emergencyContact?.name || '',
+      relationship: data.emergencyContact?.relationship || '',
+      phone: data.emergencyContact?.phone || ''
+    },
+    isActive: data.isActive !== undefined ? data.isActive : true,
+    nfcTagId: data.nfcTagId || null,
+    createdAt: data.createdAt || data.timestamp || new Date().toISOString(),
+    lastModified: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  
+  return standard;
+}
+
+// Standardiser un document utilisateur
+function standardizeUserDocument(data) {
+  return {
+    uid: data.uid || data.id || '',
+    email: data.email || '',
+    role: data.role || 'patient',
+    profile: {
+      firstName: data.profile?.firstName || data.firstName || '',
+      lastName: data.profile?.lastName || data.lastName || '',
+      phone: data.profile?.phone || data.phone || ''
+    },
+    createdAt: data.createdAt || data.timestamp || new Date().toISOString(),
+    lastModified: firebase.firestore.FieldValue.serverTimestamp()
+  };
+}
+
 console.log("🛠️ Fonctions debug disponibles:");
 console.log("• debugAutoSync() - Voir l'état de sync");
 console.log("• forceAutoSync() - Forcer une sync maintenant");
 console.log("• forceMobileSync() - Sync complète mobile");
+console.log("• debugFirebaseCollections() - Analyser toutes les collections");
+console.log("• cleanupFirebaseData({dryRun: false}) - Nettoyer les données");
+console.log("• migrateToStandardSchema() - Migrer vers schéma standard");
+
+// Fonction de diagnostic rapide
+window.quickDiagnosis = async function() {
+  console.log("🏥 DIAGNOSTIC RAPIDE SYL MEDICAL");
+  console.log("=".repeat(40));
+  
+  // État Firebase
+  console.log("🔥 Firebase:", typeof firebase !== 'undefined' ? "✅ OK" : "❌ Erreur");
+  
+  // État de l'utilisateur
+  const user = getUser();
+  console.log("👤 Utilisateur:", user ? `✅ ${user.email} (${user.role})` : "❌ Non connecté");
+  
+  // État des collections (rapide)
+  if (db) {
+    try {
+      const patientsCount = (await db.collection('patients').limit(1).get()).size;
+      console.log("📊 Collections:", patientsCount >= 0 ? "✅ Accessibles" : "❌ Inaccessibles");
+    } catch (error) {
+      console.log("📊 Collections:", "❌ Erreur permissions");
+    }
+  }
+  
+  // État localStorage
+  const localData = localStorage.getItem('syl-patients');
+  console.log("💾 Cache local:", localData ? "✅ Présent" : "⚠️ Vide");
+  
+  // Recommandations
+  console.log("\n💡 Actions recommandées:");
+  if (!user) console.log("   • Se connecter avec un compte admin");
+  if (db) console.log("   • Exécuter debugFirebaseCollections() pour analyse complète");
+  else console.log("   • Vérifier la configuration Firebase");
+  
+  return {
+    firebase: typeof firebase !== 'undefined',
+    user: user,
+    collections: !!db,
+    localStorage: !!localData
+  };
+};
 
 // Test final de fonctionnement
 setTimeout(() => {
