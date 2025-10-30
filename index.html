@@ -2537,18 +2537,18 @@ function renderPatientDashboard(user) {
     });
   }
 
-  // Fonction pour générer le QR code du patient
+  // Fonction pour générer le QR code du patient avec informations médicales directes
   async function generatePatientQRCode() {
     try {
-      // URL vers le profil patient en ligne (utilise l'UID Firebase)
-      const profileUrl = `https://jta873.github.io/?patient=${user.uid}`;
+      // Créer le contenu d'urgence médicale formaté avec emojis
+      const emergencyInfo = createEmergencyInfoText();
       
       const canvas = document.getElementById('qrCodeCanvas');
       if (canvas) {
         // Vérifier si QRious est disponible
         if (typeof QRious === 'undefined') {
           console.warn('QRious library not loaded, using fallback');
-          // Fallback : afficher l'URL en texte
+          // Fallback : afficher les infos en texte
           const ctx = canvas.getContext('2d');
           canvas.width = 200;
           canvas.height = 200;
@@ -2557,11 +2557,11 @@ function renderPatientDashboard(user) {
           ctx.fillStyle = '#1f2937';
           ctx.font = '12px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText('QR Code', 100, 90);
-          ctx.fillText('Librairie en cours de chargement...', 100, 110);
-          ctx.font = '8px Arial';
-          ctx.fillText(profileUrl.substring(0, 35), 100, 130);
-          ctx.fillText(profileUrl.substring(35), 100, 145);
+          ctx.fillText('🚨 URGENCE MÉDICALE', 100, 70);
+          ctx.font = '10px Arial';
+          ctx.fillText('QR en cours de génération...', 100, 90);
+          ctx.fillText(`${currentPatient.prenom} ${currentPatient.nom}`, 100, 110);
+          ctx.fillText('Librairie QRious en attente', 100, 130);
           return;
         }
         
@@ -2569,12 +2569,13 @@ function renderPatientDashboard(user) {
         try {
           const qr = new QRious({
             element: canvas,
-            value: profileUrl,
+            value: emergencyInfo,
             size: 200,
             level: 'M'
           });
           
-          console.log('QR Code généré avec succès pour:', profileUrl);
+          console.log('QR Code médical généré avec succès');
+          console.log('Contenu:', emergencyInfo.substring(0, 100) + '...');
         } catch (qrError) {
           console.error('Erreur QRious:', qrError);
           // Fallback en cas d'erreur
@@ -2586,9 +2587,10 @@ function renderPatientDashboard(user) {
           ctx.fillStyle = '#dc2626';
           ctx.font = '14px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText('Erreur QR Code', 100, 100);
+          ctx.fillText('❌ Erreur QR Code', 100, 90);
           ctx.font = '10px Arial';
-          ctx.fillText(qrError.message, 100, 120);
+          ctx.fillText('Vérifiez vos données', 100, 110);
+          ctx.fillText(qrError.message.substring(0, 20), 100, 130);
         }
       } else {
         console.error('Canvas QR code non trouvé');
@@ -2606,11 +2608,55 @@ function renderPatientDashboard(user) {
         ctx.fillStyle = '#dc2626';
         ctx.font = '14px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Erreur QR Code', 100, 100);
+        ctx.fillText('❌ Erreur QR Code', 100, 90);
         ctx.font = '10px Arial';
-        ctx.fillText(error.message, 100, 120);
+        ctx.fillText('Erreur système', 100, 110);
+        ctx.fillText(error.message.substring(0, 20), 100, 130);
       }
     }
+  }
+
+  // Fonction pour créer le texte d'urgence médicale formaté
+  function createEmergencyInfoText() {
+    const patient = currentPatient;
+    const now = new Date();
+    const age = patient.dateNaissance ? 
+      new Date().getFullYear() - new Date(patient.dateNaissance).getFullYear() : 'N/A';
+    
+    let emergencyText = `🚨 URGENCE MÉDICALE 🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 PATIENT: ${patient.prenom || ''} ${patient.nom || ''}
+📅 Né(e) le: ${patient.dateNaissance || 'Non renseigné'} (${age} ans)
+🩸 Groupe sanguin: ${patient.groupeSanguin || 'Non renseigné'}
+
+⚠️ ALLERGIES:
+${patient.allergies && patient.allergies.trim() ? patient.allergies : '• Aucune allergie connue'}
+
+💊 TRAITEMENTS EN COURS:
+${patient.traitements && patient.traitements.trim() ? patient.traitements : '• Aucun traitement en cours'}
+
+🏥 PATHOLOGIES:
+${patient.pathologies && patient.pathologies.trim() ? patient.pathologies : '• Aucune pathologie connue'}
+
+📞 CONTACT URGENCE:
+${patient.contactUrgence || 'Non renseigné'}
+
+👨‍⚕️ MÉDECIN TRAITANT:
+${patient.medecinTraitant || 'Non renseigné'}
+
+🆔 ID Patient: ${user.uid.substring(0, 8)}
+📅 Dernière MAJ: ${now.toLocaleDateString('fr-FR')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ SYL Medical - Système d'Urgence`;
+
+    // Nettoyer le texte pour éviter les caractères problématiques
+    emergencyText = emergencyText
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Supprimer caractères de contrôle
+      .replace(/\s+$/gm, '') // Supprimer espaces en fin de ligne
+      .trim();
+
+    return emergencyText;
   }
 
   function tabProfileEvents() {
