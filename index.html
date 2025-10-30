@@ -27,6 +27,23 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <!-- Vérification du chargement des librairies -->
+  <script>
+    window.addEventListener('load', function() {
+      console.log('QRCode disponible:', typeof QRCode !== 'undefined');
+      console.log('jsPDF disponible:', typeof window.jspdf !== 'undefined');
+      
+      // Attendre un peu plus si les librairies ne sont pas encore chargées
+      if (typeof QRCode === 'undefined' || typeof window.jspdf === 'undefined') {
+        console.warn('Librairies non chargées, nouvelle tentative dans 2s...');
+        setTimeout(() => {
+          console.log('QRCode disponible (2e tentative):', typeof QRCode !== 'undefined');
+          console.log('jsPDF disponible (2e tentative):', typeof window.jspdf !== 'undefined');
+        }, 2000);
+      }
+    });
+  </script>
   <style>
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -922,7 +939,7 @@ class SYLUtilities {
     try {
       // Créer un nouveau document PDF avec jsPDF
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+      const doc = new jsPDF('p', 'mm', 'a4');
       
       // Configuration des couleurs et styles
       const primaryColor = [220, 38, 38]; // Rouge
@@ -933,6 +950,28 @@ class SYLUtilities {
       const leftMargin = 20;
       const pageWidth = doc.internal.pageSize.width;
       const pageHeight = doc.internal.pageSize.height;
+      
+      // Fonction pour encoder le texte correctement
+      const cleanText = (text) => {
+        if (!text) return 'Non renseigne';
+        return text.toString()
+          .replace(/[àáâãäå]/g, 'a')
+          .replace(/[èéêë]/g, 'e')
+          .replace(/[ìíîï]/g, 'i')
+          .replace(/[òóôõö]/g, 'o')
+          .replace(/[ùúûü]/g, 'u')
+          .replace(/[ýÿ]/g, 'y')
+          .replace(/[ç]/g, 'c')
+          .replace(/[ñ]/g, 'n')
+          .replace(/[ÀÁÂÃÄÅ]/g, 'A')
+          .replace(/[ÈÉÊË]/g, 'E')
+          .replace(/[ÌÍÎÏ]/g, 'I')
+          .replace(/[ÒÓÔÕÖ]/g, 'O')
+          .replace(/[ÙÚÛÜ]/g, 'U')
+          .replace(/[Ý]/g, 'Y')
+          .replace(/[Ç]/g, 'C')
+          .replace(/[Ñ]/g, 'N');
+      };
       
       // Fonction pour ajouter une nouvelle page si nécessaire
       const checkPageBreak = (neededSpace) => {
@@ -949,17 +988,19 @@ class SYLUtilities {
       doc.rect(0, 0, pageWidth, 30, 'F');
       
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('🚑 FICHE MÉDICALE D\'URGENCE SYL', pageWidth / 2, 18, { align: 'center' });
+      doc.text('FICHE MEDICALE D\'URGENCE SYL', pageWidth / 2, 18, { align: 'center' });
       
       yPosition = 40;
       
       // Nom du patient
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      const fullName = `${medicalData.personalInfo?.firstName || ''} ${medicalData.personalInfo?.lastName || ''}`.trim();
+      const firstName = cleanText(medicalData.personalInfo?.firstName || '');
+      const lastName = cleanText(medicalData.personalInfo?.lastName || '');
+      const fullName = `${firstName} ${lastName}`.trim();
       doc.text(fullName, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 15;
       
@@ -967,7 +1008,9 @@ class SYLUtilities {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-      doc.text(`Généré le ${new Date().toLocaleString('fr-FR')}`, pageWidth / 2, yPosition, { align: 'center' });
+      const now = new Date();
+      const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      doc.text(`Genere le ${dateStr}`, pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 20;
       
       // Fonction pour ajouter une section
@@ -985,7 +1028,7 @@ class SYLUtilities {
         doc.setTextColor(isCritical ? primaryColor[0] : 0, isCritical ? primaryColor[1] : 0, isCritical ? primaryColor[2] : 0);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(title, leftMargin + 5, yPosition + 8);
+        doc.text(cleanText(title), leftMargin + 5, yPosition + 8);
         yPosition += 20;
         
         // Contenu
@@ -996,11 +1039,12 @@ class SYLUtilities {
         if (Array.isArray(content)) {
           content.forEach(item => {
             checkPageBreak(6);
-            doc.text(`• ${item}`, leftMargin + 5, yPosition);
+            doc.text(`• ${cleanText(item)}`, leftMargin + 5, yPosition);
             yPosition += 6;
           });
         } else {
-          const lines = doc.splitTextToSize(content, pageWidth - 50);
+          const cleanContent = cleanText(content);
+          const lines = doc.splitTextToSize(cleanContent, pageWidth - 50);
           lines.forEach(line => {
             checkPageBreak(6);
             doc.text(line, leftMargin + 5, yPosition);
@@ -1012,66 +1056,68 @@ class SYLUtilities {
       
       // Calculer l'âge
       const calculateAge = (birthDate) => {
-        if (!birthDate) return 'Non renseigné';
-        const today = new Date();
-        const birth = new Date(birthDate);
-        let age = today.getFullYear() - birth.getFullYear();
-        const monthDiff = today.getMonth() - birth.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-          age--;
+        if (!birthDate) return 'Non renseigne';
+        try {
+          const today = new Date();
+          const birth = new Date(birthDate);
+          let age = today.getFullYear() - birth.getFullYear();
+          const monthDiff = today.getMonth() - birth.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+            age--;
+          }
+          return age + ' ans';
+        } catch {
+          return 'Non renseigne';
         }
-        return age + ' ans';
       };
       
       // Informations critiques
       const criticalInfo = [
-        `Groupe sanguin: ${medicalData.personalInfo?.bloodType || 'Non renseigné'}`,
-        `Âge: ${calculateAge(medicalData.personalInfo?.dateOfBirth)}`,
-        `Date de naissance: ${medicalData.personalInfo?.dateOfBirth ? new Date(medicalData.personalInfo.dateOfBirth).toLocaleDateString('fr-FR') : 'Non renseignée'}`,
-        `Taille: ${medicalData.personalInfo?.height || 'Non renseigné'} cm`,
-        `Poids: ${medicalData.personalInfo?.weight || 'Non renseigné'} kg`
+        `Groupe sanguin: ${cleanText(medicalData.personalInfo?.bloodType) || 'Non renseigne'}`,
+        `Age: ${calculateAge(medicalData.personalInfo?.dateOfBirth)}`,
+        `Taille: ${cleanText(medicalData.personalInfo?.height) || 'Non renseigne'} cm`,
+        `Poids: ${cleanText(medicalData.personalInfo?.weight) || 'Non renseigne'} kg`
       ];
       addSection('INFORMATIONS CRITIQUES', criticalInfo, true);
       
       // Allergies
       const allergies = medicalData.medicalHistory?.allergies?.length ? 
-        medicalData.medicalHistory.allergies : ['Aucune allergie connue'];
+        medicalData.medicalHistory.allergies.map(allergy => cleanText(allergy)) : ['Aucune allergie connue'];
       addSection('ALLERGIES', allergies, true);
       
       // Traitements en cours
       const medications = medicalData.medicalHistory?.medications?.length ? 
-        medicalData.medicalHistory.medications : ['Aucun traitement en cours'];
+        medicalData.medicalHistory.medications.map(med => cleanText(med)) : ['Aucun traitement en cours'];
       addSection('TRAITEMENTS EN COURS', medications);
       
       // Pathologies
       const diseases = medicalData.medicalHistory?.chronicDiseases?.length ? 
-        medicalData.medicalHistory.chronicDiseases : ['Aucune pathologie connue'];
+        medicalData.medicalHistory.chronicDiseases.map(disease => cleanText(disease)) : ['Aucune pathologie connue'];
       addSection('PATHOLOGIES CHRONIQUES', diseases);
       
       // Médecin traitant
       if (medicalData.emergencyInfo?.primaryPhysician?.name) {
         const physicianInfo = [
-          `Nom: ${medicalData.emergencyInfo.primaryPhysician.name}`,
-          `Spécialité: ${medicalData.emergencyInfo.primaryPhysician.specialty || 'Non renseignée'}`,
-          `Téléphone: ${medicalData.emergencyInfo.primaryPhysician.phone || 'Non renseigné'}`
+          `Nom: ${cleanText(medicalData.emergencyInfo.primaryPhysician.name)}`,
+          `Specialite: ${cleanText(medicalData.emergencyInfo.primaryPhysician.specialty) || 'Non renseignee'}`,
+          `Telephone: ${cleanText(medicalData.emergencyInfo.primaryPhysician.phone) || 'Non renseigne'}`
         ];
-        addSection('MÉDECIN TRAITANT', physicianInfo);
+        addSection('MEDECIN TRAITANT', physicianInfo);
       }
       
       // Contact d'urgence
       if (medicalData.personalInfo?.emergencyContact?.name) {
         const contactInfo = [
-          `Nom: ${medicalData.personalInfo.emergencyContact.name}`,
-          `Relation: ${medicalData.personalInfo.emergencyContact.relationship || 'Non renseignée'}`,
-          `Téléphone: ${medicalData.personalInfo.emergencyContact.phone || 'Non renseigné'}`,
-          `Email: ${medicalData.personalInfo.emergencyContact.email || 'Non renseigné'}`
+          `Nom: ${cleanText(medicalData.personalInfo.emergencyContact.name)}`,
+          `Relation: ${cleanText(medicalData.personalInfo.emergencyContact.relationship) || 'Non renseignee'}`,
+          `Telephone: ${cleanText(medicalData.personalInfo.emergencyContact.phone) || 'Non renseigne'}`
         ];
         addSection('CONTACT D\'URGENCE', contactInfo, true);
       }
       
       // Notes critiques
       if (medicalData.emergencyInfo?.criticalNotes) {
-        addSection('NOTES CRITIQUES POUR LES SECOURS', medicalData.emergencyInfo.criticalNotes, true);
+        addSection('NOTES CRITIQUES POUR LES SECOURS', cleanText(medicalData.emergencyInfo.criticalNotes), true);
       }
       
       // Numéros d'urgence
@@ -1079,27 +1125,28 @@ class SYLUtilities {
         'SAMU: 15',
         'Pompiers: 18',
         'Police: 17',
-        'Urgences européennes: 112'
+        'Urgences europeennes: 112'
       ];
-      addSection('NUMÉROS D\'URGENCE', emergencyNumbers, true);
+      addSection('NUMEROS D\'URGENCE', emergencyNumbers, true);
       
       // Footer
       checkPageBreak(20);
       doc.setFontSize(8);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-      doc.text('📋 Document généré par SYL Medical • Usage strictement médical', pageWidth / 2, pageHeight - 15, { align: 'center' });
-      doc.text('🔒 Données sensibles - Confidentialité médicale', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      doc.text('Document genere par SYL Medical - Usage strictement medical', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.text('Donnees sensibles - Confidentialite medicale', pageWidth / 2, pageHeight - 10, { align: 'center' });
       
       // Sauvegarder le PDF
-      const fileName = `SYL-Medical-${fullName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      const cleanFullName = fullName.replace(/[^a-zA-Z0-9]/g, '-') || 'Patient';
+      const dateForFile = now.toISOString().split('T')[0];
+      const fileName = `SYL-Medical-${cleanFullName}-${dateForFile}.pdf`;
       doc.save(fileName);
       
-      // Notification de succès
-      console.log('PDF généré avec succès:', fileName);
+      console.log('PDF genere avec succes:', fileName);
       
     } catch (error) {
-      console.error('Erreur lors de la génération du PDF:', error);
-      alert('❌ Erreur lors de la génération du PDF. Veuillez réessayer.');
+      console.error('Erreur lors de la generation du PDF:', error);
+      alert('Erreur lors de la generation du PDF. Veuillez reessayer.');
     }
   }
   
@@ -2393,8 +2440,10 @@ function renderPatientDashboard(user) {
       }
     });
 
-    // Génération automatique du QR code
-    generatePatientQRCode();
+    // Génération automatique du QR code avec délai pour s'assurer que la librairie est chargée
+    setTimeout(() => {
+      generatePatientQRCode();
+    }, 500);
     
     // Event listeners pour le QR code
     document.getElementById('refreshQR')?.addEventListener('click', () => {
@@ -2441,7 +2490,29 @@ function renderPatientDashboard(user) {
       const profileUrl = `https://jta873.github.io/?patient=${user.uid}`;
       
       const canvas = document.getElementById('qrCodeCanvas');
-      if (canvas && window.QRCode) {
+      if (canvas) {
+        // Vérifier si QRCode est disponible
+        if (typeof QRCode === 'undefined') {
+          console.warn('QRCode library not loaded, using fallback');
+          // Fallback : afficher l'URL en texte
+          const ctx = canvas.getContext('2d');
+          canvas.width = 200;
+          canvas.height = 200;
+          ctx.fillStyle = '#f3f4f6';
+          ctx.fillRect(0, 0, 200, 200);
+          ctx.fillStyle = '#1f2937';
+          ctx.font = '12px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('QR Code', 100, 90);
+          ctx.fillText('Erreur de chargement', 100, 110);
+          ctx.fillText('URL: ' + profileUrl.substring(0, 20) + '...', 100, 130);
+          return;
+        }
+        
+        // Définir la taille du canvas
+        canvas.width = 200;
+        canvas.height = 200;
+        
         // Efface le canvas
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -2455,9 +2526,28 @@ function renderPatientDashboard(user) {
             light: '#FFFFFF'
           }
         });
+        
+        console.log('QR Code généré avec succès pour:', profileUrl);
+      } else {
+        console.error('Canvas QR code non trouvé');
       }
     } catch (error) {
       console.error('Erreur génération QR code:', error);
+      // Afficher une erreur visible sur le canvas
+      const canvas = document.getElementById('qrCodeCanvas');
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        canvas.width = 200;
+        canvas.height = 200;
+        ctx.fillStyle = '#fee2e2';
+        ctx.fillRect(0, 0, 200, 200);
+        ctx.fillStyle = '#dc2626';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Erreur QR Code', 100, 100);
+        ctx.font = '10px Arial';
+        ctx.fillText(error.message, 100, 120);
+      }
     }
   }
 
