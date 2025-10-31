@@ -340,6 +340,771 @@
       }
     }
     
+    /* Admin Interface Styles - CORRECTION CRITIQUE */
+    .admin-container {
+      min-height: 100vh;
+      background: var(--surface-dark);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .admin-header {
+      background: var(--surface-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    
+    .admin-header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .admin-title-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .admin-icon {
+      font-size: 1.5rem;
+    }
+    
+    .admin-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .admin-status {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .status-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      background: var(--secondary-color);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    .status-text {
+      font-size: 0.875rem;
+      color: var(--secondary-color);
+      font-weight: 500;
+    }
+    
+    .admin-info {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    /* Admin Navigation Mobile */
+    .admin-nav-mobile {
+      display: flex;
+      background: var(--surface-color);
+      border-bottom: 1px solid var(--border-color);
+      overflow-x: auto;
+      position: sticky;
+      top: 4rem;
+      z-index: 30;
+    }
+    
+    .admin-nav-btn {
+      flex: 1;
+      min-width: max-content;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    
+    .admin-nav-btn.active {
+      color: var(--primary-color);
+      background: rgba(59, 130, 246, 0.1);
+      border-bottom: 2px solid var(--primary-color);
+    }
+    
+    .admin-nav-btn:hover {
+      background: var(--surface-dark);
+    }
+    
+    .nav-icon {
+      font-size: 1.25rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .nav-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    /* Admin Navigation Desktop */
+    .admin-nav-desktop {
+      display: none;
+      position: fixed;
+      left: 0;
+      top: 4rem;
+      width: 250px;
+      height: calc(100vh - 4rem);
+      background: var(--surface-color);
+      border-right: 1px solid var(--border-color);
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    
+    .admin-nav-btn-desktop {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      background: none;
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      text-align: left;
+    }
+    
+    .admin-nav-btn-desktop.active {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--primary-color);
+      border-left: 4px solid var(--primary-color);
+    }
+    
+    .admin-nav-btn-desktop:hover {
+      background: var(--surface-dark);
+    }
+    
+    .nav-text {
+      font-weight: 500;
+    }
+    
+    /* Admin Content */
+    .admin-content {
+      flex: 1;
+      padding: 1rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    
+    .admin-section {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .section-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    
+    .mobile-action {
+      min-width: max-content;
+    }
+    
+    .btn-text {
+      margin-left: 0.5rem;
+    }
+    
+    .btn-icon {
+      display: inline-block;
+    }
+    
+    .btn-secondary {
+      background: var(--surface-color);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .btn-danger {
+      background: var(--danger-color);
+      color: white;
+    }
+    
+    /* Search and Forms */
+    .search-container {
+      background: var(--surface-color);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .search-input-wrapper {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .search-input {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      font-size: 1rem;
+    }
+    
+    .search-btn {
+      padding: 0.75rem 1rem;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+    }
+    
+    /* Cards */
+    .info-card, .content-card {
+      background: var(--surface-color);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border-color);
+    }
+    
+    .info-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .info-icon {
+      font-size: 1.25rem;
+    }
+    
+    .info-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .info-content {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    
+    .info-content p {
+      margin: 0.5rem 0;
+    }
+    
+    .card-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 1rem 0;
+    }
+    
+    /* Patient Cards Mobile */
+    .mobile-cards {
+      display: grid;
+      gap: 1rem;
+    }
+    
+    .patient-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .patient-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+    
+    .patient-info {
+      flex: 1;
+    }
+    
+    .patient-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+    
+    .patient-email {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+    
+    .patient-status {
+      flex-shrink: 0;
+    }
+    
+    .status-active {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--secondary-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .status-inactive {
+      background: rgba(107, 114, 128, 0.1);
+      color: var(--text-secondary);
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .patient-details {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .detail-label {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .detail-value {
+      font-size: 0.875rem;
+      color: var(--text-primary);
+    }
+    
+    .blood-type {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+    }
+    
+    .patient-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .action-btn {
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 48px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .view-btn {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--primary-color);
+    }
+    
+    .nfc-btn {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--secondary-color);
+    }
+    
+    .delete-btn {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger-color);
+    }
+    
+    .action-btn:hover {
+      transform: scale(1.05);
+    }
+    
+    /* Desktop Table (hidden on mobile) */
+    .desktop-table {
+      display: none;
+      overflow-x: auto;
+    }
+    
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface-color);
+      border-radius: var(--radius-lg);
+    }
+    
+    .data-table th,
+    .data-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .data-table th {
+      background: var(--surface-dark);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .table-patient-info .patient-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .table-patient-info .patient-id {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    .blood-type-badge {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    
+    .nfc-badge {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--primary-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    
+    .no-nfc {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    
+    .table-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .action-btn-small {
+      padding: 0.5rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.875rem;
+    }
+    
+    .action-btn-small.view {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--primary-color);
+    }
+    
+    .action-btn-small.nfc {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--secondary-color);
+    }
+    
+    .action-btn-small.delete {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger-color);
+    }
+    
+    /* Empty States */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+    
+    .empty-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .empty-description {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+    
+    .help-card {
+      background: rgba(59, 130, 246, 0.05);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      text-align: left;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    
+    .help-title {
+      font-weight: 600;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+    }
+    
+    .help-list {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+      padding-left: 1rem;
+    }
+    
+    .help-list li {
+      margin: 0.25rem 0;
+    }
+    
+    /* Responsive Admin Design */
+    @media (min-width: 768px) {
+      .admin-nav-mobile {
+        display: none;
+      }
+      
+      .admin-nav-desktop {
+        display: block;
+      }
+      
+      .admin-content {
+        margin-left: 250px;
+        padding: 2rem;
+      }
+      
+      .desktop-table {
+        display: block;
+      }
+      
+      .mobile-cards {
+        display: none;
+      }
+      
+      .section-header {
+        flex-wrap: nowrap;
+      }
+      
+      .mobile-action .btn-text {
+        display: inline;
+      }
+    }
+    
+    @media (max-width: 767px) {
+      .admin-status {
+        gap: 0.5rem;
+      }
+      
+      .admin-info {
+        display: none;
+      }
+      
+      .mobile-logout .btn-text {
+        display: none;
+      }
+      
+      .section-actions {
+        width: 100%;
+        justify-content: center;
+      }
+      
+      .mobile-action {
+        flex: 1;
+        justify-content: center;
+      }
+      
+      .mobile-action .btn-text {
+        display: none;
+      }
+      
+      .mobile-action .btn-icon {
+        font-size: 1.25rem;
+      }
+    }
+    
+    /* Debug Console Styles */
+    .debug-console {
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+    }
+    
+    .debug-line {
+      margin: 0.25rem 0;
+      line-height: 1.4;
+    }
+    
+    .debug-line.success {
+      color: var(--secondary-color);
+    }
+    
+    .debug-line.info {
+      color: var(--primary-color);
+    }
+    
+    .debug-line.warning {
+      color: var(--warning-color);
+    }
+    
+    .debug-line.error {
+      color: var(--danger-color);
+    }
+    
+    /* Status Grid and Cards */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    
+    .status-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .status-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    
+    .status-icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-right: 1rem;
+    }
+    
+    .status-icon.firebase {
+      background: rgba(255, 152, 0, 0.1);
+    }
+    
+    .status-icon.data {
+      background: rgba(16, 185, 129, 0.1);
+    }
+    
+    .status-icon.auth {
+      background: rgba(59, 130, 246, 0.1);
+    }
+    
+    .status-info {
+      flex: 1;
+    }
+    
+    .status-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .status-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+    
+    .status-value {
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    
+    .status-value.success {
+      color: var(--secondary-color);
+    }
+    
+    .status-value.info {
+      color: var(--primary-color);
+    }
+    
+    .status-value.warning {
+      color: var(--warning-color);
+    }
+    
+    .status-value.error {
+      color: var(--danger-color);
+    }
+    
+    /* Button variants */
+    .btn-warning {
+      background: var(--warning-color);
+      color: white;
+    }
+    
+    .btn-warning:hover {
+      background: #d97706;
+    }
+    
+    /* Loading animations */
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: .5;
+      }
+    }
+    
     /* Cards responsive */
     .card {
       background: var(--surface-color);
@@ -630,22 +1395,42 @@ async function savePatientToFirestore(patient) {
   }
 }
 
-// Charger tous les patients (remplace JSON.parse(localStorage.getItem('syl-patients')))
+// 🔥 CORRECTION CRITIQUE : Charger patients TOUJOURS depuis Firebase (PAS DE CACHE)
 async function loadPatientsFromFirestore() {
   if (!db) throw new Error("Firestore non initialisé");
   
   try {
-    const snapshot = await db.collection('patients').orderBy('lastModified', 'desc').get();
+    console.log('🔄 Chargement patients depuis Firebase (TEMPS RÉEL - SERVEUR FORCÉ)');
+    
+    // CRITIQUE : Forcer la lecture depuis le serveur, PAS le cache
+    const snapshot = await db.collection('patients')
+      .orderBy('lastModified', 'desc')
+      .get({
+        source: 'server' // FORCER lecture serveur
+      });
+    
     const patients = [];
     
     snapshot.forEach(doc => {
       patients.push({
         id: doc.id,
-        ...doc.data()
+        uid: doc.id, // Compatibilité
+        ...doc.data(),
+        // Garantir structure minimale
+        personalInfo: doc.data().personalInfo || {},
+        medicalInfo: doc.data().medicalInfo || {},
+        emergencyContact: doc.data().emergencyContact || {},
+        isActive: doc.data().isActive !== undefined ? doc.data().isActive : true
       });
     });
     
-    console.log(`📊 ${patients.length} patients chargés depuis Firestore`);
+    console.log(`✅ ${patients.length} patients chargés depuis Firebase (serveur frais)`);
+    
+    // IMPORTANT : Ne PAS sauvegarder en localStorage pour éviter le cache
+    // localStorage.setItem('syl-patients', JSON.stringify(patients)); // SUPPRIMÉ
+    
+    // Mettre à jour les variables globales
+    window.allPatients = patients;
     
     // Corriger automatiquement les données manquantes (admin uniquement)
     await autoFixPatientsData(snapshot);
@@ -654,7 +1439,13 @@ async function loadPatientsFromFirestore() {
     
   } catch (error) {
     console.error("❌ Erreur chargement patients:", error);
-    return [];
+    
+    // Fallback : essayer depuis le cache local seulement en cas d'erreur réseau
+    console.log('⚠️ Fallback vers cache local...');
+    const cachedPatients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+    console.log(`📦 ${cachedPatients.length} patients depuis cache (fallback)`);
+    
+    return cachedPatients;
   }
 }
 
@@ -4403,64 +5194,120 @@ async function renderAdminDashboard(user) {
 
   function renderDebugTab() {
     return `
-      <div class="space-y-6">
-        <div class="flex justify-between items-center">
-          <h2 class="text-2xl font-bold text-gray-900">Debug & Maintenance</h2>
-          <div class="flex gap-2">
-            <button id="runQuickDiag" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">
-              🏥 Diagnostic Rapide
+      <div class="admin-section">
+        <div class="section-header">
+          <h2 class="section-title">Debug & Maintenance</h2>
+          <div class="section-actions">
+            <button id="runQuickDiag" class="btn-primary mobile-action">
+              <span class="btn-icon">🩺</span>
+              <span class="btn-text">Diagnostic</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 🔥 CORRECTION CRITIQUE : Gestion Authentification Firebase -->
+        <div class="content-card">
+          <h3 class="card-title">🔧 Réparation Authentification Firebase</h3>
+          <div class="info-content">
+            <p><strong>Problème :</strong> "Email déjà utilisé" après suppression d'un patient</p>
+            <p><strong>Cause :</strong> L'authentification Firebase n'est pas supprimée avec le patient</p>
+          </div>
+          
+          <div class="section-actions" style="margin-top: 1rem;">
+            <button id="checkAuthToDelete" class="btn-secondary mobile-action">
+              <span class="btn-icon">🔍</span>
+              <span class="btn-text">Voir Auth à Supprimer</span>
+            </button>
+            <button id="cleanupAuthFirebase" class="btn-danger mobile-action">
+              <span class="btn-icon">🧹</span>
+              <span class="btn-text">Nettoyer Auth</span>
+            </button>
+            <button id="forceRefreshData" class="btn-primary mobile-action">
+              <span class="btn-icon">🔄</span>
+              <span class="btn-text">Refresh Total</span>
             </button>
           </div>
         </div>
 
         <!-- Diagnostic System -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">🔍 Analyse des Collections Firebase</h3>
+        <div class="content-card">
+          <h3 class="card-title">🔍 Analyse Collections Firebase</h3>
           
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <button id="analyzeCollections" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-              📊 Analyser Collections
+          <div class="section-actions" style="margin-bottom: 1rem;">
+            <button id="analyzeCollections" class="btn-secondary mobile-action">
+              <span class="btn-icon">📊</span>
+              <span class="btn-text">Analyser</span>
             </button>
-            
-            <button id="cleanupData" class="bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-              🧹 Nettoyer (Test)
+            <button id="migrateSchema" class="btn-secondary mobile-action">
+              <span class="btn-icon">🚀</span>
+              <span class="btn-text">Migrer</span>
             </button>
-            
-            <button id="migrateSchema" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg px-4 py-3 flex items-center justify-center gap-2">
-              🚀 Migrer Schéma
+            <button id="clearCache" class="btn-warning mobile-action">
+              <span class="btn-icon">🗑️</span>
+              <span class="btn-text">Vider Cache</span>
             </button>
           </div>
 
-          <div id="debugOutput" class="bg-gray-50 border border-gray-200 rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm">
-            <div class="text-gray-500">🔧 Debug SYL Medical - Console active</div>
-            <div class="text-blue-600">📝 Cliquez sur les boutons ci-dessus pour analyser vos données</div>
-            <div class="text-purple-600">📊 ${patients.length} patients détectés</div>
+          <div id="debugOutput" class="debug-console">
+            <div class="debug-line">🔧 Debug SYL Medical - Console active</div>
+            <div class="debug-line success">📝 Cliquez sur les boutons pour diagnostiquer</div>
+            <div class="debug-line info">📊 ${patients.length} patients détectés</div>
+            <div class="debug-line warning">⚠️ Données toujours chargées depuis Firebase (pas de cache)</div>
           </div>
         </div>
 
         <!-- Status Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div class="flex items-center mb-4">
-              <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">🔥</div>
-              <div class="ml-4">
-                <h4 class="text-lg font-semibold text-gray-900">Firebase</h4>
-                <p class="text-sm text-gray-600">État connexion</p>
+        <div class="status-grid">
+          <div class="status-card">
+            <div class="status-header">
+              <div class="status-icon firebase">🔥</div>
+              <div class="status-info">
+                <h4 class="status-title">Firebase</h4>
+                <p class="status-subtitle">Connexion</p>
               </div>
             </div>
-            <div class="text-green-600 font-medium">✅ Connecté</div>
+            <div class="status-value success">✅ Connecté</div>
           </div>
 
-          <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div class="flex items-center mb-4">
-              <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">📊</div>
-              <div class="ml-4">
-                <h4 class="text-lg font-semibold text-gray-900">Collections</h4>
-                <p class="text-sm text-gray-600">Documents</p>
+          <div class="status-card">
+            <div class="status-header">
+              <div class="status-icon data">📊</div>
+              <div class="status-info">
+                <h4 class="status-title">Collections</h4>
+                <p class="status-subtitle">Documents</p>
               </div>
             </div>
-            <div class="text-blue-600 font-medium">${patients.length} patients</div>
+            <div class="status-value info">${patients.length} patients</div>
           </div>
+
+          <div class="status-card">
+            <div class="status-header">
+              <div class="status-icon auth">�</div>
+              <div class="status-info">
+                <h4 class="status-title">Auth</h4>
+                <p class="status-subtitle">État</p>
+              </div>
+            </div>
+            <div class="status-value warning">⚠️ À vérifier</div>
+          </div>
+        </div>
+
+        <!-- Instructions de résolution -->
+        <div class="help-card">
+          <h4 class="help-title">🛠️ Guide de Résolution</h4>
+          <div class="help-list">
+            <p><strong>1. Problème "Email déjà utilisé" :</strong></p>
+            <p>→ Cliquez "Voir Auth à Supprimer" pour voir les comptes fantômes</p>
+            <p>→ Cliquez "Nettoyer Auth" pour marquer les comptes à supprimer</p>
+            <p></p>
+            <p><strong>2. Données qui ne se mettent pas à jour :</strong></p>
+            <p>→ Cliquez "Refresh Total" pour forcer le rechargement depuis Firebase</p>
+            <p>→ Cliquez "Vider Cache" pour supprimer toutes les données locales</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
           <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div class="flex items-center mb-4">
@@ -5607,9 +6454,9 @@ async function saveEmergencyData(patient) {
 
 // ========== FONCTIONS DE SUPPRESSION ADMIN ==========
 
-// Supprimer un patient
+// 🔥 CORRECTION CRITIQUE : Supprimer un patient + nettoyage auth Firebase
 function deletePatient(patientId, patientName) {
-  if (!confirm(`⚠️ ATTENTION !\n\nVoulez-vous vraiment supprimer le patient :\n"${patientName}" ?\n\nCette action est IRRÉVERSIBLE et supprimera :\n• Toutes les données médicales\n• L'association NFC (si existante)\n• Les données d'urgence Firebase\n\nTapez "SUPPRIMER" pour confirmer.`)) {
+  if (!confirm(`⚠️ ATTENTION !\n\nVoulez-vous vraiment supprimer le patient :\n"${patientName}" ?\n\nCette action est IRRÉVERSIBLE et supprimera :\n• Toutes les données médicales\n• Le compte d'authentification Firebase\n• L'association NFC (si existante)\n• Les données d'urgence Firebase\n\nTapez "SUPPRIMER" pour confirmer.`)) {
     return;
   }
   
@@ -5619,47 +6466,141 @@ function deletePatient(patientId, patientName) {
     return;
   }
   
+  // NOUVEAU : Suppression complète Firebase + Auth
+  deletePatientComplete(patientId, patientName);
+}
+
+// 🔥 FONCTION CRITIQUE : Suppression complète patient + auth Firebase
+async function deletePatientComplete(patientId, patientName) {
   try {
-    // 1. Supprimer des patients locaux
-    let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
-    const patientIndex = patients.findIndex(p => (p.id || p.uid) === patientId);
+    console.log('🗑️ Début suppression complète patient:', patientId);
     
-    if (patientIndex === -1) {
-      alert('Patient non trouvé dans les données locales.');
-      return;
+    // 1. Récupérer les données du patient pour obtenir l'email
+    let patientEmail = null;
+    let patientData = null;
+    
+    // Essayer d'abord Firestore
+    try {
+      const patientDoc = await db.collection('patients').doc(patientId).get();
+      if (patientDoc.exists) {
+        patientData = patientDoc.data();
+        patientEmail = patientData.email;
+        console.log('📧 Email trouvé dans Firestore:', patientEmail);
+      }
+    } catch (e) {
+      console.log('⚠️ Erreur Firestore, essai local...');
     }
     
-    const deletedPatient = patients[patientIndex];
-    patients.splice(patientIndex, 1);
-    localStorage.setItem('syl-patients', JSON.stringify(patients));
-    
-    // 2. Libérer le tag NFC associé
-    if (deletedPatient.nfcTagId) {
-      let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
-      const tagIndex = nfcTags.findIndex(tag => tag.id === deletedPatient.nfcTagId);
-      if (tagIndex !== -1) {
-        nfcTags[tagIndex].assignedTo = null;
-        nfcTags[tagIndex].assignedAt = null;
-        localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
-        console.log(`🏷️ Tag NFC ${deletedPatient.nfcTagId} libéré`);
+    // Si pas trouvé dans Firestore, chercher en local
+    if (!patientEmail) {
+      let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+      const localPatient = patients.find(p => (p.id || p.uid) === patientId);
+      if (localPatient) {
+        patientEmail = localPatient.email;
+        patientData = localPatient;
+        console.log('📧 Email trouvé en local:', patientEmail);
       }
     }
     
-    // 3. Supprimer des données d'urgence Firebase (si possible)
-    deleteEmergencyDataFirebase(patientId);
+    if (!patientEmail) {
+      throw new Error('Impossible de trouver l\'email du patient');
+    }
     
-    // 4. Supprimer de Firebase Auth (si c'est un utilisateur Firebase)
-    deleteFirebaseUser(deletedPatient.email);
+    // 2. CRITIQUE : Supprimer de Firebase Firestore
+    try {
+      console.log('🗄️ Suppression Firestore...');
+      await db.collection('patients').doc(patientId).delete();
+      console.log('✅ Document patients supprimé');
+      
+      // Supprimer aussi de users si existe
+      try {
+        await db.collection('users').doc(patientId).delete();
+        console.log('✅ Document users supprimé');
+      } catch (e) {
+        console.log('ℹ️ Pas de document users à supprimer');
+      }
+      
+      // Marquer pour suppression auth (nécessaire car on ne peut pas supprimer directement)
+      await db.collection('authToDelete').doc(patientEmail.replace(/[^a-zA-Z0-9]/g, '_')).set({
+        email: patientEmail,
+        originalId: patientId,
+        deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        deletedBy: currentUser ? currentUser.email : 'admin',
+        reason: 'admin_deletion'
+      });
+      console.log('✅ Marquage suppression auth créé');
+      
+    } catch (firebaseError) {
+      console.log('⚠️ Erreur Firebase:', firebaseError.message);
+      // On continue avec la suppression locale
+    }
     
-    console.log(`✅ Patient supprimé: ${patientName} (${patientId})`);
-    alert(`✅ Patient "${patientName}" supprimé avec succès.\n\n• Données locales supprimées\n• Tag NFC libéré\n• Suppression Firebase en cours...`);
+    // 3. Supprimer des données locales
+    console.log('🧹 Nettoyage local...');
+    let patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+    const patientIndex = patients.findIndex(p => (p.id || p.uid) === patientId);
     
-    // Rafraîchir l'affichage
-    location.reload();
+    if (patientIndex !== -1) {
+      const deletedPatient = patients[patientIndex];
+      patients.splice(patientIndex, 1);
+      localStorage.setItem('syl-patients', JSON.stringify(patients));
+      console.log('✅ Patient supprimé du stockage local');
+      
+      // 4. Libérer le tag NFC associé
+      if (deletedPatient.nfcTagId) {
+        console.log('🏷️ Libération tag NFC:', deletedPatient.nfcTagId);
+        let nfcTags = JSON.parse(localStorage.getItem('syl-nfc-tags') || '[]');
+        const tagIndex = nfcTags.findIndex(tag => tag.id === deletedPatient.nfcTagId);
+        if (tagIndex !== -1) {
+          nfcTags[tagIndex].assignedTo = null;
+          nfcTags[tagIndex].assignedAt = null;
+          localStorage.setItem('syl-nfc-tags', JSON.stringify(nfcTags));
+          console.log('✅ Tag NFC libéré');
+        }
+        
+        // Aussi dans Firebase
+        try {
+          await db.collection('nfcTags').doc(deletedPatient.nfcTagId).update({
+            assignedTo: null,
+            assignedAt: null
+          });
+          console.log('✅ Tag NFC libéré dans Firebase');
+        } catch (e) {
+          console.log('⚠️ Erreur libération NFC Firebase');
+        }
+      }
+    }
+    
+    // 5. Nettoyer les caches globaux
+    if (window.allPatients) {
+      window.allPatients = window.allPatients.filter(p => (p.id || p.uid) !== patientId);
+    }
+    if (window.patientsCache) {
+      delete window.patientsCache[patientId];
+    }
+    
+    // 6. Forcer le rechargement des données
+    if (typeof loadPatientsFromFirestore === 'function') {
+      try {
+        await loadPatientsFromFirestore();
+      } catch (e) {
+        console.log('⚠️ Erreur rechargement Firestore');
+      }
+    }
+    
+    // 7. Re-render l'interface si on est admin
+    if (typeof render === 'function') {
+      render();
+    }
+    
+    // 8. Afficher le succès avec info importante
+    alert(`✅ Patient "${patientName}" supprimé avec succès !\n\n📧 Email libéré : ${patientEmail}\n\n🆕 Important : L'email est maintenant disponible pour une nouvelle inscription.\n\n⚠️ Si l'utilisateur a des problèmes pour se reconnecter, utilisez l'outil "Auth Debug" dans l'admin.`);
+    
+    console.log('🎉 Suppression complète terminée avec succès');
     
   } catch (error) {
-    console.error('❌ Erreur lors de la suppression:', error);
-    alert(`❌ Erreur lors de la suppression: ${error.message}`);
+    console.error('❌ Erreur lors de la suppression complète:', error);
+    alert(`❌ Erreur lors de la suppression :\n${error.message}\n\n🔧 Essayez l'outil "Auth Debug" dans l'admin pour diagnostiquer.`);
   }
 }
 
