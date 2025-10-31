@@ -549,102 +549,6 @@
       font-size: 0.875rem;
     }
     
-    /* Navigation Admin Mobile */
-    .admin-nav-mobile {
-      background: var(--surface-color);
-      border-bottom: 1px solid var(--border-color);
-      padding: 0.5rem;
-      display: flex;
-      overflow-x: auto;
-      gap: 0.25rem;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-    
-    .admin-nav-mobile::-webkit-scrollbar {
-      display: none;
-    }
-    
-    .admin-nav-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 0.75rem 1rem;
-      border-radius: var(--radius-lg);
-      background: transparent;
-      border: none;
-      color: var(--text-secondary);
-      font-size: 0.75rem;
-      transition: all 0.2s;
-      white-space: nowrap;
-      min-width: 80px;
-    }
-    
-    .admin-nav-btn.active {
-      background: var(--primary-color);
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-    
-    .admin-nav-btn:hover:not(.active) {
-      background: var(--surface-dark);
-      color: var(--text-primary);
-    }
-    
-    .nav-icon {
-      font-size: 1.25rem;
-      margin-bottom: 0.25rem;
-    }
-    
-    .nav-label {
-      font-weight: 500;
-    }
-    
-    /* Navigation Admin Desktop */
-    .admin-nav-desktop {
-      display: none;
-      position: fixed;
-      left: 0;
-      top: 0;
-      width: 240px;
-      height: 100vh;
-      background: var(--surface-color);
-      border-right: 1px solid var(--border-color);
-      padding: 2rem 1rem;
-      z-index: 5;
-    }
-    
-    .admin-nav-btn-desktop {
-      display: flex;
-      align-items: center;
-      width: 100%;
-      padding: 0.75rem 1rem;
-      margin-bottom: 0.5rem;
-      border-radius: var(--radius-lg);
-      background: transparent;
-      border: none;
-      color: var(--text-secondary);
-      text-align: left;
-      transition: all 0.2s;
-      gap: 0.75rem;
-    }
-    
-    .admin-nav-btn-desktop.active {
-      background: var(--primary-color);
-      color: white;
-      box-shadow: var(--shadow-md);
-    }
-    
-    .admin-nav-btn-desktop:hover:not(.active) {
-      background: var(--surface-dark);
-      color: var(--text-primary);
-    }
-    
-    .nav-text {
-      font-weight: 500;
-    }
-    
     /* Contenu Admin */
     .admin-content {
       flex: 1;
@@ -5639,34 +5543,37 @@ async function renderAdminDashboard(user) {
     // Gestion spécifique mobile pour les swipe gestures
     if (window.innerWidth <= 768) {
       let startX, currentX;
-      const adminNav = document.querySelector('.admin-nav-mobile');
+      // Utilise la nouvelle structure de navigation mobile
+      const adminNav = document.querySelector('.lg\\:hidden .flex.space-x-1');
       
-      adminNav.addEventListener('touchstart', (e) => {
-        startX = e.touches[0].clientX;
-      }, {passive: true});
-      
-      adminNav.addEventListener('touchmove', (e) => {
-        currentX = e.touches[0].clientX;
-      }, {passive: true});
-      
-      adminNav.addEventListener('touchend', () => {
-        const diffX = startX - currentX;
-        if (Math.abs(diffX) > 50) {
-          // Swipe horizontal pour changer d'onglet
-          const tabs = ['patients', 'nfc', 'associations', 'analytics', 'debug'];
-          const currentIndex = tabs.indexOf(activeTab);
-          
-          if (diffX > 0 && currentIndex < tabs.length - 1) {
-            // Swipe gauche = onglet suivant
-            activeTab = tabs[currentIndex + 1];
-            render();
-          } else if (diffX < 0 && currentIndex > 0) {
-            // Swipe droite = onglet précédent
-            activeTab = tabs[currentIndex - 1];
-            render();
+      if (adminNav) {
+        adminNav.addEventListener('touchstart', (e) => {
+          startX = e.touches[0].clientX;
+        }, {passive: true});
+        
+        adminNav.addEventListener('touchmove', (e) => {
+          currentX = e.touches[0].clientX;
+        }, {passive: true});
+        
+        adminNav.addEventListener('touchend', () => {
+          const diffX = startX - currentX;
+          if (Math.abs(diffX) > 50) {
+            // Swipe horizontal pour changer d'onglet
+            const tabs = ['patients', 'nfc', 'associations', 'analytics', 'debug'];
+            const currentIndex = tabs.indexOf(activeTab);
+            
+            if (diffX > 0 && currentIndex < tabs.length - 1) {
+              // Swipe gauche = onglet suivant
+              activeTab = tabs[currentIndex + 1];
+              render();
+            } else if (diffX < 0 && currentIndex > 0) {
+              // Swipe droite = onglet précédent
+              activeTab = tabs[currentIndex - 1];
+              render();
+            }
           }
-        }
-      }, {passive: true});
+        }, {passive: true});
+      }
     }
     
     if (activeTab === 'patients') setupPatientsEvents();
