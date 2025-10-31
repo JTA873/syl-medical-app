@@ -5424,6 +5424,62 @@ function removeNFCAssignment(tagId) {
   }
 }
 
+// Fonction pour créer un patient de test pour les liens d'urgence
+function createTestPatient() {
+  const testPatient = {
+    id: 'test_patient_123',
+    uid: 'test_patient_123',
+    email: 'patient.test@example.com',
+    role: 'patient',
+    personalInfo: {
+      firstName: 'Jean',
+      lastName: 'Dupont',
+      dateOfBirth: '1985-03-15',
+      bloodType: 'O+',
+      height: '175',
+      weight: '70',
+      phone: '06 12 34 56 78',
+      emergencyContact: {
+        name: 'Marie Dupont',
+        relationship: 'Épouse',
+        phone: '06 98 76 54 32'
+      }
+    },
+    medicalHistory: {
+      allergies: ['Pénicilline', 'Fruits à coque'],
+      medications: ['Doliprane 1000mg - 1 comprimé matin et soir', 'Ventoline - En cas de besoin'],
+      chronicDiseases: ['Asthme léger', 'Hypertension']
+    },
+    emergencyInfo: {
+      criticalNotes: 'ALLERGIE SÉVÈRE À LA PÉNICILLINE - RISQUE DE CHOC ANAPHYLACTIQUE'
+    },
+    isActive: true
+  };
+  
+  // Sauvegarder dans localStorage pour test
+  const patients = JSON.parse(localStorage.getItem('syl-patients') || '[]');
+  const existingIndex = patients.findIndex(p => (p.id || p.uid) === testPatient.id);
+  if (existingIndex >= 0) {
+    patients[existingIndex] = testPatient;
+  } else {
+    patients.push(testPatient);
+  }
+  localStorage.setItem('syl-patients', JSON.stringify(patients));
+  
+  console.log('✅ Patient de test créé:', testPatient);
+  return testPatient;
+}
+
+// Créer automatiquement le patient de test au chargement pour démonstration
+if (typeof window !== 'undefined') {
+  // Attendre que la page soit chargée
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      createTestPatient();
+    }, 1000);
+  });
+}
+
 function refreshNFCList() {
   location.reload();
 }
@@ -5489,78 +5545,83 @@ async function renderAdminDashboard(user) {
 
   function render() {
     document.getElementById('app').innerHTML = `
-    <div class="admin-container">
-      <!-- Header admin mobile-first -->
-      <div class="admin-header">
-        <div class="admin-header-content">
-          <div class="admin-title-section">
-            <div class="admin-icon">⚙️</div>
-            <h1 class="admin-title">SYL Admin</h1>
+    <div class="min-h-screen bg-gray-50">
+      <!-- Header admin responsive -->
+      <header class="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+          <div class="flex items-center">
+            <div class="text-2xl mr-3">⚙️</div>
+            <h1 class="text-xl font-bold text-gray-900">SYL Admin</h1>
           </div>
-          <div class="admin-status">
-            <div class="status-indicator">
-              <div class="status-dot"></div>
-              <span class="status-text">Temps réel</span>
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+              <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span class="text-sm text-green-600 font-medium hidden sm:block">Temps réel</span>
             </div>
-            <div class="admin-info">Admin: ${user.profile.firstName}</div>
-            <button id="logoutBtn" class="btn-secondary mobile-logout">
-              <span class="btn-icon">🚪</span>
-              <span class="btn-text">Déconnexion</span>
+            <div class="text-sm text-gray-600 hidden md:block">Admin: ${user.profile.firstName}</div>
+            <button id="logoutBtn" class="border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-medium rounded-lg px-3 py-1 sm:px-4 sm:py-2 flex items-center gap-2 text-sm">
+              🚪 <span class="hidden sm:inline">Déconnexion</span>
             </button>
           </div>
         </div>
-      </div>
+      </header>
       
-      <!-- Navigation admin mobile -->
-      <div class="admin-nav-mobile">
-        <button class="admin-nav-btn ${activeTab==='patients' ? 'active' : ''}" data-tab="patients">
-          <span class="nav-icon">👥</span>
-          <span class="nav-label">Patients</span>
-        </button>
-        <button class="admin-nav-btn ${activeTab==='nfc' ? 'active' : ''}" data-tab="nfc">
-          <span class="nav-icon">📱</span>
-          <span class="nav-label">NFC</span>
-        </button>
-        <button class="admin-nav-btn ${activeTab==='associations' ? 'active' : ''}" data-tab="associations">
-          <span class="nav-icon">🔗</span>
-          <span class="nav-label">Associations</span>
-        </button>
-        <button class="admin-nav-btn ${activeTab==='analytics' ? 'active' : ''}" data-tab="analytics">
-          <span class="nav-icon">📊</span>
-          <span class="nav-label">Analytics</span>
-        </button>
-        <button class="admin-nav-btn ${activeTab==='debug' ? 'active' : ''}" data-tab="debug">
-          <span class="nav-icon">🔧</span>
-          <span class="nav-label">Debug</span>
-        </button>
-      </div>
-
-      <!-- Navigation admin desktop (sidebar) -->
-      <div class="admin-nav-desktop">
-        <button class="admin-nav-btn-desktop ${activeTab==='patients' ? 'active' : ''}" data-tab="patients">
-          ${icons.users}<span class="nav-text">Patients</span>
-        </button>
-        <button class="admin-nav-btn-desktop ${activeTab==='nfc' ? 'active' : ''}" data-tab="nfc">
-          ${icons.smartphone}<span class="nav-text">Tags NFC</span>
-        </button>
-        <button class="admin-nav-btn-desktop ${activeTab==='associations' ? 'active' : ''}" data-tab="associations">
-          ${icons.shield}<span class="nav-text">Associations</span>
-        </button>
-        <button class="admin-nav-btn-desktop ${activeTab==='analytics' ? 'active' : ''}" data-tab="analytics">
-          ${icons.activity}<span class="nav-text">Analytics</span>
-        </button>
-        <button class="admin-nav-btn-desktop ${activeTab==='debug' ? 'active' : ''}" data-tab="debug">
-          <span class="nav-icon">🔧</span><span class="nav-text">Debug & Maintenance</span>
-        </button>
-      </div>
-      
-      <!-- Contenu principal -->
-      <div class="admin-content">
-        ${activeTab === 'patients' ? renderPatientsTab() : ''}
-        ${activeTab === 'nfc' ? renderNFCTab() : ''}
-        ${activeTab === 'associations' ? renderAssociationsTab() : ''}
-        ${activeTab === 'analytics' ? renderAnalyticsTab() : ''}
-        ${activeTab === 'debug' ? renderDebugTab() : ''}
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
+          <!-- Navigation desktop sidebar -->
+          <div class="lg:col-span-1">
+            <nav class="space-y-2 bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='patients' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="patients">
+                👥<span class="ml-3">Patients</span>
+              </button>
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='nfc' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="nfc">
+                📱<span class="ml-3">Tags NFC</span>
+              </button>
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='associations' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="associations">
+                🔗<span class="ml-3">Associations</span>
+              </button>
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='analytics' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="analytics">
+                📊<span class="ml-3">Analytics</span>
+              </button>
+              <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='debug' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="debug">
+                🔧<span class="ml-3">Debug</span>
+              </button>
+            </nav>
+          </div>
+          
+          <!-- Contenu principal -->
+          <div class="lg:col-span-3">
+            <!-- Navigation mobile tabs (visible uniquement sur mobile) -->
+            <div class="lg:hidden mb-4">
+              <div class="flex space-x-1 bg-white rounded-xl shadow-lg border border-gray-200 p-1">
+                <button class="flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors ${activeTab==='patients' ? 'bg-purple-600 text-white':'text-gray-600 hover:bg-gray-100'}" data-tab="patients">
+                  👥
+                </button>
+                <button class="flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors ${activeTab==='nfc' ? 'bg-purple-600 text-white':'text-gray-600 hover:bg-gray-100'}" data-tab="nfc">
+                  📱
+                </button>
+                <button class="flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors ${activeTab==='associations' ? 'bg-purple-600 text-white':'text-gray-600 hover:bg-gray-100'}" data-tab="associations">
+                  🔗
+                </button>
+                <button class="flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors ${activeTab==='analytics' ? 'bg-purple-600 text-white':'text-gray-600 hover:bg-gray-100'}" data-tab="analytics">
+                  📊
+                </button>
+                <button class="flex-1 text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors ${activeTab==='debug' ? 'bg-purple-600 text-white':'text-gray-600 hover:bg-gray-100'}" data-tab="debug">
+                  🔧
+                </button>
+              </div>
+            </div>
+            
+            <!-- Contenu des onglets -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 min-h-96">
+              ${activeTab === 'patients' ? renderPatientsTab() : ''}
+              ${activeTab === 'nfc' ? renderNFCTab() : ''}
+              ${activeTab === 'associations' ? renderAssociationsTab() : ''}
+              ${activeTab === 'analytics' ? renderAnalyticsTab() : ''}
+              ${activeTab === 'debug' ? renderDebugTab() : ''}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     `;
