@@ -3,9 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <title>SYL Medical - Système d'Urgence</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#3B82F6">
   <meta name="description" content="Application médicale d'urgence - Accès rapide aux informations vitales">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SYL Medical">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="keywords" content="medical, urgence, NFC, santé, emergency"}
   
   <!-- Cache Control pour éviter les problèmes de cache -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -30,6 +36,7 @@
   
   <!-- Vérification du chargement des librairies -->
   <script>
+    // Optimisations mobiles et PWA
     window.addEventListener('load', function() {
       console.log('QRious disponible:', typeof QRious !== 'undefined');
       console.log('jsPDF disponible:', typeof window.jspdf !== 'undefined');
@@ -42,18 +49,369 @@
           console.log('jsPDF disponible (2e tentative):', typeof window.jspdf !== 'undefined');
         }, 2000);
       }
+      
+      // Optimisations PWA et performances mobiles
+      initMobileOptimizations();
     });
+    
+    // Fonction d'optimisation mobile
+    function initMobileOptimizations() {
+      // Désactiver le zoom sur les inputs sur iOS
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        const viewport = document.querySelector('meta[name=viewport]');
+        if (viewport) {
+          viewport.setAttribute('content', 
+            'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+          );
+        }
+      }
+      
+      // Optimiser les scrolls sur mobile
+      document.addEventListener('touchstart', function(){}, {passive: true});
+      document.addEventListener('touchmove', function(){}, {passive: true});
+      
+      // Gestionnaire de resize pour optimiser l'affichage
+      let resizeTimeout;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+          // Réajuster l'interface après rotation d'écran
+          if (window.innerWidth !== window.screen.width) {
+            document.body.style.height = window.innerHeight + 'px';
+          }
+        }, 250);
+      });
+      
+      // Améliorer les performances de scroll
+      let ticking = false;
+      function updateScrollPosition() {
+        // Optimisations pendant le scroll
+        ticking = false;
+      }
+      
+      function requestTick() {
+        if (!ticking) {
+          requestAnimationFrame(updateScrollPosition);
+          ticking = true;
+        }
+      }
+      
+      window.addEventListener('scroll', requestTick, {passive: true});
+      
+      // Précharger les ressources critiques
+      const criticalImages = document.querySelectorAll('img[data-critical]');
+      criticalImages.forEach(img => {
+        const src = img.dataset.src;
+        if (src) {
+          img.src = src;
+        }
+      });
+      
+      // Support offline basique
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.log('Service Worker registration failed:', err);
+        });
+      }
+      
+      // Détection de la connectivité
+      window.addEventListener('online', function() {
+        console.log('🌐 Connexion rétablie');
+        showNetworkStatus('online');
+      });
+      
+      window.addEventListener('offline', function() {
+        console.log('📴 Connexion perdue');
+        showNetworkStatus('offline');
+      });
+    }
+    
+    // Affichage du statut réseau
+    function showNetworkStatus(status) {
+      const existing = document.getElementById('network-status');
+      if (existing) existing.remove();
+      
+      const statusEl = document.createElement('div');
+      statusEl.id = 'network-status';
+      statusEl.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium ${
+        status === 'online' 
+          ? 'bg-green-100 text-green-800 border border-green-200' 
+          : 'bg-red-100 text-red-800 border border-red-200'
+      }`;
+      statusEl.textContent = status === 'online' ? '🌐 En ligne' : '📴 Hors ligne';
+      
+      document.body.appendChild(statusEl);
+      
+      setTimeout(() => {
+        if (statusEl.parentNode) {
+          statusEl.remove();
+        }
+      }, 3000);
+    }
+    
+    // Touch gestures améliorés
+    function addTouchGestures() {
+      let startY, endY;
+      
+      document.addEventListener('touchstart', function(e) {
+        startY = e.touches[0].clientY;
+      }, {passive: true});
+      
+      document.addEventListener('touchend', function(e) {
+        endY = e.changedTouches[0].clientY;
+        const deltaY = startY - endY;
+        
+        // Swipe up pour actualiser (sur certains écrans)
+        if (deltaY < -150 && window.scrollY === 0) {
+          // Pull to refresh - optionnel
+          console.log('Pull to refresh détecté');
+        }
+      }, {passive: true});
+    }
+    
+    // Initialiser les gestes au chargement
+    document.addEventListener('DOMContentLoaded', addTouchGestures);
   </script>
   <style>
+    /* Reset et base mobile-first */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    html, body {
+      height: 100%;
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    
+    body {
+      line-height: 1.6;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    /* Variables CSS pour thème cohérent */
+    :root {
+      --primary-color: #3B82F6;
+      --primary-dark: #1E40AF;
+      --secondary-color: #10B981;
+      --danger-color: #EF4444;
+      --warning-color: #F59E0B;
+      --surface-color: #FFFFFF;
+      --surface-dark: #F8FAFC;
+      --text-primary: #1F2937;
+      --text-secondary: #6B7280;
+      --border-color: #E5E7EB;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --radius-xl: 1rem;
+    }
+    
+    /* Legacy support - garde animations existantes */
     .animate-spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .modal-bg { background: rgba(0,0,0,0.5); }
+    .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
     .modal { z-index: 50; }
     .icon { width: 1em; height: 1em; display: inline-block; vertical-align: middle; }
     .emergency-card { border-left: 4px solid #ef4444; }
     .critical-info { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); }
     
-    /* Mode sombre */
+    /* Mobile-first layout */
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+    
+    @media (min-width: 640px) {
+      .container { max-width: 640px; }
+    }
+    
+    @media (min-width: 768px) {
+      .container { max-width: 768px; padding: 0 2rem; }
+    }
+    
+    @media (min-width: 1024px) {
+      .container { max-width: 1024px; }
+    }
+    
+    /* Touch-friendly buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px; /* iOS/Android touch target */
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: var(--radius-lg);
+      font-weight: 600;
+      font-size: 1rem;
+      line-height: 1;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .btn:active {
+      transform: scale(0.98);
+    }
+    
+    .btn-primary {
+      background: var(--primary-color);
+      color: white;
+      box-shadow: var(--shadow-md);
+    }
+    
+    .btn-primary:hover, .btn-primary:focus {
+      background: var(--primary-dark);
+      box-shadow: var(--shadow-lg);
+    }
+    
+    /* Navigation mobile bottom */
+    .mobile-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface-color);
+      border-top: 1px solid var(--border-color);
+      box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      padding: env(safe-area-inset-bottom) 0 0 0;
+    }
+    
+    .mobile-nav-items {
+      display: flex;
+      justify-content: space-around;
+      padding: 0.5rem 0;
+    }
+    
+    .mobile-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.5rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      min-width: 60px;
+      border-radius: var(--radius-md);
+    }
+    
+    .mobile-nav-item.active,
+    .mobile-nav-item:hover {
+      color: var(--primary-color);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    
+    .mobile-nav-icon {
+      font-size: 1.25rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .mobile-nav-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    /* Content spacing for mobile nav */
+    .main-content {
+      padding-bottom: 90px; /* Space for mobile nav */
+    }
+    
+    @media (min-width: 768px) {
+      .main-content {
+        padding-bottom: 0;
+      }
+      .mobile-nav {
+        display: none;
+      }
+    }
+    
+    /* Cards responsive */
+    .card {
+      background: var(--surface-color);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      transition: all 0.3s ease;
+      margin-bottom: 1rem;
+    }
+    
+    .card:hover {
+      box-shadow: var(--shadow-xl);
+      transform: translateY(-2px);
+    }
+    
+    .card-body {
+      padding: 1.5rem;
+    }
+    
+    /* Forms responsive */
+    .form-input {
+      width: 100%;
+      min-height: 48px;
+      padding: 0.75rem 1rem;
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      font-size: 1rem;
+      background: var(--surface-color);
+      transition: all 0.2s ease;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Grid responsive */
+    .grid {
+      display: grid;
+      gap: 1rem;
+    }
+    
+    .grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
+    
+    @media (min-width: 768px) {
+      .md\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+      .md\:grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+    }
+    
+    /* Spacing utilitaires */
+    .p-4 { padding: 1rem; }
+    .p-6 { padding: 1.5rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-6 { margin-bottom: 1.5rem; }
+    
+    /* Typography responsive */
+    .text-lg { font-size: 1.125rem; }
+    .text-xl { font-size: 1.25rem; }
+    .text-2xl { font-size: 1.5rem; }
+    
+    @media (min-width: 768px) {
+      .md\:text-2xl { font-size: 1.5rem; }
+      .md\:text-3xl { font-size: 1.875rem; }
+    }
+    
+    .font-semibold { font-weight: 600; }
+    .text-center { text-align: center; }
+    
+    /* Mode sombre et accessibilité conservés */
     @media (prefers-color-scheme: dark) {
       .dark-mode {
         background: #1a1a1a;
@@ -69,15 +427,6 @@
       .dark-mode .border-gray-200 {
         border-color: #404040 !important;
       }
-    }
-    
-    /* Accessibilité */
-    .high-contrast {
-      filter: contrast(150%);
-    }
-    
-    .large-text {
-      font-size: 1.2em;
     }
     
     /* Focus amélioré pour navigation clavier */
@@ -105,16 +454,62 @@
         width: 100%;
       }
     }
+    
+    /* Status indicators mobiles */
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.5rem;
+    }
+    
+    .status-online { background: var(--secondary-color); }
+    .status-offline { background: var(--text-secondary); }
+    .status-warning { background: var(--warning-color); }
+    .status-danger { background: var(--danger-color); }
   </style>
 </head>
 <body class="bg-gray-50">
 <div id="app">
-  <div class="min-h-screen bg-gray-50 flex items-center justify-center">
+  <!-- Loading screen initial -->
+  <div class="min-h-screen bg-gray-50 flex items-center justify-center" id="initialLoader">
     <div class="text-center">
       <div class="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
       <p class="text-gray-600">Chargement de SYL Medical...</p>
     </div>
   </div>
+  
+  <!-- Contenu principal avec navigation mobile -->
+  <div class="main-content" id="mainApp" style="display: none;">
+    <!-- Le contenu de l'app sera injecté ici -->
+  </div>
+  
+  <!-- Navigation mobile bottom (visible uniquement sur mobile) -->
+  <nav class="mobile-nav" id="mobileNav" style="display: none;">
+    <div class="mobile-nav-items">
+      <a href="#" class="mobile-nav-item" id="nav-dashboard" onclick="switchTab('dashboard')">
+        <div class="mobile-nav-icon">🏠</div>
+        <div class="mobile-nav-label">Accueil</div>
+      </a>
+      <a href="#" class="mobile-nav-item" id="nav-profile" onclick="switchTab('profile')">
+        <div class="mobile-nav-icon">👤</div>
+        <div class="mobile-nav-label">Profil</div>
+      </a>
+      <a href="#" class="mobile-nav-item" id="nav-emergency" onclick="switchTab('emergency')">
+        <div class="mobile-nav-icon">🚨</div>
+        <div class="mobile-nav-label">Urgence</div>
+      </a>
+      <a href="#" class="mobile-nav-item" id="nav-nfc" onclick="switchTab('nfc')">
+        <div class="mobile-nav-icon">📱</div>
+        <div class="mobile-nav-label">NFC</div>
+      </a>
+      <a href="#" class="mobile-nav-item" id="nav-settings" onclick="switchTab('settings')">
+        <div class="mobile-nav-icon">⚙️</div>
+        <div class="mobile-nav-label">Réglages</div>
+      </a>
+    </div>
+  </nav>
 </div>
 <script>
 // Gestion d'erreur globale
@@ -1394,23 +1789,25 @@ if (typeof window !== 'undefined') {
 }
 
 function showLogin() {
-  document.getElementById('app').innerHTML = `
+  const mainApp = document.getElementById('mainApp') || document.getElementById('app');
+  mainApp.innerHTML = `
 <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
   <div class="w-full max-w-md">
-    <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-      <div class="text-center mb-8">
-        <div class="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
-          ${icons.heart}
+    <div class="card">
+      <div class="card-body">
+        <div class="text-center mb-8">
+          <div class="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center mb-4">
+            ${icons.heart}
+          </div>
+          <h1 class="text-2xl md:text-3xl font-bold text-gray-900">SYL Medical</h1>
+          <p class="text-gray-600 mt-2">Système d'Urgence Médicale</p>
         </div>
-        <h1 class="text-2xl font-bold text-gray-900">SYL Medical</h1>
-        <p class="text-gray-600 mt-2">Système d'Urgence Médicale</p>
-      </div>
 
-      <!-- Interface simplifiée pour patients -->
-      <div class="mb-6">
-        <div class="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-600">
-          <div class="text-blue-600 text-3xl mb-2">${icons.user}</div>
-          <h3 class="text-lg font-semibold text-blue-800">Espace Patient</h3>
+        <!-- Interface simplifiée pour patients -->
+        <div class="mb-6">
+          <div class="text-center p-4 bg-blue-50 rounded-lg border-2 border-blue-600">
+            <div class="text-blue-600 text-3xl mb-2">${icons.user}</div>
+            <h3 class="text-lg font-semibold text-blue-800">Espace Patient</h3>
           <p class="text-sm text-blue-600">Connectez-vous ou créez votre compte médical</p>
         </div>
       </div>
@@ -1868,22 +2265,47 @@ function renderPatientDashboard(user) {
   render();
 
   function render() {
-    document.getElementById('app').innerHTML = `
+    const appContainer = document.getElementById('mainApp') || document.getElementById('app');
+    appContainer.innerHTML = `
     <div class="min-h-screen bg-gray-50">
-      <header class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+      <!-- Header mobile-friendly -->
+      <header class="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div class="container flex justify-between items-center h-16">
           <div class="flex items-center">
-            ${icons.heart}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Medical</h1>
+            ${icons.heart}<h1 class="text-lg md:text-xl font-bold text-gray-900 ml-2">SYL Medical</h1>
           </div>
-          <div class="flex items-center space-x-4">
-            <div class="text-sm text-gray-600">Bonjour, ${user.profile.firstName} ${user.profile.lastName || ''}</div>
-            <button id="logoutBtn" class="border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
+          <div class="flex items-center space-x-2 md:space-x-4">
+            <div class="text-xs md:text-sm text-gray-600 hidden sm:block">Bonjour, ${user.profile.firstName}</div>
+            <button id="logoutBtn" class="btn btn-secondary btn-sm desktop-only">${icons.logout} <span class="hidden md:inline ml-1">Déconnexion</span></button>
           </div>
         </div>
       </header>
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div class="lg:col-span-1">
+      
+      <div class="container py-4 md:py-8">
+        <!-- Navigation tabs mobile -->
+        <div class="mobile-only mb-6">
+          <div class="grid grid-cols-2 gap-2 mb-4">
+            <button class="btn ${activeTab==='emergency' ? 'btn-primary':'btn-secondary'}" data-tab="emergency">
+              🚨 <span class="ml-1">Urgence</span>
+            </button>
+            <button class="btn ${activeTab==='profile' ? 'btn-primary':'btn-secondary'}" data-tab="profile">
+              👤 <span class="ml-1">Profil</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button class="btn ${activeTab==='medical' ? 'btn-primary':'btn-secondary'}" data-tab="medical">
+              🏥 <span class="ml-1">Médical</span>
+            </button>
+            <button class="btn ${activeTab==='history' ? 'btn-primary':'btn-secondary'}" data-tab="history">
+              📊 <span class="ml-1">Historique</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Layout desktop/mobile -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+          <!-- Sidebar desktop -->
+          <div class="lg:col-span-1 desktop-only">
             <nav class="space-y-2">
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='emergency' ? 'bg-red-100 text-red-700 border-l-4 border-red-600':'text-gray-600 hover:bg-gray-100'}" data-tab="emergency">${icons.emergency} <span class="ml-3">🚑 Urgence</span></button>
               <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='profile' ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-600':'text-gray-600 hover:bg-gray-100'}" data-tab="profile">${icons.user} <span class="ml-3">Profil complet</span></button>
@@ -2618,36 +3040,69 @@ function renderPatientDashboard(user) {
   // Fonction pour créer un contenu d'urgence ultra-simple
   async function createSimpleEmergencyInfo() {
     try {
-      // Récupérer les données du patient connecté depuis Firestore
+      // Récupérer les données du patient connecté depuis la collection patients
       let patient = {};
       
-      if (user && user.uid) {
-        const patientDoc = await db.collection('patients').doc(user.uid).get();
-        if (patientDoc.exists) {
-          patient = patientDoc.data();
+      console.log('🔍 Recherche patient dans collection patients pour email:', user.email);
+      
+      if (user && user.email) {
+        // Chercher directement dans patients par le champ email
+        console.log('🔍 Requête dans collection patients where email ==', user.email);
+        const patientQuery = await db.collection('patients')
+          .where('email', '==', user.email)
+          .limit(1)
+          .get();
+        
+        console.log('📄 Nombre de documents trouvés:', patientQuery.size);
+        
+        if (!patientQuery.empty) {
+          patient = patientQuery.docs[0].data();
+          console.log('✅ Patient trouvé par email dans patients:', patient);
+          console.log('📄 ID du document:', patientQuery.docs[0].id);
         } else {
-          // Fallback: chercher par email
-          const patientQuery = await db.collection('patients')
-            .where('email', '==', user.email)
-            .limit(1)
-            .get();
+          console.log('❌ Aucun patient trouvé avec cet email');
           
-          if (!patientQuery.empty) {
-            patient = patientQuery.docs[0].data();
-          }
+          // Debug: lister quelques patients pour voir la structure
+          console.log('🔍 Debug - Listage de quelques patients pour vérifier:');
+          const debugQuery = await db.collection('patients').limit(3).get();
+          debugQuery.forEach((doc, index) => {
+            const data = doc.data();
+            console.log(`Patient ${index + 1}:`, {
+              id: doc.id,
+              email: data.email,
+              nom: data.nom,
+              prenom: data.prenom
+            });
+          });
         }
+      }
+      
+      console.log('📊 Données patient finales:', patient);
+      
+      // Si toujours pas de données, utiliser les infos de base de l'utilisateur
+      if (!patient || (!patient.nom && !patient.prenom)) {
+        console.log('⚠️ Pas de données patient complètes, utilisation fallback');
+        // Extraire le nom depuis l'email
+        const emailParts = user.email.split('@')[0].split('.');
+        patient = {
+          email: user.email,
+          prenom: emailParts[0] ? emailParts[0].charAt(0).toUpperCase() + emailParts[0].slice(1) : 'Patient',
+          nom: emailParts[1] ? emailParts[1].charAt(0).toUpperCase() + emailParts[1].slice(1) : 'SYL',
+          ...patient // Garder les données existantes s'il y en a
+        };
       }
       
       const age = patient.dateNaissance ? 
         new Date().getFullYear() - new Date(patient.dateNaissance).getFullYear() : 'N/A';
       
-      // Version ultra-minimaliste
+      // Version ultra-minimaliste avec vraies données
       let emergencyText = `URGENCE MEDICALE
-${patient.prenom || 'N/A'} ${patient.nom || 'N/A'}
+${patient.prenom || 'Patient'} ${patient.nom || 'SYL'}
 Age: ${age}
 Sang: ${patient.groupeSanguin || 'N/A'}
-Allergies: ${patient.allergies ? patient.allergies.substring(0, 20) : 'Aucune'}
-Contact: ${patient.contactUrgence || 'N/A'}
+Allergies: ${patient.allergies ? patient.allergies.substring(0, 30) : 'Aucune'}
+Contact: ${patient.contactUrgence || patient.telephone || 'N/A'}
+Email: ${patient.email || user.email}
 ID: ${user.uid ? user.uid.substring(0, 6) : 'N/A'}`;
 
       // Nettoyer pour QR code
@@ -2655,16 +3110,18 @@ ID: ${user.uid ? user.uid.substring(0, 6) : 'N/A'}`;
         .replace(/[^\x20-\x7E\n]/g, '') // ASCII seulement
         .trim();
 
-      console.log('Emergency text length:', emergencyText.length);
+      console.log('📋 Contenu QR final:', emergencyText);
+      console.log('📏 Taille:', emergencyText.length, 'caractères');
       return emergencyText;
       
     } catch (error) {
-      console.error('Erreur création info urgence:', error);
+      console.error('❌ Erreur création info urgence:', error);
       // Version ultra-minimale en cas d'erreur
       return `URGENCE MEDICALE
-Patient: ${user.email || 'N/A'}
+Patient: ${user.email || 'Utilisateur connecte'}
 ID: ${user.uid ? user.uid.substring(0, 6) : 'N/A'}
-SYL Medical`;
+Contact: SYL Medical
+Email: ${user.email || 'N/A'}`;
     }
   }
 
@@ -3440,50 +3897,124 @@ async function renderAdminDashboard(user) {
 
   function render() {
     document.getElementById('app').innerHTML = `
-    <div class="min-h-screen bg-gray-50">
-      <header class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-          <div class="flex items-center">
-            ${icons.settings}<h1 class="text-xl font-bold text-gray-900 ml-3">SYL Admin</h1>
+    <div class="admin-container">
+      <!-- Header admin mobile-first -->
+      <div class="admin-header">
+        <div class="admin-header-content">
+          <div class="admin-title-section">
+            <div class="admin-icon">⚙️</div>
+            <h1 class="admin-title">SYL Admin</h1>
           </div>
-          <div class="flex items-center space-x-4">
-            <div class="flex items-center space-x-2">
-              <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span class="text-sm text-green-600 font-medium">Temps réel</span>
+          <div class="admin-status">
+            <div class="status-indicator">
+              <div class="status-dot"></div>
+              <span class="status-text">Temps réel</span>
             </div>
-            <div class="text-sm text-gray-600">Admin: ${user.profile.firstName}</div>
-            <button id="logoutBtn" class="border-2 border-purple-600 text-purple-600 hover:bg-purple-50 font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.logout} Déconnexion</button>
+            <div class="admin-info">Admin: ${user.profile.firstName}</div>
+            <button id="logoutBtn" class="btn-secondary mobile-logout">
+              <span class="btn-icon">🚪</span>
+              <span class="btn-text">Déconnexion</span>
+            </button>
           </div>
         </div>
-      </header>
+      </div>
       
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div class="lg:col-span-1">
-          <nav class="space-y-2">
-            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='patients' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="patients">${icons.users} <span class="ml-3">Patients</span></button>
-            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='nfc' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="nfc">${icons.smartphone} <span class="ml-3">Tags NFC</span></button>
-            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='associations' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="associations">${icons.shield} <span class="ml-3">Associations</span></button>
-            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='analytics' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="analytics">${icons.activity} <span class="ml-3">Analytics</span></button>
-            <button class="w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${activeTab==='debug' ? 'bg-purple-100 text-purple-700 border-l-4 border-purple-600':'text-gray-600 hover:bg-gray-100'}" data-tab="debug">🔧 <span class="ml-3">Debug & Maintenance</span></button>
-          </nav>
-        </div>          <div class="lg:col-span-3">
-            ${activeTab === 'patients' ? renderPatientsTab() : ''}
-            ${activeTab === 'nfc' ? renderNFCTab() : ''}
-            ${activeTab === 'associations' ? renderAssociationsTab() : ''}
-            ${activeTab === 'analytics' ? renderAnalyticsTab() : ''}
-            ${activeTab === 'debug' ? renderDebugTab() : ''}
-          </div>
-        </div>
+      <!-- Navigation admin mobile -->
+      <div class="admin-nav-mobile">
+        <button class="admin-nav-btn ${activeTab==='patients' ? 'active' : ''}" data-tab="patients">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">Patients</span>
+        </button>
+        <button class="admin-nav-btn ${activeTab==='nfc' ? 'active' : ''}" data-tab="nfc">
+          <span class="nav-icon">📱</span>
+          <span class="nav-label">NFC</span>
+        </button>
+        <button class="admin-nav-btn ${activeTab==='associations' ? 'active' : ''}" data-tab="associations">
+          <span class="nav-icon">🔗</span>
+          <span class="nav-label">Associations</span>
+        </button>
+        <button class="admin-nav-btn ${activeTab==='analytics' ? 'active' : ''}" data-tab="analytics">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Analytics</span>
+        </button>
+        <button class="admin-nav-btn ${activeTab==='debug' ? 'active' : ''}" data-tab="debug">
+          <span class="nav-icon">🔧</span>
+          <span class="nav-label">Debug</span>
+        </button>
+      </div>
+
+      <!-- Navigation admin desktop (sidebar) -->
+      <div class="admin-nav-desktop">
+        <button class="admin-nav-btn-desktop ${activeTab==='patients' ? 'active' : ''}" data-tab="patients">
+          ${icons.users}<span class="nav-text">Patients</span>
+        </button>
+        <button class="admin-nav-btn-desktop ${activeTab==='nfc' ? 'active' : ''}" data-tab="nfc">
+          ${icons.smartphone}<span class="nav-text">Tags NFC</span>
+        </button>
+        <button class="admin-nav-btn-desktop ${activeTab==='associations' ? 'active' : ''}" data-tab="associations">
+          ${icons.shield}<span class="nav-text">Associations</span>
+        </button>
+        <button class="admin-nav-btn-desktop ${activeTab==='analytics' ? 'active' : ''}" data-tab="analytics">
+          ${icons.activity}<span class="nav-text">Analytics</span>
+        </button>
+        <button class="admin-nav-btn-desktop ${activeTab==='debug' ? 'active' : ''}" data-tab="debug">
+          <span class="nav-icon">🔧</span><span class="nav-text">Debug & Maintenance</span>
+        </button>
+      </div>
+      
+      <!-- Contenu principal -->
+      <div class="admin-content">
+        ${activeTab === 'patients' ? renderPatientsTab() : ''}
+        ${activeTab === 'nfc' ? renderNFCTab() : ''}
+        ${activeTab === 'associations' ? renderAssociationsTab() : ''}
+        ${activeTab === 'analytics' ? renderAnalyticsTab() : ''}
+        ${activeTab === 'debug' ? renderDebugTab() : ''}
       </div>
     </div>
     `;
     
     document.getElementById('logoutBtn').onclick = () => { logout(); };
-    document.querySelectorAll('[data-tab]').forEach(btn => btn.onclick = () => { 
-      activeTab = btn.getAttribute('data-tab'); 
-      render(); 
+    
+    // Gestion navigation mobile et desktop
+    document.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.onclick = () => { 
+        activeTab = btn.getAttribute('data-tab'); 
+        render(); 
+      };
     });
+    
+    // Gestion spécifique mobile pour les swipe gestures
+    if (window.innerWidth <= 768) {
+      let startX, currentX;
+      const adminNav = document.querySelector('.admin-nav-mobile');
+      
+      adminNav.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+      }, {passive: true});
+      
+      adminNav.addEventListener('touchmove', (e) => {
+        currentX = e.touches[0].clientX;
+      }, {passive: true});
+      
+      adminNav.addEventListener('touchend', () => {
+        const diffX = startX - currentX;
+        if (Math.abs(diffX) > 50) {
+          // Swipe horizontal pour changer d'onglet
+          const tabs = ['patients', 'nfc', 'associations', 'analytics', 'debug'];
+          const currentIndex = tabs.indexOf(activeTab);
+          
+          if (diffX > 0 && currentIndex < tabs.length - 1) {
+            // Swipe gauche = onglet suivant
+            activeTab = tabs[currentIndex + 1];
+            render();
+          } else if (diffX < 0 && currentIndex > 0) {
+            // Swipe droite = onglet précédent
+            activeTab = tabs[currentIndex - 1];
+            render();
+          }
+        }
+      }, {passive: true});
+    }
     
     if (activeTab === 'patients') setupPatientsEvents();
     if (activeTab === 'nfc') setupNFCEvents();
@@ -3493,94 +4024,140 @@ async function renderAdminDashboard(user) {
 
   function renderPatientsTab() {
     return `
-      <div class="space-y-6">
-        <div class="flex justify-between items-center">
-          <h2 class="text-2xl font-bold text-gray-900">Gestion des Patients</h2>
-          <div class="flex gap-2">
-            <button onclick="deleteAllPatients()" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Supprimer tous les patients">${icons.trash} Supprimer Tout</button>
-            <button id="refreshPatients" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">${icons.activity} Actualiser</button>
-            ${window.innerWidth <= 768 ? '<button id="forceMobileSyncBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2" title="Synchronisation forcée mobile">📱 Sync Mobile</button>' : ''}
+      <div class="admin-section">
+        <!-- Header section mobile -->
+        <div class="section-header">
+          <h2 class="section-title">Gestion des Patients</h2>
+          <div class="section-actions">
+            <button onclick="deleteAllPatients()" class="btn-danger mobile-action" title="Supprimer tous">
+              <span class="btn-icon">🗑️</span>
+              <span class="btn-text">Suppr. Tout</span>
+            </button>
+            <button id="refreshPatients" class="btn-primary mobile-action">
+              <span class="btn-icon">🔄</span>
+              <span class="btn-text">Actualiser</span>
+            </button>
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Recherche de patient</h3>
-          <div class="flex gap-4 mb-4">
-            <input type="text" id="searchPatient" placeholder="Rechercher par nom, email, ID..." class="flex-1 px-3 py-2 border border-gray-300 rounded-lg">
-            <button id="searchBtn" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2">${icons.search}</button>
+        <!-- Recherche mobile -->
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <input type="text" id="searchPatient" placeholder="Rechercher par nom, email..." class="search-input">
+            <button id="searchBtn" class="search-btn">🔍</button>
           </div>
         </div>
 
-        <!-- Section d'aide pour les suppressions -->
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <div class="flex items-center mb-2">
-            <div class="text-amber-600 mr-2">${icons.warning}</div>
-            <h4 class="font-semibold text-blue-800">Gestion Administrative Simplifiée</h4>
+        <!-- Aide admin mobile -->
+        <div class="info-card">
+          <div class="info-header">
+            <span class="info-icon">⚠️</span>
+            <h4 class="info-title">Gestion Administrative</h4>
           </div>
-          <div class="text-sm text-amber-700 space-y-1">
-            <p><strong>🗑️ Suppression individuelle :</strong> Cliquez sur l'icône rouge dans la colonne "Actions" de chaque patient</p>
-            <p><strong>🚨 Suppression massive :</strong> Bouton "SUPPR. TOUT" - ATTENTION: Irréversible !</p>
-            <p><strong>� Auth Debug :</strong> Diagnostic des problèmes "email déjà utilisé" après suppression</p>
-            <p><strong>�🔒 Sécurité :</strong> Double confirmation + suppression Firebase automatique</p>
-            <p><strong>� Astuce :</strong> Si inscription impossible, utilisez "Auth Debug" pour diagnostiquer</p>
+          <div class="info-content">
+            <p><strong>🗑️ Suppression:</strong> Clic sur l'icône rouge</p>
+            <p><strong>🚨 Suppr. Masse:</strong> Bouton "SUPPR. TOUT" - Irréversible!</p>
+            <p><strong>🔧 Debug Auth:</strong> Si problème inscription</p>
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Liste des Patients (${patients.length})</h3>
+        <!-- Liste patients mobile-first -->
+        <div class="content-card">
+          <h3 class="card-title">Liste des Patients (${patients.length})</h3>
           ${patients.length === 0 ? `
-            <div class="text-center py-8">
-              <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                ${icons.users}
-              </div>
-              <h4 class="text-lg font-medium text-gray-900 mb-2">Aucun patient trouvé</h4>
-              <p class="text-gray-600 mb-4">Cliquez sur "Charger Firebase" pour récupérer les patients depuis votre base de données.</p>
-              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                <h5 class="font-medium text-blue-900 mb-2">Pour résoudre l'erreur de permissions :</h5>
-                <ol class="text-sm text-blue-800 space-y-1">
-                  <li>1. Vérifiez que vous êtes connecté avec un compte admin</li>
-                  <li>2. Configurez les règles Firestore pour permettre la lecture</li>
-                  <li>3. Assurez-vous que des utilisateurs avec role="patient" existent</li>
+            <div class="empty-state">
+              <div class="empty-icon">👥</div>
+              <h4 class="empty-title">Aucun patient trouvé</h4>
+              <p class="empty-description">Cliquez sur "Actualiser" pour charger les patients depuis Firebase.</p>
+              <div class="help-card">
+                <h5 class="help-title">Pour résoudre les erreurs :</h5>
+                <ol class="help-list">
+                  <li>Vérifiez la connexion admin</li>
+                  <li>Configurez les règles Firestore</li>
+                  <li>Assurez-vous que des patients existent</li>
                 </ol>
               </div>
             </div>
           ` : `
-          <div class="overflow-x-auto">
-            <table class="w-full table-auto">
+          <!-- Mobile Cards View -->
+          <div class="mobile-cards">
+            ${patients.map(patient => `
+              <div class="patient-card">
+                <div class="patient-header">
+                  <div class="patient-info">
+                    <div class="patient-name">${patient.personalInfo?.firstName || 'N/A'} ${patient.personalInfo?.lastName || 'N/A'}</div>
+                    <div class="patient-email">${patient.email || 'N/A'}</div>
+                  </div>
+                  <div class="patient-status">
+                    ${patient.isActive ? '<span class="status-active">Actif</span>' : '<span class="status-inactive">Inactif</span>'}
+                  </div>
+                </div>
+                
+                <div class="patient-details">
+                  <div class="detail-item">
+                    <span class="detail-label">ID:</span>
+                    <span class="detail-value">${patient.id || patient.uid || 'N/A'}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Groupe sang.:</span>
+                    <span class="detail-value blood-type">${patient.personalInfo?.bloodType || 'N/A'}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Tag NFC:</span>
+                    <span class="detail-value">${patient.nfcTagId ? `🏷️ ${patient.nfcTagId}` : '❌ Non assigné'}</span>
+                  </div>
+                </div>
+                
+                <div class="patient-actions">
+                  <button onclick="viewPatient('${patient.id || patient.uid}')" class="action-btn view-btn" title="Voir">
+                    👁️
+                  </button>
+                  <button onclick="assignNFC('${patient.id || patient.uid}')" class="action-btn nfc-btn" title="NFC">
+                    📱
+                  </button>
+                  <button onclick="deletePatient('${patient.id || patient.uid}', '${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}')" class="action-btn delete-btn" title="Supprimer">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <!-- Desktop Table View (hidden on mobile) -->
+          <div class="desktop-table">
+            <table class="data-table">
               <thead>
-                <tr class="border-b border-gray-200">
-                  <th class="text-left py-3 px-4">Patient</th>
-                  <th class="text-left py-3 px-4">Email</th>
-                  <th class="text-left py-3 px-4">Groupe Sang.</th>
-                  <th class="text-left py-3 px-4">Tag NFC</th>
-                  <th class="text-left py-3 px-4">Statut</th>
-                  <th class="text-left py-3 px-4">Actions</th>
+                <tr>
+                  <th>Patient</th>
+                  <th>Email</th>
+                  <th>Groupe Sang.</th>
+                  <th>Tag NFC</th>
+                  <th>Statut</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody id="patientsTable">
+              <tbody>
                 ${patients.map(patient => `
-                  <tr class="border-b border-gray-100 hover:bg-gray-50">
-                    <td class="py-3 px-4">
-                      <div>
-                        <div class="font-medium">${patient.personalInfo?.firstName || 'N/A'} ${patient.personalInfo?.lastName || 'N/A'}</div>
-                        <div class="text-sm text-gray-500">ID: ${patient.id || patient.uid || 'N/A'}</div>
+                  <tr>
+                    <td>
+                      <div class="table-patient-info">
+                        <div class="patient-name">${patient.personalInfo?.firstName || 'N/A'} ${patient.personalInfo?.lastName || 'N/A'}</div>
+                        <div class="patient-id">ID: ${patient.id || patient.uid || 'N/A'}</div>
                       </div>
                     </td>
-                    <td class="py-3 px-4">${patient.email || 'N/A'}</td>
-                    <td class="py-3 px-4">
-                      <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-sm">${patient.personalInfo?.bloodType || 'N/A'}</span>
+                    <td>${patient.email || 'N/A'}</td>
+                    <td><span class="blood-type-badge">${patient.personalInfo?.bloodType || 'N/A'}</span></td>
+                    <td>
+                      ${patient.nfcTagId ? `<span class="nfc-badge">${patient.nfcTagId}</span>` : '<span class="no-nfc">Non assigné</span>'}
                     </td>
-                    <td class="py-3 px-4">
-                      ${patient.nfcTagId ? `<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">${patient.nfcTagId}</span>` : '<span class="text-gray-500">Non assigné</span>'}
+                    <td>
+                      ${patient.isActive ? '<span class="status-active">Actif</span>' : '<span class="status-inactive">Inactif</span>'}
                     </td>
-                    <td class="py-3 px-4">
-                      ${patient.isActive ? '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">Actif</span>' : '<span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Inactif</span>'}
-                    </td>
-                    <td class="py-3 px-4">
-                      <div class="flex gap-2">
-                        <button onclick="viewPatient('${patient.id || patient.uid}')" class="text-blue-600 hover:text-blue-700" title="Voir le patient">${icons.eye}</button>
-                        <button onclick="assignNFC('${patient.id || patient.uid}')" class="text-green-600 hover:text-green-700" title="Assigner NFC">${icons.smartphone}</button>
-                        <button onclick="deletePatient('${patient.id || patient.uid}', '${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}')" class="text-red-600 hover:text-red-700" title="Supprimer le patient">${icons.trash}</button>
+                    <td>
+                      <div class="table-actions">
+                        <button onclick="viewPatient('${patient.id || patient.uid}')" class="action-btn-small view" title="Voir">${icons.eye}</button>
+                        <button onclick="assignNFC('${patient.id || patient.uid}')" class="action-btn-small nfc" title="NFC">${icons.smartphone}</button>
+                        <button onclick="deletePatient('${patient.id || patient.uid}', '${patient.personalInfo?.firstName || ''} ${patient.personalInfo?.lastName || ''}')" class="action-btn-small delete" title="Supprimer">${icons.trash}</button>
                       </div>
                     </td>
                   </tr>
@@ -6685,6 +7262,13 @@ function renderApp() {
   console.log("renderApp appellee");
   
   try {
+    // Masquer le loader initial et afficher l'app
+    const initialLoader = document.getElementById('initialLoader');
+    const mainApp = document.getElementById('mainApp');
+    const mobileNav = document.getElementById('mobileNav');
+    
+    if (initialLoader) initialLoader.style.display = 'none';
+    
     // PRIORITÉ 1: Vérifier d'abord si on est en mode accès d'urgence
     const urlParams = new URLSearchParams(window.location.search);
     const patientId = urlParams.get('patient');
@@ -6692,6 +7276,8 @@ function renderApp() {
     
     if (patientId && accessType === 'medical') {
       console.log('🚑 Mode accès fiche médicale prioritaire:', patientId);
+      if (mainApp) mainApp.style.display = 'block';
+      if (mobileNav) mobileNav.style.display = 'none'; // Pas de nav en mode urgence
       showPatientMedicalRecord(patientId);
       return; // Arrêter ici pour éviter d'écraser l'affichage
     }
@@ -6699,6 +7285,8 @@ function renderApp() {
     // Vérifier que Firebase est chargé
     if (typeof firebase === 'undefined') {
       console.error("Firebase n'est pas charge");
+      if (mainApp) mainApp.style.display = 'block';
+      if (mobileNav) mobileNav.style.display = 'none';
       showLogin();
       return;
     }
@@ -6708,12 +7296,22 @@ function renderApp() {
     
     if (localUser) {
       console.log("Utilisateur connecté, rôle:", localUser.role);
+      
+      // Afficher l'app et la navigation mobile
+      if (mainApp) mainApp.style.display = 'block';
+      if (mobileNav && localUser.role !== 'admin') {
+        mobileNav.style.display = 'block';
+        updateMobileNavForRole(localUser.role);
+      }
+      
       if (localUser.role === 'patient') {
         renderPatientDashboard(localUser);
       } else if (localUser.role === 'medecin') {
         renderMedecinDashboard(localUser);
       } else if (localUser.role === 'admin') {
         renderAdminDashboard(localUser);
+        // Admin utilise la navigation desktop, pas mobile
+        if (mobileNav) mobileNav.style.display = 'none';
       } else {
         console.error("Rôle utilisateur inconnu:", localUser.role);
         clearUser();
@@ -6722,11 +7320,116 @@ function renderApp() {
     } else {
       // Pas d'utilisateur connecté
       console.log("Redirection vers login");
+      if (mainApp) mainApp.style.display = 'block';
+      if (mobileNav) mobileNav.style.display = 'none';
       showLogin();
     }
   } catch (error) {
     console.error("Erreur dans renderApp:", error);
+    const mainApp = document.getElementById('mainApp');
+    const mobileNav = document.getElementById('mobileNav');
+    if (mainApp) mainApp.style.display = 'block';
+    if (mobileNav) mobileNav.style.display = 'none';
     showLogin();
+  }
+}
+
+// Fonction pour adapter la navigation mobile selon le rôle
+function updateMobileNavForRole(role) {
+  const mobileNav = document.getElementById('mobileNav');
+  if (!mobileNav) return;
+  
+  // Navigation pour patients
+  if (role === 'patient') {
+    mobileNav.innerHTML = `
+      <div class="mobile-nav-items">
+        <a href="#" class="mobile-nav-item" id="nav-dashboard" onclick="switchTabMobile('dashboard')">
+          <div class="mobile-nav-icon">🏠</div>
+          <div class="mobile-nav-label">Accueil</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-profile" onclick="switchTabMobile('profile')">
+          <div class="mobile-nav-icon">👤</div>
+          <div class="mobile-nav-label">Profil</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-emergency" onclick="switchTabMobile('emergency')">
+          <div class="mobile-nav-icon">🚨</div>
+          <div class="mobile-nav-label">Urgence</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-nfc" onclick="switchTabMobile('nfc')">
+          <div class="mobile-nav-icon">📱</div>
+          <div class="mobile-nav-label">NFC</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-settings" onclick="logout()">
+          <div class="mobile-nav-icon">🚪</div>
+          <div class="mobile-nav-label">Sortir</div>
+        </a>
+      </div>
+    `;
+  }
+  
+  // Navigation pour médecins
+  if (role === 'medecin') {
+    mobileNav.innerHTML = `
+      <div class="mobile-nav-items">
+        <a href="#" class="mobile-nav-item" id="nav-dashboard" onclick="switchTabMobile('dashboard')">
+          <div class="mobile-nav-icon">🏥</div>
+          <div class="mobile-nav-label">Patients</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-nfc" onclick="switchTabMobile('nfc')">
+          <div class="mobile-nav-icon">📱</div>
+          <div class="mobile-nav-label">NFC</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-emergency" onclick="switchTabMobile('emergency')">
+          <div class="mobile-nav-icon">🚨</div>
+          <div class="mobile-nav-label">Urgences</div>
+        </a>
+        <a href="#" class="mobile-nav-item" id="nav-settings" onclick="logout()">
+          <div class="mobile-nav-icon">🚪</div>
+          <div class="mobile-nav-label">Sortir</div>
+        </a>
+      </div>
+    `;
+  }
+}
+
+// Fonction pour changer d'onglet sur mobile
+function switchTabMobile(tabName) {
+  // Retirer la classe active de tous les onglets
+  document.querySelectorAll('.mobile-nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  
+  // Ajouter la classe active à l'onglet sélectionné
+  const activeTab = document.getElementById(`nav-${tabName}`);
+  if (activeTab) {
+    activeTab.classList.add('active');
+  }
+  
+  // Gérer l'affichage du contenu selon l'onglet
+  const user = getUser();
+  if (!user) return;
+  
+  switch(tabName) {
+    case 'dashboard':
+      if (user.role === 'patient') {
+        renderPatientDashboard(user);
+      } else if (user.role === 'medecin') {
+        renderMedecinDashboard(user);
+      }
+      break;
+    case 'profile':
+      if (user.role === 'patient') {
+        showTab('monProfil');
+      }
+      break;
+    case 'emergency':
+      showTab('situationUrgence');
+      break;
+    case 'nfc':
+      showTab('gestionNFC');
+      break;
+    default:
+      console.log('Onglet non reconnu:', tabName);
   }
 }
 
