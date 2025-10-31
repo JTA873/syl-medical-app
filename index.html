@@ -4924,7 +4924,7 @@ function showStep3() {
     }
     
     // Générer le lien d'urgence
-    const emergencyLink = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
+    const emergencyLink = `${window.location.origin}${window.location.pathname}?patient=${selectedPatientId}&access=medical`;
     const linkDiv = document.getElementById('generatedLink');
     if (linkDiv) {
       linkDiv.textContent = emergencyLink;
@@ -5018,7 +5018,7 @@ function generatePatientMedicalCard(patient) {
       relationship: patient.emergencyContact?.relationship || '',
       phone: patient.emergencyContact?.phone || ''
     },
-    accessLink: `${window.location.origin}/OLDINDEX.html?patient=${patient.id || patient.uid}&access=medical`
+    accessLink: `${window.location.origin}${window.location.pathname}?patient=${patient.id || patient.uid}&access=medical`
   };
   
   // Sauvegarder dans localStorage pour accès rapide
@@ -5034,7 +5034,7 @@ function writePatientToNFC() {
     return;
   }
   
-  const emergencyLink = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
+  const emergencyLink = `${window.location.origin}${window.location.pathname}?patient=${selectedPatientId}&access=medical`;
   
   // Utiliser le vrai système d'écriture NFC
   writeNFCReal(currentScannedTag, emergencyLink);
@@ -5248,7 +5248,7 @@ function testNFCLink() {
     return;
   }
   
-  const link = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
+  const link = `${window.location.origin}${window.location.pathname}?patient=${selectedPatientId}&access=medical`;
   window.open(link, '_blank');
 }
 
@@ -5292,7 +5292,7 @@ function testNFCAssignment(tagId) {
   if (window.nfcTags) {
     const tag = window.nfcTags.find(t => t.id === tagId);
     if (tag && tag.assignedTo) {
-      const link = `${window.location.origin}/OLDINDEX.html?patient=${tag.assignedTo}&access=medical`;
+      const link = `${window.location.origin}${window.location.pathname}?patient=${tag.assignedTo}&access=medical`;
       window.open(link, '_blank');
     }
   }
@@ -5895,7 +5895,7 @@ async function renderAdminDashboard(user) {
                   
                   <div class="assignment-link">
                     <div class="link-label">🔗 Lien d'urgence:</div>
-                    <div class="emergency-link">${window.location.origin}/OLDINDEX.html?patient=${tag.assignedTo}&access=medical</div>
+                    <div class="emergency-link">${window.location.origin}${window.location.pathname}?patient=${tag.assignedTo}&access=medical</div>
                   </div>
                   
                   <div class="assignment-actions">
@@ -6075,6 +6075,9 @@ async function renderAdminDashboard(user) {
           <div class="flex gap-2">
             <button id="runQuickDiag" class="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">
               🏥 Diagnostic Rapide
+            </button>
+            <button id="testEmergencyAccess" class="bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-4 py-2 flex items-center gap-2">
+              🚑 Test Accès Urgence
             </button>
           </div>
         </div>
@@ -7055,6 +7058,23 @@ END:VCARD`;
       } catch (error) {
         logToDebugOutput(`❌ Erreur diagnostic: ${error.message}`, 'error');
       }
+    });
+    
+    // Test d'accès d'urgence
+    document.getElementById('testEmergencyAccess')?.addEventListener('click', () => {
+      logToDebugOutput("🚑 Test d'accès d'urgence...", 'info');
+      
+      // Créer le patient de test
+      createTestPatient();
+      logToDebugOutput("✅ Patient de test créé", 'success');
+      
+      // Simuler l'accès d'urgence
+      const emergencyUrl = `${window.location.origin}${window.location.pathname}?patient=test_patient_123&access=medical`;
+      logToDebugOutput(`🔗 URL d'urgence: ${emergencyUrl}`, 'info');
+      
+      // Ouvrir dans un nouvel onglet pour tester
+      window.open(emergencyUrl, '_blank');
+      logToDebugOutput("🚑 Accès d'urgence ouvert dans un nouvel onglet", 'success');
     });
     
     // Analyse des collections
@@ -8944,6 +8964,13 @@ function renderApp() {
       console.log('🚑 Mode accès fiche médicale prioritaire:', patientId);
       if (mainApp) mainApp.style.display = 'block';
       if (mobileNav) mobileNav.style.display = 'none'; // Pas de nav en mode urgence
+      
+      // Créer le patient de test s'il n'existe pas
+      if (patientId === 'test_patient_123') {
+        console.log('🔧 Création automatique du patient de test');
+        createTestPatient();
+      }
+      
       showPatientMedicalRecord(patientId);
       return; // Arrêter ici pour éviter d'écraser l'affichage
     }
