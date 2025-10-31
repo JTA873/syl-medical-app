@@ -1012,6 +1012,388 @@
       color: #EF4444;
     }
     
+    /* Workflow NFC Styles */
+    .workflow-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    
+    .workflow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      flex: 1;
+      min-width: 150px;
+    }
+    
+    .step-number {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+      transition: all 0.3s;
+    }
+    
+    .step-number.active {
+      background: var(--primary-color);
+      transform: scale(1.1);
+      box-shadow: var(--shadow-lg);
+    }
+    
+    .step-content h4 {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+    }
+    
+    .step-content p {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+    
+    .workflow-arrow {
+      font-size: 1.5rem;
+      color: var(--text-secondary);
+      font-weight: bold;
+    }
+    
+    .workflow-section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: var(--surface-dark);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+    }
+    
+    .workflow-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+    
+    .workflow-icon {
+      font-size: 1.5rem;
+    }
+    
+    .input-group {
+      margin-bottom: 1.5rem;
+    }
+    
+    .input-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .input-with-button {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .input-with-button .form-input {
+      flex: 1;
+    }
+    
+    .scan-result {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+    }
+    
+    .scan-result.success {
+      background: #F0FDF4;
+      color: #15803D;
+      border: 1px solid #10B981;
+    }
+    
+    .scan-result.error {
+      background: #FEF2F2;
+      color: #DC2626;
+      border: 1px solid #EF4444;
+    }
+    
+    /* Patient Selector */
+    .patient-selector {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-top: 0.5rem;
+    }
+    
+    .patient-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .patient-option:hover {
+      background: var(--surface-dark);
+    }
+    
+    .patient-option.selected {
+      background: #EBF8FF;
+      border-color: var(--primary-color);
+    }
+    
+    .patient-option-info {
+      flex: 1;
+    }
+    
+    .patient-option-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+    
+    .patient-option-email {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.25rem;
+    }
+    
+    .patient-option-details {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    
+    .patient-option-action {
+      margin-left: 1rem;
+    }
+    
+    .select-btn {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .select-btn:hover {
+      background: var(--primary-dark);
+    }
+    
+    .selected-patient {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #F0FDF4;
+      border: 1px solid #10B981;
+      border-radius: var(--radius-md);
+    }
+    
+    /* Programming Section */
+    .programming-info {
+      margin-bottom: 1.5rem;
+    }
+    
+    .generated-link {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.875rem;
+      word-break: break-all;
+      margin: 0.5rem 0;
+    }
+    
+    .link-description {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+    
+    .programming-actions {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    
+    .programming-result {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+    }
+    
+    .programming-result.success {
+      background: #F0FDF4;
+      color: #15803D;
+      border: 1px solid #10B981;
+    }
+    
+    .programming-result.error {
+      background: #FEF2F2;
+      color: #DC2626;
+      border: 1px solid #EF4444;
+    }
+    
+    /* NFC Assignments */
+    .nfc-assignments {
+      display: grid;
+      gap: 1rem;
+    }
+    
+    .nfc-assignment-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      transition: all 0.2s;
+    }
+    
+    .nfc-assignment-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    
+    .assignment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    
+    .tag-info {
+      flex: 1;
+    }
+    
+    .tag-id {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 1.125rem;
+    }
+    
+    .tag-description {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+    
+    .assignment-patient {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: var(--surface-dark);
+      border-radius: var(--radius-md);
+    }
+    
+    .patient-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+    
+    .patient-email {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    .assignment-link {
+      margin-bottom: 1rem;
+    }
+    
+    .link-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .emergency-link {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 0.5rem;
+      font-family: monospace;
+      font-size: 0.75rem;
+      word-break: break-all;
+      color: var(--primary-color);
+    }
+    
+    .assignment-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    
+    .test-btn {
+      background: #EBF8FF;
+      color: #3B82F6;
+    }
+    
+    .test-btn:hover {
+      background: #3B82F6;
+      color: white;
+    }
+    
+    .edit-btn {
+      background: #F3E8FF;
+      color: #7C3AED;
+    }
+    
+    .edit-btn:hover {
+      background: #7C3AED;
+      color: white;
+    }
+    
+    .assignment-meta {
+      border-top: 1px solid var(--border-color);
+      padding-top: 0.75rem;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .workflow-steps {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+      
+      .workflow-arrow {
+        transform: rotate(90deg);
+      }
+      
+      .programming-actions {
+        flex-direction: column;
+      }
+      
+      .assignment-actions {
+        justify-content: center;
+      }
+    }
+    
     /* Responsive design */
     @media (min-width: 768px) {
       .admin-nav-mobile {
@@ -4759,94 +5141,200 @@ async function renderAdminDashboard(user) {
 
   function renderNFCTab() {
     return `
-      <div class="space-y-6">
-        <div class="flex justify-between items-center">
-          <h2 class="text-2xl font-bold text-gray-900">Gestion des Tags NFC</h2>
-          <button id="addNFCTag" class="bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg px-6 py-2 flex items-center gap-2">${icons.plus} Nouveau Tag</button>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">🏷️ Enregistrer un Tag NFC</h3>
-          
-          <!-- Étapes visuelles -->
-          <div class="mb-6">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex-1">
-                <div class="flex items-center">
-                  <div class="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">1</div>
-                  <div class="ml-3">
-                    <div class="text-sm font-medium text-gray-900">Scanner ou entrer l'ID</div>
-                    <div class="text-xs text-gray-500">Utilisez le bouton Scanner ou entrez manuellement</div>
-                  </div>
-                </div>
-              </div>
-              <div class="flex-1 border-t-2 border-gray-300 mx-4"></div>
-              <div class="flex-1">
-                <div class="flex items-center">
-                  <div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center font-semibold">2</div>
-                  <div class="ml-3">
-                    <div class="text-sm font-medium text-gray-900">Ajouter description</div>
-                    <div class="text-xs text-gray-500">Optionnel mais recommandé</div>
-                  </div>
-                </div>
-              </div>
-              <div class="flex-1 border-t-2 border-gray-300 mx-4"></div>
-              <div class="flex-1">
-                <div class="flex items-center">
-                  <div class="w-8 h-8 bg-gray-300 text-white rounded-full flex items-center justify-center font-semibold">3</div>
-                  <div class="ml-3">
-                    <div class="text-sm font-medium text-gray-900">Enregistrer</div>
-                    <div class="text-xs text-gray-500">Sauvegarder dans le système</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">ID du Tag NFC *</label>
-              <div class="flex gap-2">
-                <input type="text" id="nfcTagId" placeholder="Ex: NFC-001, ABC123..." class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <button id="scanNFC" class="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 flex items-center gap-2 whitespace-nowrap">${icons.smartphone} Scanner</button>
-              </div>
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Description (optionnelle)</label>
-              <input type="text" id="nfcTagDescription" placeholder="Ex: Bracelet rouge, Tag porte principale..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            </div>
-            
-            <div class="flex gap-3 pt-2">
-              <button id="registerNFC" class="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg px-6 py-3 flex items-center justify-center gap-2 font-medium">${icons.check} Enregistrer le Tag</button>
-              <button id="writeNFC" class="bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-3 flex items-center gap-2" title="Programmer les données d'urgence sur le tag physique">${icons.edit} Programmer</button>
-            </div>
+      <div class="admin-section">
+        <!-- Header section -->
+        <div class="section-header">
+          <h2 class="section-title">Gestion des Tags NFC</h2>
+          <div class="section-actions">
+            <button onclick="refreshNFCList()" class="btn-secondary mobile-action">
+              <span class="btn-icon">🔄</span>
+              <span class="btn-text">Actualiser</span>
+            </button>
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Tags NFC enregistrés (${nfcTags.length})</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${nfcTags.map(tag => `
-              <div class="border border-gray-200 rounded-lg p-4 ${tag.assignedTo ? 'bg-green-50 border-green-200' : 'bg-gray-50'}">
-                <div class="flex justify-between items-start mb-2">
-                  <div class="font-medium text-gray-900">${tag.id}</div>
-                  <div class="flex gap-1">
-                    <button onclick="testNFCTag('${tag.id}')" class="text-blue-600 hover:text-blue-700 text-sm" title="Tester le tag">${icons.activity}</button>
-                    <button onclick="writeNFCTagData('${tag.id}')" class="text-purple-600 hover:text-purple-700 text-sm" title="Programmer le tag">${icons.edit}</button>
-                    <button onclick="deleteNFCTag('${tag.id}')" class="text-red-600 hover:text-red-700 text-sm" title="Supprimer">${icons.trash}</button>
+        <!-- Workflow NFC amélioré -->
+        <div class="content-card">
+          <h3 class="card-title">📱 Workflow NFC Patient</h3>
+          
+          <!-- Étapes visuelles du workflow -->
+          <div class="workflow-steps">
+            <div class="workflow-step">
+              <div class="step-number active">1</div>
+              <div class="step-content">
+                <h4>Scanner le Tag NFC</h4>
+                <p>Scannez ou entrez l'ID du tag physique</p>
+              </div>
+            </div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">
+              <div class="step-number">2</div>
+              <div class="step-content">
+                <h4>Sélectionner Patient</h4>
+                <p>Choisissez le patient à associer</p>
+              </div>
+            </div>
+            <div class="workflow-arrow">→</div>
+            <div class="workflow-step">
+              <div class="step-number">3</div>
+              <div class="step-content">
+                <h4>Programmer Tag</h4>
+                <p>Écrire le lien fiche patient sur le tag</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Étape 1: Scanner Tag -->
+          <div class="workflow-section" id="step1">
+            <h4 class="workflow-title">
+              <span class="workflow-icon">📱</span>
+              Étape 1: Scanner le Tag NFC
+            </h4>
+            <div class="input-group">
+              <label for="nfcTagId" class="input-label">ID du Tag NFC *</label>
+              <div class="input-with-button">
+                <input type="text" id="nfcTagId" placeholder="Ex: NFC-001, ABC123..." 
+                       class="form-input" onchange="checkTagStep()">
+                <button id="scanNFCBtn" class="btn-primary" onclick="scanNFCTag()">
+                  <span class="btn-icon">📱</span>
+                  Scanner
+                </button>
+              </div>
+            </div>
+            <div id="tagScanResult" class="scan-result"></div>
+          </div>
+
+          <!-- Étape 2: Sélectionner Patient -->
+          <div class="workflow-section" id="step2" style="display: none;">
+            <h4 class="workflow-title">
+              <span class="workflow-icon">👤</span>
+              Étape 2: Sélectionner le Patient
+            </h4>
+            
+            <!-- Recherche de patient -->
+            <div class="input-group">
+              <label class="input-label">Rechercher un patient</label>
+              <input type="text" id="patientSearch" placeholder="Nom, prénom, email..." 
+                     class="form-input" oninput="searchPatients(this.value)">
+            </div>
+
+            <!-- Liste des patients -->
+            <div class="patient-selector" id="patientSelector">
+              ${patients.map(patient => `
+                <div class="patient-option" onclick="selectPatient('${patient.id || patient.uid}')" 
+                     data-patient-id="${patient.id || patient.uid}">
+                  <div class="patient-option-info">
+                    <div class="patient-option-name">
+                      ${patient.personalInfo?.firstName || 'N/A'} ${patient.personalInfo?.lastName || 'N/A'}
+                    </div>
+                    <div class="patient-option-email">${patient.email}</div>
+                    <div class="patient-option-details">
+                      ${patient.personalInfo?.bloodType ? `🩸 ${patient.personalInfo.bloodType}` : ''} 
+                      ${patient.nfcTagId ? `📱 ${patient.nfcTagId}` : ''}
+                    </div>
+                  </div>
+                  <div class="patient-option-action">
+                    <button class="select-btn">Sélectionner</button>
                   </div>
                 </div>
-                <div class="text-sm text-gray-600 mb-2">${tag.description || 'Aucune description'}</div>
-                <div class="text-sm">
-                  ${tag.assignedTo ? 
-                    `<span class="text-green-600">Assigné à: ${tag.assignedTo}</span>` : 
-                    '<span class="text-gray-500">Non assigné</span>'
-                  }
-                </div>
-                <div class="text-xs text-gray-400 mt-2">Créé: ${new Date(tag.createdAt).toLocaleDateString('fr-FR')}</div>
+              `).join('')}
+            </div>
+            
+            <div id="selectedPatientInfo" class="selected-patient"></div>
+          </div>
+
+          <!-- Étape 3: Programmer Tag -->
+          <div class="workflow-section" id="step3" style="display: none;">
+            <h4 class="workflow-title">
+              <span class="workflow-icon">✍️</span>
+              Étape 3: Programmer le Tag NFC
+            </h4>
+            
+            <div class="programming-info">
+              <div class="info-card">
+                <h5>🔗 Lien qui sera écrit sur le tag:</h5>
+                <div class="generated-link" id="generatedLink"></div>
+                <p class="link-description">
+                  Ce lien permettra d'accéder directement à la fiche médicale d'urgence du patient
+                </p>
               </div>
-            `).join('')}
+            </div>
+
+            <div class="programming-actions">
+              <button id="writeToNFCBtn" class="btn-success" onclick="writePatientToNFC()">
+                <span class="btn-icon">✍️</span>
+                Programmer le Tag NFC
+              </button>
+              <button class="btn-secondary" onclick="testNFCLink()">
+                <span class="btn-icon">🧪</span>
+                Tester le Lien
+              </button>
+            </div>
+            
+            <div id="programmingResult" class="programming-result"></div>
+          </div>
+        </div>
+
+        <!-- Liste des associations existantes -->
+        <div class="content-card">
+          <h3 class="card-title">📋 Tags NFC Programmés (${nfcTags.filter(tag => tag.assignedTo).length})</h3>
+          
+          <div class="nfc-assignments">
+            ${nfcTags.filter(tag => tag.assignedTo).map(tag => {
+              const patient = patients.find(p => (p.id || p.uid) === tag.assignedTo);
+              return `
+                <div class="nfc-assignment-card">
+                  <div class="assignment-header">
+                    <div class="tag-info">
+                      <div class="tag-id">📱 ${tag.id}</div>
+                      <div class="tag-description">${tag.description || 'Aucune description'}</div>
+                    </div>
+                    <div class="assignment-status">
+                      <span class="status-active">Actif</span>
+                    </div>
+                  </div>
+                  
+                  <div class="assignment-patient">
+                    <div class="patient-name">
+                      👤 ${patient ? `${patient.personalInfo?.firstName} ${patient.personalInfo?.lastName}` : 'Patient introuvable'}
+                    </div>
+                    <div class="patient-email">${patient?.email || 'N/A'}</div>
+                  </div>
+                  
+                  <div class="assignment-link">
+                    <div class="link-label">🔗 Lien d'urgence:</div>
+                    <div class="emergency-link">${window.location.origin}/OLDINDEX.html?patient=${tag.assignedTo}&access=medical</div>
+                  </div>
+                  
+                  <div class="assignment-actions">
+                    <button onclick="testNFCAssignment('${tag.id}')" class="action-btn test-btn">
+                      <span class="btn-icon">🧪</span>
+                      Tester
+                    </button>
+                    <button onclick="reprogramNFC('${tag.id}')" class="action-btn edit-btn">
+                      <span class="btn-icon">✏️</span>
+                      Reprogrammer
+                    </button>
+                    <button onclick="removeNFCAssignment('${tag.id}')" class="action-btn delete-btn">
+                      <span class="btn-icon">🗑️</span>
+                      Dissocier
+                    </button>
+                  </div>
+                  
+                  <div class="assignment-meta">
+                    <small>Programmé le: ${new Date(tag.assignedAt || tag.createdAt).toLocaleDateString('fr-FR')}</small>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+            
+            ${nfcTags.filter(tag => tag.assignedTo).length === 0 ? `
+              <div class="empty-state">
+                <div class="empty-icon">📱</div>
+                <h4 class="empty-title">Aucun tag programmé</h4>
+                <p class="empty-description">Commencez par scanner un tag et sélectionner un patient</p>
+              </div>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -5909,6 +6397,315 @@ END:VCARD`;
       SYLAnalytics.trackEvent('nfc_tag_registered', { tagId });
       render();
     });
+  }
+
+  // Nouvelles fonctions pour le workflow NFC amélioré
+  
+  let currentScannedTag = null;
+  let selectedPatientId = null;
+  
+  function checkTagStep() {
+    const tagId = document.getElementById('nfcTagId')?.value;
+    if (tagId && tagId.trim() !== '') {
+      currentScannedTag = tagId.trim();
+      showScanResult(`✅ Tag détecté: ${currentScannedTag}`, 'success');
+      showStep2();
+    }
+  }
+  
+  function scanNFCTag() {
+    // Simulation du scan pour le développement
+    // En production, utiliser la vraie API NFC
+    const simulatedTagId = 'NFC_' + Date.now().toString(36).toUpperCase();
+    document.getElementById('nfcTagId').value = simulatedTagId;
+    checkTagStep();
+  }
+  
+  function showScanResult(message, type) {
+    const resultDiv = document.getElementById('tagScanResult');
+    if (resultDiv) {
+      resultDiv.innerHTML = message;
+      resultDiv.className = `scan-result ${type}`;
+      resultDiv.style.display = 'block';
+    }
+  }
+  
+  function showStep2() {
+    // Activer étape 2
+    const step2 = document.getElementById('step2');
+    if (step2) {
+      step2.style.display = 'block';
+      // Mettre à jour l'indicateur visuel
+      const stepNumber = document.querySelector('.workflow-step:nth-child(3) .step-number');
+      if (stepNumber) {
+        stepNumber.classList.add('active');
+      }
+    }
+  }
+  
+  function showStep3() {
+    // Activer étape 3
+    const step3 = document.getElementById('step3');
+    if (step3) {
+      step3.style.display = 'block';
+      // Mettre à jour l'indicateur visuel
+      const stepNumber = document.querySelector('.workflow-step:nth-child(5) .step-number');
+      if (stepNumber) {
+        stepNumber.classList.add('active');
+      }
+      
+      // Générer le lien d'urgence
+      const emergencyLink = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
+      const linkDiv = document.getElementById('generatedLink');
+      if (linkDiv) {
+        linkDiv.textContent = emergencyLink;
+      }
+    }
+  }
+  
+  function searchPatients(query) {
+    const patientOptions = document.querySelectorAll('.patient-option');
+    const searchTerm = query.toLowerCase();
+    
+    patientOptions.forEach(option => {
+      const name = option.querySelector('.patient-option-name')?.textContent.toLowerCase() || '';
+      const email = option.querySelector('.patient-option-email')?.textContent.toLowerCase() || '';
+      
+      if (name.includes(searchTerm) || email.includes(searchTerm)) {
+        option.style.display = 'flex';
+      } else {
+        option.style.display = 'none';
+      }
+    });
+  }
+  
+  function selectPatient(patientId) {
+    selectedPatientId = patientId;
+    
+    // Mettre à jour l'interface visuelle
+    document.querySelectorAll('.patient-option').forEach(option => {
+      option.classList.remove('selected');
+    });
+    
+    const selectedOption = document.querySelector(`[data-patient-id="${patientId}"]`);
+    if (selectedOption) {
+      selectedOption.classList.add('selected');
+    }
+    
+    // Trouver les données du patient
+    const patient = patients.find(p => (p.id || p.uid) === patientId);
+    if (patient) {
+      // Afficher les infos du patient sélectionné
+      const selectedInfo = document.getElementById('selectedPatientInfo');
+      if (selectedInfo) {
+        selectedInfo.innerHTML = `
+          <div class="selected-patient-header">
+            <h5>✅ Patient sélectionné:</h5>
+          </div>
+          <div class="selected-patient-details">
+            <strong>${patient.personalInfo?.firstName} ${patient.personalInfo?.lastName}</strong><br>
+            📧 ${patient.email}<br>
+            ${patient.personalInfo?.bloodType ? `🩸 Groupe sanguin: ${patient.personalInfo.bloodType}<br>` : ''}
+            ${patient.personalInfo?.phone ? `📞 ${patient.personalInfo.phone}<br>` : ''}
+          </div>
+        `;
+        selectedInfo.style.display = 'block';
+      }
+      
+      // Afficher l'étape 3
+      showStep3();
+      
+      // Générer automatiquement la fiche patient mise à jour
+      generatePatientMedicalCard(patient);
+    }
+  }
+  
+  function generatePatientMedicalCard(patient) {
+    // Cette fonction génère/met à jour automatiquement la fiche médicale du patient
+    // basée sur ses données actuelles dans Firebase
+    
+    console.log('🏥 Génération de la fiche médicale pour:', patient.email);
+    
+    // Créer ou mettre à jour la fiche médicale complète
+    const medicalCard = {
+      patientId: patient.id || patient.uid,
+      timestamp: new Date().toISOString(),
+      personalInfo: {
+        firstName: patient.personalInfo?.firstName || '',
+        lastName: patient.personalInfo?.lastName || '',
+        birthDate: patient.personalInfo?.birthDate || '',
+        phone: patient.personalInfo?.phone || '',
+        address: patient.personalInfo?.address || '',
+        bloodType: patient.personalInfo?.bloodType || ''
+      },
+      medicalInfo: {
+        allergies: patient.medicalInfo?.allergies || [],
+        medications: patient.medicalInfo?.medications || [],
+        conditions: patient.medicalInfo?.conditions || [],
+        emergencyNotes: patient.medicalInfo?.emergencyNotes || ''
+      },
+      emergencyContact: {
+        name: patient.emergencyContact?.name || '',
+        relationship: patient.emergencyContact?.relationship || '',
+        phone: patient.emergencyContact?.phone || ''
+      },
+      accessLink: `${window.location.origin}/OLDINDEX.html?patient=${patient.id || patient.uid}&access=medical`
+    };
+    
+    // Sauvegarder dans localStorage pour accès rapide
+    localStorage.setItem(`medicalCard_${patient.id || patient.uid}`, JSON.stringify(medicalCard));
+    
+    console.log('✅ Fiche médicale générée et sauvegardée');
+    return medicalCard;
+  }
+  
+  function writePatientToNFC() {
+    if (!currentScannedTag || !selectedPatientId) {
+      alert('❌ Veuillez d\'abord scanner un tag et sélectionner un patient');
+      return;
+    }
+    
+    const emergencyLink = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
+    
+    // Simulation de l'écriture NFC (en production, utiliser la vraie API)
+    simulateNFCWrite(currentScannedTag, emergencyLink);
+  }
+  
+  function simulateNFCWrite(tagId, link) {
+    const resultDiv = document.getElementById('programmingResult');
+    
+    // Simuler l'écriture
+    if (resultDiv) {
+      resultDiv.innerHTML = '⏳ Programmation du tag en cours...';
+      resultDiv.className = 'programming-result';
+      resultDiv.style.display = 'block';
+    }
+    
+    setTimeout(async () => {
+      try {
+        // Enregistrer l'association dans Firebase
+        const nfcTagData = {
+          id: tagId,
+          assignedTo: selectedPatientId,
+          emergencyLink: link,
+          assignedAt: new Date().toISOString(),
+          status: 'active'
+        };
+        
+        // Sauvegarder dans Firestore
+        await db.collection('nfcTags').doc(tagId).set(nfcTagData, { merge: true });
+        
+        // Mettre à jour le patient avec l'ID du tag
+        const patient = patients.find(p => (p.id || p.uid) === selectedPatientId);
+        if (patient) {
+          await db.collection('patients').doc(selectedPatientId).update({
+            nfcTagId: tagId,
+            lastModified: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+        
+        if (resultDiv) {
+          resultDiv.innerHTML = `
+            ✅ Tag NFC programmé avec succès !<br>
+            🏷️ Tag: ${tagId}<br>
+            🔗 Lien: ${link}<br>
+            👤 Patient: ${patient?.personalInfo?.firstName} ${patient?.personalInfo?.lastName}
+          `;
+          resultDiv.className = 'programming-result success';
+        }
+        
+        // Réinitialiser le workflow
+        setTimeout(() => {
+          resetNFCWorkflow();
+        }, 3000);
+        
+      } catch (error) {
+        console.error('Erreur lors de la programmation:', error);
+        if (resultDiv) {
+          resultDiv.innerHTML = `❌ Erreur: ${error.message}`;
+          resultDiv.className = 'programming-result error';
+        }
+      }
+    }, 2000);
+  }
+  
+  function testNFCLink() {
+    if (!selectedPatientId) {
+      alert('❌ Aucun patient sélectionné');
+      return;
+    }
+    
+    const link = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
+    window.open(link, '_blank');
+  }
+  
+  function resetNFCWorkflow() {
+    // Réinitialiser les variables
+    currentScannedTag = null;
+    selectedPatientId = null;
+    
+    // Réinitialiser l'interface
+    document.getElementById('nfcTagId').value = '';
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step3').style.display = 'none';
+    
+    // Réinitialiser les indicateurs visuels
+    document.querySelectorAll('.step-number').forEach(step => {
+      step.classList.remove('active');
+    });
+    document.querySelector('.step-number').classList.add('active');
+    
+    // Cacher les résultats
+    const scanResult = document.getElementById('tagScanResult');
+    const programmingResult = document.getElementById('programmingResult');
+    const selectedInfo = document.getElementById('selectedPatientInfo');
+    
+    if (scanResult) scanResult.style.display = 'none';
+    if (programmingResult) programmingResult.style.display = 'none';
+    if (selectedInfo) selectedInfo.style.display = 'none';
+    
+    // Recharger l'interface admin
+    location.reload();
+  }
+  
+  // Fonctions pour la gestion des associations existantes
+  function testNFCAssignment(tagId) {
+    const tag = nfcTags.find(t => t.id === tagId);
+    if (tag && tag.assignedTo) {
+      const link = `${window.location.origin}/OLDINDEX.html?patient=${tag.assignedTo}&access=medical`;
+      window.open(link, '_blank');
+    }
+  }
+  
+  function reprogramNFC(tagId) {
+    if (confirm(`Voulez-vous reprogrammer le tag ${tagId} ?`)) {
+      // Réinitialiser et préremplir avec ce tag
+      currentScannedTag = tagId;
+      document.getElementById('nfcTagId').value = tagId;
+      showScanResult(`✅ Tag ${tagId} sélectionné pour reprogrammation`, 'success');
+      showStep2();
+    }
+  }
+  
+  function removeNFCAssignment(tagId) {
+    if (confirm(`Voulez-vous dissocier le tag ${tagId} ?`)) {
+      // Supprimer l'association
+      db.collection('nfcTags').doc(tagId).update({
+        assignedTo: firebase.firestore.FieldValue.delete(),
+        emergencyLink: firebase.firestore.FieldValue.delete(),
+        assignedAt: firebase.firestore.FieldValue.delete()
+      }).then(() => {
+        console.log('✅ Association supprimée');
+        location.reload();
+      }).catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la suppression');
+      });
+    }
+  }
+  
+  function refreshNFCList() {
+    location.reload();
   }
 
   function setupAssociationsEvents() {
