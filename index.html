@@ -4830,11 +4830,160 @@ function checkTagStep() {
 }
 
 function scanNFCTag() {
-  // Simulation du scan pour le développement
-  // En production, utiliser la vraie API NFC
-  const simulatedTagId = 'NFC_' + Date.now().toString(36).toUpperCase();
-  document.getElementById('nfcTagId').value = simulatedTagId;
-  checkTagStep();
+  // Utiliser le vrai système NFC (comme dans setupNFCEvents)
+  scanNFCForWorkflow();
+}
+
+async function scanNFCForWorkflow() {
+  try {
+    // Vérifier le support NFC
+    if (!('NDEFReader' in window)) {
+      // Fallback avec simulation si NFC non supporté
+      if (confirm('NFC non supporté sur cet appareil. Voulez-vous utiliser la simulation pour tester ?')) {
+        const simulatedTagId = 'NFC_' + Date.now().toString(36).toUpperCase();
+        document.getElementById('nfcTagId').value = simulatedTagId;
+        checkTagStep();
+      }
+      return;
+    }
+
+    // Vérifier les permissions
+    const permission = await navigator.permissions.query({ name: 'nfc' });
+    if (permission.state === 'denied') {
+      throw new Error('Permissions NFC refusées. Activez le NFC dans les paramètres du navigateur.');
+    }
+
+    // Vérifier HTTPS
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      throw new Error('NFC nécessite HTTPS. Utilisez un serveur HTTPS ou localhost.');
+    }
+
+    // Démarrer le scan NFC
+    let ndef;
+    try {
+      ndef = new NDEFReader();
+    } catch (constructorError) {
+      console.error('Erreur constructor NDEFReader:', constructorError);
+      throw new Error('Impossible d\'initialiser le lecteur NFC. Vérifiez que le NFC est activé et que vous utilisez un navigateur compatible.');
+    }
+    
+    // Afficher un modal de scan en cours
+    const scanModal = document.createElement('div');
+    scanModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    scanModal.innerHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+        <div class="animate-pulse mb-4">
+          <div class="w-16 h-16 bg-blue-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">
+            📱
+          </div>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-2">Scan NFC en cours...</h3>
+        <p class="text-gray-600 mb-4">Approchez votre tag NFC du téléphone</p>
+        <button id="cancelNFCScan" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(scanModal);
+
+    // Gérer l'annulation
+    document.getElementById('cancelNFCScan').onclick = () => {
+      scanModal.remove();
+      console.log('Scan NFC annulé');
+    };
+
+    // Démarrer le scan
+    await ndef.scan();
+    console.log('📱 Scan NFC démarré, approchez votre tag...');
+
+    // Écouter les tags détectés
+    ndef.addEventListener('reading', ({ message, serialNumber }) => {
+      scanModal.remove(); // Fermer le modal
+      
+      console.log('📱 Tag NFC détecté!', { serialNumber, message });
+      
+      let tagId = serialNumber || 'UNKNOWN';
+      let tagData = [];
+      let tagContent = '';
+
+      // Analyser le contenu du tag
+      if (message && message.records.length > 0) {
+        message.records.forEach(record => {
+          let content = '';
+          if (record.recordType === 'text') {
+            content = new TextDecoder().decode(record.data);
+          } else if (record.recordType === 'url') {
+            content = new TextDecoder().decode(record.data);
+          } else {
+            content = `Données binaires (${record.data.byteLength} bytes)`;
+          }
+          
+          tagData.push({
+            recordType: record.recordType,
+            mediaType: record.mediaType || 'N/A',
+            content: content,
+            size: record.data.byteLength
+          });
+        });
+      } else {
+        tagContent = 'Tag vide';
+        tagId = serialNumber || 'NFC_' + Date.now();
+      }
+
+      // Formater l'ID si nécessaire
+      if (!tagId.startsWith('NFC_') && !tagId.startsWith('SYL_')) {
+        tagId = 'NFC_' + tagId;
+      }
+
+      // Mettre à jour le champ de l'interface
+      const nfcTagIdField = document.getElementById('nfcTagId');
+      if (nfcTagIdField) {
+        nfcTagIdField.value = tagId;
+      }
+      
+      // Afficher les détails du tag scanné
+      showScanResult(`✅ Tag NFC détecté: ${tagId}${tagData.length > 0 ? ` (${tagData.length} enregistrement(s))` : ' (vide)'}`, 'success');
+      
+      // Passer à l'étape suivante
+      checkTagStep();
+      
+      console.log('📱 Tag scanné avec succès:', {
+        id: tagId,
+        serialNumber: serialNumber,
+        content: tagData
+      });
+    });
+
+    // Timeout pour le scan
+    setTimeout(() => {
+      if (document.body.contains(scanModal)) {
+        scanModal.remove();
+        showScanResult('⏰ Timeout du scan NFC. Réessayez.', 'error');
+      }
+    }, 30000); // 30 secondes
+
+  } catch (error) {
+    console.error('Erreur NFC:', error);
+    
+    let errorMessage = 'Erreur NFC: ';
+    if (error.name === 'NotAllowedError') {
+      errorMessage += 'Permissions NFC refusées. Activez le NFC dans les paramètres.';
+    } else if (error.name === 'NotSupportedError') {
+      errorMessage += 'NFC non supporté sur cet appareil.';
+    } else if (error.message.includes('HTTPS')) {
+      errorMessage += 'NFC nécessite HTTPS. Testez sur un serveur sécurisé.';
+    } else {
+      errorMessage += error.message;
+    }
+    
+    showScanResult(`❌ ${errorMessage}`, 'error');
+    
+    // Proposer une simulation en cas d'erreur
+    if (confirm(errorMessage + '\n\nVoulez-vous utiliser la simulation NFC pour tester ?')) {
+      const simulatedTagId = 'NFC_' + Date.now().toString(36).toUpperCase();
+      document.getElementById('nfcTagId').value = simulatedTagId;
+      showScanResult(`🔧 Simulation: Tag ${simulatedTagId} généré`, 'success');
+      checkTagStep();
+    }
+  }
 }
 
 function showScanResult(message, type) {
@@ -4983,8 +5132,152 @@ function writePatientToNFC() {
   
   const emergencyLink = `${window.location.origin}/OLDINDEX.html?patient=${selectedPatientId}&access=medical`;
   
-  // Simulation de l'écriture NFC (en production, utiliser la vraie API)
-  simulateNFCWrite(currentScannedTag, emergencyLink);
+  // Utiliser le vrai système d'écriture NFC
+  writeNFCReal(currentScannedTag, emergencyLink);
+}
+
+async function writeNFCReal(tagId, link) {
+  const resultDiv = document.getElementById('programmingResult');
+  
+  try {
+    // Vérifier le support NFC
+    if (!('NDEFReader' in window)) {
+      // Fallback simulation si NFC non supporté
+      simulateNFCWrite(tagId, link);
+      return;
+    }
+
+    // Vérifier HTTPS
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      throw new Error('NFC nécessite HTTPS pour l\'écriture.');
+    }
+
+    if (resultDiv) {
+      resultDiv.innerHTML = '⏳ Préparation de l\'écriture NFC...';
+      resultDiv.className = 'programming-result';
+      resultDiv.style.display = 'block';
+    }
+
+    // Initialiser le writer NFC
+    let ndef;
+    try {
+      ndef = new NDEFReader();
+    } catch (constructorError) {
+      console.error('Erreur constructor NDEFReader:', constructorError);
+      throw new Error('Impossible d\'initialiser l\'écriture NFC.');
+    }
+
+    // Afficher modal d'écriture
+    const writeModal = document.createElement('div');
+    writeModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    writeModal.innerHTML = `
+      <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
+        <div class="animate-pulse mb-4">
+          <div class="w-16 h-16 bg-purple-600 rounded-full mx-auto flex items-center justify-center text-white text-2xl">
+            ✍️
+          </div>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-2">Écriture NFC en cours...</h3>
+        <p class="text-gray-600 mb-4">Approchez votre tag NFC du téléphone pour l'écriture</p>
+        <p class="text-sm text-blue-600 mb-4">Lien à écrire: ${link}</p>
+        <button id="cancelNFCWrite" class="bg-gray-500 hover:bg-gray-600 text-white rounded px-4 py-2">Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(writeModal);
+
+    // Gérer l'annulation
+    document.getElementById('cancelNFCWrite').onclick = () => {
+      writeModal.remove();
+      if (resultDiv) {
+        resultDiv.innerHTML = '❌ Écriture NFC annulée';
+        resultDiv.className = 'programming-result error';
+      }
+    };
+
+    if (resultDiv) {
+      resultDiv.innerHTML = '📱 Approchez votre tag NFC pour l\'écriture...';
+    }
+
+    // Écrire sur le tag
+    await ndef.write({
+      records: [{
+        recordType: "url",
+        data: link
+      }]
+    });
+
+    writeModal.remove();
+    
+    // Sauvegarder l'association dans Firebase
+    const nfcTagData = {
+      id: tagId,
+      assignedTo: selectedPatientId,
+      emergencyLink: link,
+      assignedAt: new Date().toISOString(),
+      status: 'active'
+    };
+    
+    await db.collection('nfcTags').doc(tagId).set(nfcTagData, { merge: true });
+    
+    // Mettre à jour le patient avec l'ID du tag
+    const patient = globalPatients.find(p => (p.id || p.uid) === selectedPatientId);
+    if (patient) {
+      await db.collection('patients').doc(selectedPatientId).update({
+        nfcTagId: tagId,
+        lastModified: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    
+    if (resultDiv) {
+      resultDiv.innerHTML = `
+        ✅ Tag NFC programmé avec succès !<br>
+        🏷️ Tag: ${tagId}<br>
+        🔗 Lien: ${link}<br>
+        👤 Patient: ${patient?.personalInfo?.firstName} ${patient?.personalInfo?.lastName}<br>
+        📱 <strong>Écriture NFC réelle effectuée</strong>
+      `;
+      resultDiv.className = 'programming-result success';
+    }
+    
+    console.log('✅ Tag NFC écrit avec succès:', {
+      tagId,
+      link,
+      patientId: selectedPatientId
+    });
+    
+    // Réinitialiser le workflow après succès
+    setTimeout(() => {
+      resetNFCWorkflow();
+    }, 5000);
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'écriture NFC:', error);
+    
+    // Fermer le modal s'il est ouvert
+    const modal = document.querySelector('.fixed.inset-0');
+    if (modal) modal.remove();
+    
+    let errorMessage = 'Erreur écriture NFC: ';
+    if (error.name === 'NotAllowedError') {
+      errorMessage += 'Permissions NFC refusées pour l\'écriture.';
+    } else if (error.name === 'NotSupportedError') {
+      errorMessage += 'Écriture NFC non supportée.';
+    } else if (error.message.includes('HTTPS')) {
+      errorMessage += 'HTTPS requis pour écriture NFC.';
+    } else {
+      errorMessage += error.message;
+    }
+    
+    if (resultDiv) {
+      resultDiv.innerHTML = `❌ ${errorMessage}`;
+      resultDiv.className = 'programming-result error';
+    }
+    
+    // Proposer fallback simulation
+    if (confirm(errorMessage + '\n\nVoulez-vous simuler l\'écriture pour tester ?')) {
+      simulateNFCWrite(tagId, link);
+    }
+  }
 }
 
 function simulateNFCWrite(tagId, link) {
