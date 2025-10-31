@@ -468,6 +468,592 @@
     .status-offline { background: var(--text-secondary); }
     .status-warning { background: var(--warning-color); }
     .status-danger { background: var(--danger-color); }
+    
+    /* Interface Admin Mobile-First */
+    .admin-container {
+      min-height: 100vh;
+      background: var(--surface-dark);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .admin-header {
+      background: var(--surface-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    .admin-header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    
+    .admin-title-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .admin-icon {
+      font-size: 1.5rem;
+    }
+    
+    .admin-title {
+      font-size: 1.25rem;
+      font-weight: bold;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .admin-status {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #10B981;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    .status-text {
+      font-size: 0.875rem;
+      color: #10B981;
+      font-weight: 500;
+    }
+    
+    .admin-info {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    .mobile-logout {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+    }
+    
+    /* Navigation Admin Mobile */
+    .admin-nav-mobile {
+      background: var(--surface-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.5rem;
+      display: flex;
+      overflow-x: auto;
+      gap: 0.25rem;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    
+    .admin-nav-mobile::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .admin-nav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-lg);
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+      min-width: 80px;
+    }
+    
+    .admin-nav-btn.active {
+      background: var(--primary-color);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    .admin-nav-btn:hover:not(.active) {
+      background: var(--surface-dark);
+      color: var(--text-primary);
+    }
+    
+    .nav-icon {
+      font-size: 1.25rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .nav-label {
+      font-weight: 500;
+    }
+    
+    /* Navigation Admin Desktop */
+    .admin-nav-desktop {
+      display: none;
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 240px;
+      height: 100vh;
+      background: var(--surface-color);
+      border-right: 1px solid var(--border-color);
+      padding: 2rem 1rem;
+      z-index: 5;
+    }
+    
+    .admin-nav-btn-desktop {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      border-radius: var(--radius-lg);
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      text-align: left;
+      transition: all 0.2s;
+      gap: 0.75rem;
+    }
+    
+    .admin-nav-btn-desktop.active {
+      background: var(--primary-color);
+      color: white;
+      box-shadow: var(--shadow-md);
+    }
+    
+    .admin-nav-btn-desktop:hover:not(.active) {
+      background: var(--surface-dark);
+      color: var(--text-primary);
+    }
+    
+    .nav-text {
+      font-weight: 500;
+    }
+    
+    /* Contenu Admin */
+    .admin-content {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    
+    .admin-section {
+      max-width: 100%;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .section-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    
+    .mobile-action {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+    
+    /* Cards et conteneurs */
+    .content-card {
+      background: var(--surface-color);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-color);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .card-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+    
+    .info-card {
+      background: #FEF3C7;
+      border: 1px solid #F59E0B;
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .info-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .info-icon {
+      font-size: 1.25rem;
+    }
+    
+    .info-title {
+      font-weight: 600;
+      color: #92400E;
+      margin: 0;
+    }
+    
+    .info-content {
+      font-size: 0.875rem;
+      color: #92400E;
+    }
+    
+    .info-content p {
+      margin: 0.25rem 0;
+    }
+    
+    /* States vides */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+    
+    .empty-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .empty-description {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+    
+    .help-card {
+      background: #EBF8FF;
+      border: 1px solid #3B82F6;
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      text-align: left;
+    }
+    
+    .help-title {
+      font-weight: 600;
+      color: #1E40AF;
+      margin-bottom: 0.5rem;
+    }
+    
+    .help-list {
+      font-size: 0.875rem;
+      color: #1E40AF;
+      margin: 0;
+      padding-left: 1rem;
+    }
+    
+    /* Cartes patients mobile */
+    .mobile-cards {
+      display: grid;
+      gap: 1rem;
+    }
+    
+    .patient-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      transition: all 0.2s;
+    }
+    
+    .patient-card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-2px);
+    }
+    
+    .patient-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+    
+    .patient-info {
+      flex: 1;
+    }
+    
+    .patient-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+    
+    .patient-email {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+    
+    .patient-status {
+      margin-left: 1rem;
+    }
+    
+    .status-active {
+      background: #10B981;
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .status-inactive {
+      background: var(--text-secondary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .patient-details {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .detail-label {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .detail-value {
+      font-size: 0.875rem;
+      color: var(--text-primary);
+    }
+    
+    .blood-type {
+      background: #FEE2E2;
+      color: #B91C1C;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+    }
+    
+    .patient-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .action-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      font-size: 1.25rem;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    
+    .view-btn {
+      background: #EBF8FF;
+      color: #3B82F6;
+    }
+    
+    .view-btn:hover {
+      background: #3B82F6;
+      color: white;
+    }
+    
+    .nfc-btn {
+      background: #F0FDF4;
+      color: #10B981;
+    }
+    
+    .nfc-btn:hover {
+      background: #10B981;
+      color: white;
+    }
+    
+    .delete-btn {
+      background: #FEF2F2;
+      color: #EF4444;
+    }
+    
+    .delete-btn:hover {
+      background: #EF4444;
+      color: white;
+    }
+    
+    /* Table desktop */
+    .desktop-table {
+      display: none;
+      overflow-x: auto;
+    }
+    
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .data-table th,
+    .data-table td {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .data-table th {
+      background: var(--surface-dark);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .table-patient-info {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .patient-id {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    
+    .blood-type-badge {
+      background: #FEE2E2;
+      color: #B91C1C;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .nfc-badge {
+      background: #EBF8FF;
+      color: #3B82F6;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .no-nfc {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+    
+    .table-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .action-btn-small {
+      padding: 0.25rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .action-btn-small.view:hover {
+      background: #EBF8FF;
+      color: #3B82F6;
+    }
+    
+    .action-btn-small.nfc:hover {
+      background: #F0FDF4;
+      color: #10B981;
+    }
+    
+    .action-btn-small.delete:hover {
+      background: #FEF2F2;
+      color: #EF4444;
+    }
+    
+    /* Responsive design */
+    @media (min-width: 768px) {
+      .admin-nav-mobile {
+        display: none;
+      }
+      
+      .admin-nav-desktop {
+        display: block;
+      }
+      
+      .admin-content {
+        margin-left: 240px;
+        padding: 2rem;
+      }
+      
+      .mobile-cards {
+        display: none;
+      }
+      
+      .desktop-table {
+        display: block;
+      }
+      
+      .mobile-action {
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+      }
+    }
+    
+    @media (min-width: 1024px) {
+      .admin-content {
+        padding: 2rem 3rem;
+      }
+      
+      .section-title {
+        font-size: 2rem;
+      }
+      
+      .mobile-cards {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-50">
